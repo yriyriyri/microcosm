@@ -14,7 +14,6 @@ export default function LibraryPanel(props: {
   const [items, setItems] = useState<IslandMeta[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // id -> objectURL
   const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({});
 
   async function refresh() {
@@ -30,9 +29,7 @@ export default function LibraryPanel(props: {
     if (open) refresh();
   }, [open]);
 
-  // Build/revoke thumbnail object URLs whenever items changes
   useEffect(() => {
-    // revoke old urls
     for (const url of Object.values(thumbUrls)) URL.revokeObjectURL(url);
 
     const next: Record<string, string> = {};
@@ -47,10 +44,8 @@ export default function LibraryPanel(props: {
     return () => {
       for (const url of Object.values(next)) URL.revokeObjectURL(url);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -74,7 +69,6 @@ export default function LibraryPanel(props: {
         flexDirection: "column",
       }}
     >
-      {/* Top bar */}
       <div
         style={{
           padding: "15px 15px",
@@ -161,7 +155,6 @@ export default function LibraryPanel(props: {
                   gap: 10,
                 }}
               >
-                {/* ✅ Square thumbnail */}
                 <div
                   style={{
                     width: "100%",
@@ -256,7 +249,6 @@ export default function LibraryPanel(props: {
         )}
       </div>
 
-      {/* Bottom hint bar */}
       <div
         style={{
           padding: "15px 15px",

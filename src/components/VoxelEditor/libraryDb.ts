@@ -23,8 +23,6 @@ const STORE_META = "island_meta";
 const STORE_DATA = "island_data";
 
 function makeId(): string {
-  // crypto.randomUUID is widely available, fallback just in case
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const c: any = globalThis.crypto;
   if (c?.randomUUID) return c.randomUUID();
   return `id_${Math.random().toString(16).slice(2)}_${Date.now()}`;
@@ -101,11 +99,9 @@ export async function saveIsland(params: {
     Math.floor(params.packed.positions.length / 3)
   );
 
-  // ✅ If caller didn't provide an id, try to reuse an existing entry with same name
   const existingIdByName = params.id ? null : await findIslandIdByName(params.name).catch(() => null);
   const id = params.id ?? existingIdByName ?? makeId();
 
-  // load existing meta to preserve createdAt on overwrite
   const existingMeta = await getIslandMeta(id).catch(() => null);
 
   const meta: IslandMeta = {

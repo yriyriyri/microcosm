@@ -144,6 +144,47 @@ export default function VoxelEditor() {
 
   const [importModal, setImportModal] = useState<PendingImport | null>(null);
 
+  function onNew() {
+    const w = worldRef.current;
+  
+    setLibraryOpen(false);
+    setImportModal(null);
+  
+    setIslandName("My Voxbox");
+    currentIslandIdRef.current = null;
+  
+    setTool("pencil");
+    toolRef.current = "pencil";
+  
+    setColor("#34c759");
+    colorRef.current = "#34c759";
+  
+    marqueeStartRef.current = null;
+    if (marqueePreviewRef.current) marqueePreviewRef.current.visible = false;
+  
+    lastPlacementCoordRef.current = null;
+    if (hoverPlaneRef.current) hoverPlaneRef.current.visible = false;
+  
+    w?.clear();
+
+    if (w) {
+      w.clear();
+      w.addVoxel({ x: 0, y: 0, z: 0 }, "#ff9500");
+      w.addVoxel({ x: 1, y: 0, z: 0 }, "#ff9500");
+      w.addVoxel({ x: 0, y: 0, z: 1 }, "#ff9500");
+      w.addVoxel({ x: 0, y: -1, z: 0 }, "#ff9500");
+    }
+  
+    if (controlsRef.current && cameraRef.current) {
+      controlsRef.current.target.set(0, 0, 0);
+      controlsRef.current.update();
+      cameraRef.current.position.set(40, 40, 40);
+      cameraRef.current.lookAt(0, 0, 0);
+    }
+  
+    pendingHoverRaycastRef.current = true;
+  }
+
   function applyImport(opts: { asBlueprint: boolean }) {
     const world = worldRef.current;
     const pending = importModal;
@@ -847,10 +888,10 @@ export default function VoxelEditor() {
 
       <div style={{ position: "absolute", top: 0, right: 0, display: "flex", gap: 10, pointerEvents: "auto" }}>
         <label
-          onClick={() => setLibraryOpen(true)}
+          onClick={onNew}
           style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
         >
-          Library
+          New
         </label>
 
         <label
@@ -858,6 +899,13 @@ export default function VoxelEditor() {
           style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
         >
           Save
+        </label>
+
+        <label
+          onClick={() => setLibraryOpen(true)}
+          style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
+        >
+          Library
         </label>
 
         <label style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
