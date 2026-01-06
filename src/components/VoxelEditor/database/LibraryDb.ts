@@ -1,4 +1,4 @@
-import type { WorldPacked } from "./voxelWorld";
+import type { WorldPacked } from "../VoxelWorld";
 
 export type IslandMeta = {
   id: string;
@@ -14,10 +14,13 @@ type IslandData = {
   positions: Int32Array;
   colors: Uint32Array;
   blueprints?: Uint8Array;
+  groupIds?: Uint32Array;
+  groupTable?: string[];
+  groupPositions?: Int32Array;
 };
 
 const DB_NAME = "voxel_editor_db";
-const DB_VERSION = 2;
+const DB_VERSION = 4;
 
 const STORE_META = "island_meta";
 const STORE_DATA = "island_data";
@@ -96,7 +99,7 @@ export async function saveIsland(params: {
   const now = Date.now();
   const voxelCount = Math.min(
     params.packed.colors.length,
-    Math.floor(params.packed.positions.length / 3)
+    Math.floor(params.packed.localPositions.length / 3)
   );
 
   const existingIdByName = params.id ? null : await findIslandIdByName(params.name).catch(() => null);
@@ -115,9 +118,12 @@ export async function saveIsland(params: {
 
   const data: IslandData = {
     id,
-    positions: params.packed.positions,
+    positions: params.packed.localPositions,
     colors: params.packed.colors,
     blueprints: params.packed.blueprints,
+    groupIds: params.packed.groupIds,
+    groupTable: params.packed.groupTable,
+    groupPositions: params.packed.groupPositions,
   };
 
   const tx = db.transaction([STORE_META, STORE_DATA], "readwrite");
@@ -156,9 +162,12 @@ export async function loadIsland(id: string): Promise<{ meta: IslandMeta; packed
   return {
     meta,
     packed: {
-      positions: data.positions,
+      localPositions: data.positions,
       colors: data.colors,
       blueprints: data.blueprints,
+      groupIds: data.groupIds,
+      groupTable: data.groupTable,
+      groupPositions: data.groupPositions,
     },
   };
 }

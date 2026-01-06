@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import type { IslandMeta } from "./libraryDb";
-import { deleteIsland, listIslands, renameIsland } from "./libraryDb";
+import type { IslandMeta } from "../database/LibraryDb";
+import { deleteIsland, listIslands, renameIsland } from "../database/LibraryDb";
 
 export default function LibraryPanel(props: {
   open: boolean;
@@ -79,7 +79,7 @@ export default function LibraryPanel(props: {
         }}
       >
         <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-          <div style={{ fontSize: 20 }}>Library</div>
+          <div style={{ fontSize: 20 }}>Worlds</div>
           <div style={{ fontSize: 12, opacity: 0.75 }}>
             {loading ? "Loading…" : `${items.length} item${items.length === 1 ? "" : "s"}`}
           </div>
@@ -112,7 +112,6 @@ export default function LibraryPanel(props: {
         </div>
       </div>
 
-      {/* Content */}
       <div
         style={{
           flex: 1,
@@ -129,7 +128,7 @@ export default function LibraryPanel(props: {
               maxWidth: 520,
             }}
           >
-            <div style={{ marginBottom: 6 }}>No saved islands yet</div>
+            <div style={{ marginBottom: 6 }}>No saved worlds yet</div>
             <div style={{ fontSize: 13, lineHeight: 1.5 }}>
               Go back to the editor, build something, then hit <b>Save</b>.
             </div>

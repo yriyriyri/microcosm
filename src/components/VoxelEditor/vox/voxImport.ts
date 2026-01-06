@@ -7,8 +7,8 @@ export type ImportedVoxel = {
 
 export type ImportedGroup = {
   groupId: string;
-  position: { x: number; y: number; z: number }; // world-space group origin
-  voxels: ImportedVoxel[]; // LOCAL coords relative to position
+  position: { x: number; y: number; z: number }; // worldspace group origin
+  voxels: ImportedVoxel[]; // localspace coords relative to position
 };
 
 type VoxRGBA = { r: number; g: number; b: number; a: number };
@@ -274,7 +274,7 @@ export function parseVox(buffer: ArrayBuffer): ImportedGroup[] {
     palette[0].a = 0;
   }
 
-  // build instances (Option B: group per nSHP)
+  // build instances
   type Instance = { modelId: number; xf: Xform; groupId: string };
   const instances: Instance[] = [];
 
@@ -325,7 +325,7 @@ export function parseVox(buffer: ArrayBuffer): ImportedGroup[] {
     for (const root of startRoots) walk(root, { R: ID3, t: { x: 0, y: 0, z: 0 } }, new Set());
   }
 
-  // emit WORLD voxels first (then convert to group-local)
+  // emit WORLD voxels first -> then convert to group - local
   const voxelsByGroup = new Map<string, { x: number; y: number; z: number; color: string }[]>();
   const globalDedupe = new Set<string>();
 
@@ -405,7 +405,7 @@ export function parseVox(buffer: ArrayBuffer): ImportedGroup[] {
     groups.push({ groupId, position, voxels: localVoxels });
   }
 
-  // recenter + ground (apply to group positions, not voxel locals)
+  // recenter +  ground applied to group positions not voxel locals
   if (groups.length) {
     let gMinX = Infinity, gMinY = Infinity, gMinZ = Infinity;
     let gMaxX = -Infinity, gMaxY = -Infinity, gMaxZ = -Infinity;

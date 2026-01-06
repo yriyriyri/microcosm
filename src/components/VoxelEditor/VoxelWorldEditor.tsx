@@ -1,0 +1,932 @@
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+
+import { VoxelWorld } from "./VoxelWorld";
+import type { GroupState } from "./VoxelWorld";
+import type { VoxelCoord } from "./Types";
+import LibraryPanel from "./ui/LibraryPanel";
+import { loadIsland, saveIsland } from "./database/LibraryDb";
+import AssetsPanel from "./ui/AssetsPanel";
+import { loadAsset, saveAsset } from "./database/AssetDb";
+import { parseVox } from "./vox/voxImport";
+
+function recenterCameraOnBounds(params: {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+  controls: OrbitControls | null;
+  camera: THREE.PerspectiveCamera | null;
+}) {
+  const { minX, minY, minZ, maxX, maxY, maxZ, controls, camera } = params;
+  if (!controls || !camera) return;
+
+  const cx = (minX + maxX + 1) / 2;
+  const cy = (minY + maxY + 1) / 2;
+  const cz = (minZ + maxZ + 1) / 2;
+
+  controls.target.set(cx + 0.5, cy + 0.5, cz + 0.5);
+  controls.update();
+  camera.lookAt(controls.target);
+}
+
+type PendingImport = {
+  fileName: string;
+  groups: {
+    groupId: string;
+    position: VoxelCoord;
+    voxels: { x: number; y: number; z: number; color: string }[];
+  }[];
+};
+
+export default function VoxelWorldEditor(props: {
+  onFocusGroup: (groupId: string) => void;
+  focusOpen: boolean;
+  onWorldReady?: (world: VoxelWorld | null) => void;
+}) {
+  const { onFocusGroup, focusOpen } = props;
+
+  const mountRef = useRef<HTMLDivElement | null>(null);
+
+  const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const mouseNDC = useMemo(() => new THREE.Vector2(), []);
+
+  const worldRef = useRef<VoxelWorld | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+
+  const currentIslandIdRef = useRef<string | null>(null);
+
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [islandName, setIslandName] = useState("My Voxbox");
+  const [importModal, setImportModal] = useState<PendingImport | null>(null);
+
+  const [assetsOpen, setAssetsOpen] = useState(false);
+  const [placingLabel, setPlacingLabel] = useState<string | null>(null);
+  const placingAssetRef = useRef<{ metaName: string; group: GroupState } | null>(null);
+
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
+
+  const selectedGroupIdLiveRef = useRef<string | null>(null);
+  const hoveredGroupIdLiveRef = useRef<string | null>(null);
+
+  const selectedBoxRef = useRef<THREE.Box3Helper | null>(null);
+  const hoverBoxRef = useRef<THREE.Box3Helper | null>(null);
+  const pendingGroupBoxesSyncRef = useRef(false);
+
+  useEffect(() => {
+    selectedGroupIdLiveRef.current = selectedGroupId;
+  }, [selectedGroupId]);
+
+  useEffect(() => {
+    hoveredGroupIdLiveRef.current = hoveredGroupId;
+  }, [hoveredGroupId]);
+
+  const focusOpenRef = useRef(focusOpen);
+  
+  useEffect(() => {
+    focusOpenRef.current = focusOpen;
+  }, [focusOpen]);
+
+  const dragRef = useRef<{
+    active: boolean;
+    pointerId: number;
+    groupId: string | null;
+    startGroupPos: VoxelCoord;
+    startHitPoint: THREE.Vector3;
+    plane: THREE.Plane;
+  } | null>(null);
+
+  function setOrbitalControlsEnabled(enabled: boolean) {
+    const c = controlsRef.current;
+    if (c) c.enabled = enabled;
+  }
+
+  function clearHelper(ref: React.MutableRefObject<THREE.Box3Helper | null>) {
+    const scene = sceneRef.current;
+    const h = ref.current;
+    if (!scene || !h) return;
+    scene.remove(h);
+    (h.material as THREE.Material).dispose();
+    ref.current = null;
+  }
+  
+  function upsertHelper(
+    ref: React.MutableRefObject<THREE.Box3Helper | null>,
+    box: THREE.Box3,
+    color: number
+  ) {
+    const scene = sceneRef.current;
+    if (!scene) return;
+  
+    clearHelper(ref);
+  
+    const helper = new THREE.Box3Helper(box, color);
+    helper.renderOrder = 1000;
+    scene.add(helper);
+    ref.current = helper;
+  }
+  
+  function syncGroupBoxes() {
+    const w = worldRef.current;
+    if (!w) return;
+  
+    const selected = selectedGroupIdLiveRef.current;
+    const hovered = hoveredGroupIdLiveRef.current;
+  
+    // selected outline
+    if (selected) {
+      const b = w.getGroupBounds(selected);
+      if (b) {
+        const box = new THREE.Box3(
+          new THREE.Vector3(b.min.x, b.min.y, b.min.z),
+          new THREE.Vector3(b.max.x + 1, b.max.y + 1, b.max.z + 1)
+        );
+        upsertHelper(selectedBoxRef, box, 0x2563eb);
+      } else {
+        clearHelper(selectedBoxRef);
+      }
+    } else {
+      clearHelper(selectedBoxRef);
+    }
+  
+    // hover outline
+    if (hovered && hovered !== selected) {
+      const b = w.getGroupBounds(hovered);
+      if (b) {
+        const box = new THREE.Box3(
+          new THREE.Vector3(b.min.x, b.min.y, b.min.z),
+          new THREE.Vector3(b.max.x + 1, b.max.y + 1, b.max.z + 1)
+        );
+        upsertHelper(hoverBoxRef, box, 0x111111);
+      } else {
+        clearHelper(hoverBoxRef);
+      }
+    } else {
+      clearHelper(hoverBoxRef);
+    }
+  
+  }
+
+  function setMouseFromEvent(e: PointerEvent) {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -(((e.clientY - rect.top) / rect.height) * 2 - 1);
+    mouseNDC.set(x, y);
+  }
+
+  function updateRayFromMouse(e: PointerEvent) {
+    const camera = cameraRef.current;
+    if (!camera) return;
+    setMouseFromEvent(e);
+    raycaster.setFromCamera(mouseNDC, camera);
+  }
+
+  function pickGroupUnderMouse(): string | null {
+    const w = worldRef.current;
+    if (!w) return null;
+
+    const meshes = w.listMeshes();
+    const hits = raycaster.intersectObjects(meshes, false);
+    if (!hits.length) return null;
+
+    const obj = hits[0].object as THREE.Mesh;
+    const gid = (obj.userData?.groupId as string | undefined) ?? null;
+    return gid;
+  }
+
+  function rayPlaneIntersection(plane: THREE.Plane): THREE.Vector3 | null {
+    const out = new THREE.Vector3();
+    const ok = raycaster.ray.intersectPlane(plane, out);
+    return ok ? out : null;
+  }
+
+  function onNew() {
+    const w = worldRef.current;
+
+    setLibraryOpen(false);
+    setImportModal(null);
+
+    setIslandName("My Voxbox");
+    currentIslandIdRef.current = null;
+
+    setSelectedGroupId(null);
+    setHoveredGroupId(null);
+    hoveredGroupIdLiveRef.current = null;
+
+    w?.clear();
+
+    if (w) {
+      w.addVoxel({ x: 0, y: 0, z: 0 }, "#ff9500", { groupId: "default" });
+      w.addVoxel({ x: 1, y: 0, z: 0 }, "#ff9500", { groupId: "default" });
+      w.addVoxel({ x: 0, y: 0, z: 1 }, "#ff9500", { groupId: "default" });
+      w.addVoxel({ x: 0, y: -1, z: 0 }, "#ff9500", { groupId: "default" });
+    }
+
+    if (controlsRef.current && cameraRef.current) {
+      controlsRef.current.target.set(0, 0, 0);
+      controlsRef.current.update();
+      cameraRef.current.position.set(40, 40, 40);
+      cameraRef.current.lookAt(0, 0, 0);
+    }
+
+    pendingGroupBoxesSyncRef.current = true;
+  }
+
+  function applyImport(opts: { asBlueprint: boolean }) {
+    const world = worldRef.current;
+    const pending = importModal;
+    if (!world || !pending) return;
+
+    world.clear();
+    currentIslandIdRef.current = null;
+    setSelectedGroupId(null);
+    setHoveredGroupId(null);
+    hoveredGroupIdLiveRef.current = null;
+
+    for (const g of pending.groups) {
+      world.addGroup(g.groupId, g.position);
+      for (const v of g.voxels) {
+        world.addVoxelLocal(
+          g.groupId,
+          { x: v.x, y: v.y, z: v.z },
+          v.color,
+          { isBlueprint: opts.asBlueprint }
+        );
+      }
+    }
+
+    pendingGroupBoxesSyncRef.current = true;
+    setImportModal(null);
+  }
+
+  async function onImportVoxFile(file: File) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const groups = parseVox(buffer);
+      setImportModal({ fileName: file.name, groups });
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Failed to import .vox");
+    }
+  }
+
+  async function captureSquareThumbnailFromCurrentCamera(): Promise<Blob | null> {
+    const renderer = rendererRef.current;
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+
+    if (!renderer || !scene || !camera) return null;
+
+    controls?.update();
+    camera.updateMatrixWorld(true);
+    renderer.render(scene, camera);
+
+    const srcCanvas = renderer.domElement as HTMLCanvasElement;
+    const srcW = srcCanvas.width;
+    const srcH = srcCanvas.height;
+    const side = Math.min(srcW, srcH);
+    const sx = Math.floor((srcW - side) / 2);
+    const sy = Math.floor((srcH - side) / 2);
+
+    const THUMB = 256;
+    const out = document.createElement("canvas");
+    out.width = THUMB;
+    out.height = THUMB;
+
+    const ctx = out.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(srcCanvas, sx, sy, side, side, 0, 0, THUMB, THUMB);
+
+    const blob = await new Promise<Blob | null>((resolve) => out.toBlob((b) => resolve(b), "image/png"));
+    return blob;
+  }
+
+  function normalizeGroupToOrigin(g: GroupState): GroupState {
+    if (!g.voxels.length) return { ...g, position: { x: 0, y: 0, z: 0 } };
+  
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    for (const v of g.voxels) {
+      minX = Math.min(minX, v.local.x);
+      minY = Math.min(minY, v.local.y);
+      minZ = Math.min(minZ, v.local.z);
+    }
+  
+    const voxels = g.voxels.map((v) => ({
+      ...v,
+      local: { x: v.local.x - minX, y: v.local.y - minY, z: v.local.z - minZ },
+    }));
+  
+    return { groupId: g.groupId, position: { x: 0, y: 0, z: 0 }, voxels };
+  }
+
+  async function onSaveToLibrary() {
+    const world = worldRef.current;
+    if (!world) return;
+
+    const name = islandName.trim() || "My Voxbox";
+    const packed = world.exportPacked();
+    const thumb = await captureSquareThumbnailFromCurrentCamera();
+
+    const id = await saveIsland({
+      name,
+      packed,
+      thumb,
+      id: currentIslandIdRef.current ?? undefined,
+    });
+
+    currentIslandIdRef.current = id;
+    setLibraryOpen(true);
+  }
+
+  async function onOpenFromLibrary(id: string) {
+    const world = worldRef.current;
+    if (!world) return;
+
+    const loaded = await loadIsland(id);
+    if (!loaded) return;
+
+    currentIslandIdRef.current = loaded.meta.id;
+    setIslandName(loaded.meta.name);
+
+    world.importPacked(loaded.packed);
+    setSelectedGroupId(null);
+    setHoveredGroupId(null);
+    hoveredGroupIdLiveRef.current = null;
+    pendingGroupBoxesSyncRef.current = true;
+
+    const pos = loaded.packed.localPositions;
+    const n = Math.floor(pos.length / 3);
+    if (n > 0) {
+      let minX = Infinity,
+        minY = Infinity,
+        minZ = Infinity;
+      let maxX = -Infinity,
+        maxY = -Infinity,
+        maxZ = -Infinity;
+
+      for (let i = 0; i < n; i++) {
+        const x = pos[i * 3 + 0];
+        const y = pos[i * 3 + 1];
+        const z = pos[i * 3 + 2];
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+        minZ = Math.min(minZ, z);
+        maxZ = Math.max(maxZ, z);
+      }
+
+      recenterCameraOnBounds({
+        minX,
+        minY,
+        minZ,
+        maxX,
+        maxY,
+        maxZ,
+        controls: controlsRef.current,
+        camera: cameraRef.current,
+      });
+    }
+
+    setLibraryOpen(false);
+  }
+
+  async function onSaveSelectedAsAsset(name: string) {
+    const w = worldRef.current;
+    const gid = selectedGroupIdLiveRef.current ?? selectedGroupId;
+    if (!w || !gid) return;
+
+    const snap = w.getGroupSnapshot(gid);
+    if (!snap) return;
+
+    const group = normalizeGroupToOrigin(snap);
+    const thumb = await captureSquareThumbnailFromCurrentCamera();
+
+    await saveAsset({ name, group, thumb });
+    setAssetsOpen(true);
+  }
+
+  async function beginPlaceAsset(assetId: string) {
+    const loaded = await loadAsset(assetId);
+    if (!loaded) return;
+
+    placingAssetRef.current = { metaName: loaded.meta.name, group: loaded.group };
+    setPlacingLabel(loaded.meta.name);
+    setAssetsOpen(false);
+  }
+
+  function cancelPlaceAsset() {
+    placingAssetRef.current = null;
+    setPlacingLabel(null);
+  }
+
+  //sync group outline boxes
+  useEffect(() => {
+    pendingGroupBoxesSyncRef.current = true;
+  }, [selectedGroupId, hoveredGroupId,focusOpen]);
+
+  //world place cancel
+  useEffect(() => {
+    if (!placingLabel) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") cancelPlaceAsset();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [placingLabel]);
+
+  //delete group with del key
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Backspace" && e.key !== "Delete") return;
+      if (focusOpenRef.current) return;
+      if (importModal) return;
+      if (placingLabel) return;
+  
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || (el as any)?.isContentEditable) return;
+  
+      const w = worldRef.current;
+      const gid = selectedGroupIdLiveRef.current;
+      if (!w || !gid) return;
+  
+      const ok = w.removeGroup?.(gid);
+      if (!ok) return;
+  
+      // clear selection / hover if it was that group
+      selectedGroupIdLiveRef.current = null;
+      setSelectedGroupId(null);
+  
+      if (hoveredGroupIdLiveRef.current === gid) {
+        hoveredGroupIdLiveRef.current = null;
+        setHoveredGroupId(null);
+      }
+  
+      pendingGroupBoxesSyncRef.current = true;
+  
+      e.preventDefault();
+    };
+  
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [importModal, placingLabel]);
+
+  // handle esc to close import modal only
+  useEffect(() => {
+    if (!importModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setImportModal(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [importModal]);
+
+  // main three js boot
+  useEffect(() => {
+    const mount = mountRef.current;
+    if (!mount) return;
+
+    const scene = new THREE.Scene();
+    sceneRef.current = scene;
+    scene.background = new THREE.Color("#ffffff");
+
+    const camera = new THREE.PerspectiveCamera(40, mount.clientWidth / mount.clientHeight, 0.1, 2000);
+    camera.position.set(40, 40, 40);
+    camera.lookAt(0, 0, 0);
+    cameraRef.current = camera;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    rendererRef.current = renderer;
+    renderer.setSize(mount.clientWidth, mount.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    mount.appendChild(renderer.domElement);
+
+    const preventContextMenu = (e: Event) => e.preventDefault();
+    renderer.domElement.addEventListener("contextmenu", preventContextMenu);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 2.0));
+    const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+    dir.position.set(10, 18, 8);
+    dir.castShadow = true;
+    dir.shadow.mapSize.set(2048, 2048);
+    scene.add(dir);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 0, 0);
+    controls.update();
+    controlsRef.current = controls;
+
+    const world = new VoxelWorld(scene);
+    worldRef.current = world;
+    props.onWorldReady?.(world);
+
+    // default scene
+    world.addVoxel({ x: 0, y: 0, z: 0 }, "#ff9500", { groupId: "default" });
+    world.addVoxel({ x: 1, y: 0, z: 0 }, "#ff9500", { groupId: "default" });
+    world.addVoxel({ x: 0, y: 0, z: 1 }, "#ff9500", { groupId: "default" });
+    world.addVoxel({ x: 0, y: -1, z: 0 }, "#ff9500", { groupId: "default" });
+
+    pendingGroupBoxesSyncRef.current = true;
+
+    function onPointerDown(e: PointerEvent) {
+      if (focusOpenRef.current) return;
+    
+      updateRayFromMouse(e);
+
+      //asset placement
+      if (placingAssetRef.current && e.button === 0) {
+        const w = worldRef.current;
+        if (!w) return;
+
+        let p: THREE.Vector3 | null = null;
+
+        const meshes = w.listMeshes();
+        const hits = raycaster.intersectObjects(meshes, false);
+        if (hits.length) {
+          p = hits[0].point.clone();
+        } else {
+          const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+          p = rayPlaneIntersection(ground);
+        }
+
+        if (!p) return;
+
+        const pos: VoxelCoord = {
+          x: Math.floor(p.x),
+          y: Math.floor(p.y),
+          z: Math.floor(p.z),
+        };
+
+        w.instantiateGroupState(placingAssetRef.current.group, {
+          at: pos,
+          baseId: placingAssetRef.current.metaName,
+        });
+
+        pendingGroupBoxesSyncRef.current = true;
+
+        cancelPlaceAsset();
+
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+        return;
+      }
+    
+      //on click set current selected to group under mouse
+      const gid = pickGroupUnderMouse();
+    
+      if (!gid) {
+        selectedGroupIdLiveRef.current = null;
+        setSelectedGroupId(null);
+        pendingGroupBoxesSyncRef.current = true;
+        return;
+      }
+      
+      selectedGroupIdLiveRef.current = gid;
+      setSelectedGroupId(gid);
+      pendingGroupBoxesSyncRef.current = true;
+        
+      // only left button starts drag
+      if (e.button !== 0) return;
+    
+      const w = worldRef.current;
+      const renderer = rendererRef.current;
+      if (!w || !renderer) return;
+    
+      const gp = w.getGroupPosition ? w.getGroupPosition(gid) : { x: 0, y: 0, z: 0 };
+    
+      // drag plane is horizontal at groups Y
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -gp.y);
+      const hit = rayPlaneIntersection(plane);
+      if (!hit) return;
+    
+      setOrbitalControlsEnabled(false);
+      renderer.domElement.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation?.();
+    
+      dragRef.current = {
+        active: true,
+        pointerId: e.pointerId,
+        groupId: gid,
+        startGroupPos: { ...gp },
+        startHitPoint: hit.clone(),
+        plane,
+      };
+    }
+    
+    function onPointerMove(e: PointerEvent) {
+      if (focusOpenRef.current) return;
+    
+      //currently dragging logic
+      const d = dragRef.current;
+      if (d?.active) {
+
+        updateRayFromMouse(e);
+    
+        const hit = rayPlaneIntersection(d.plane);
+        if (!hit) return;
+    
+        const delta = new THREE.Vector3().subVectors(hit, d.startHitPoint);
+        const dx = Math.round(delta.x);
+        const dz = Math.round(delta.z);
+    
+        const w = worldRef.current;
+        if (!w?.setGroupPosition) return;
+    
+        const next = {
+          x: d.startGroupPos.x + dx,
+          y: d.startGroupPos.y,
+          z: d.startGroupPos.z + dz,
+        };
+    
+        w.setGroupPosition(d.groupId!, next);
+        pendingGroupBoxesSyncRef.current = true;
+    
+        e.preventDefault();
+        return;
+      }
+    
+      // not dragging ,, update hover outline target
+      updateRayFromMouse(e);
+      const gid = pickGroupUnderMouse();
+      
+      const prev = hoveredGroupIdLiveRef.current;
+      if (prev !== gid) {
+        hoveredGroupIdLiveRef.current = gid;
+        setHoveredGroupId(gid);
+        pendingGroupBoxesSyncRef.current = true;
+      }
+    }
+
+    function endDrag() {
+      const renderer = rendererRef.current;
+      const d = dragRef.current;
+      if (renderer && d?.active) {
+        try {
+          renderer.domElement.releasePointerCapture(d.pointerId);
+        } catch {}
+      }
+      dragRef.current = null;
+      setOrbitalControlsEnabled(!focusOpenRef.current);
+    }
+
+    function onPointerLeave() {
+      hoveredGroupIdLiveRef.current = null;
+      setHoveredGroupId(null);
+      pendingGroupBoxesSyncRef.current = true;
+      endDrag();
+    }
+    
+    function onPointerUp() {
+      endDrag();
+    }
+    
+    function onPointerCancel() {
+      endDrag();
+    }
+
+    //listeners
+    renderer.domElement.addEventListener("pointerdown", onPointerDown, true);
+    renderer.domElement.addEventListener("pointermove", onPointerMove);
+    renderer.domElement.addEventListener("pointercancel", onPointerCancel);
+    renderer.domElement.addEventListener("pointerleave", onPointerLeave);
+    window.addEventListener("pointerup", onPointerUp);
+
+    const onResize = () => {
+      const w = mount.clientWidth;
+      const h = mount.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    };
+    window.addEventListener("resize", onResize);
+
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      controls.update();
+
+      if (pendingGroupBoxesSyncRef.current) {
+        pendingGroupBoxesSyncRef.current = false;
+        syncGroupBoxes();
+      }
+
+      renderer.render(scene, camera);
+    };
+    tick();
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown, true);
+      renderer.domElement.removeEventListener("pointermove", onPointerMove);
+      renderer.domElement.removeEventListener("pointercancel", onPointerCancel);
+      renderer.domElement.removeEventListener("pointerleave", onPointerLeave);
+      window.removeEventListener("pointerup", onPointerUp);
+      renderer.domElement.removeEventListener("contextmenu", preventContextMenu);
+
+      props.onWorldReady?.(null);
+      world.dispose();
+      worldRef.current = null;
+
+      controls.dispose();
+      controlsRef.current = null;
+
+      cameraRef.current = null;
+      rendererRef.current = null;
+      sceneRef.current = null;
+
+      clearHelper(selectedBoxRef);
+      clearHelper(hoverBoxRef);
+
+      mount.removeChild(renderer.domElement);
+      renderer.dispose();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mouseNDC, raycaster]);
+
+  return (
+    <div
+      ref={mountRef}
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        userSelect: "none",
+      }}
+    >
+      {importModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onMouseDown={() => setImportModal(null)}
+        >
+          <div
+            style={{
+              width: "min(520px, 100%)",
+              background: "rgba(255,255,255,1.0)",
+              border: "1px solid rgba(0,0,0,1.0)",
+              padding: 16,
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 20, marginBottom: 20 }}>{"Import .vox"}</div>
+
+            <div style={{ fontSize: 15, marginBottom: 14 }}>
+              <div style={{ marginBottom: 4 }}>{importModal.fileName}</div>
+              <div>{importModal.groups.length.toLocaleString()} objects</div>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <label onClick={() => applyImport({ asBlueprint: false })} style={{ padding: "10px 0px", cursor: "pointer", fontSize: 15 }}>
+                Import normally
+              </label>
+              <label onClick={() => applyImport({ asBlueprint: true })} style={{ padding: "10px 12px", cursor: "pointer", fontSize: 15 }}>
+                Import as blueprint
+              </label>
+              <label onClick={() => setImportModal(null)} style={{ padding: "10px 12px", cursor: "pointer", fontSize: 15 }}>
+                Cancel
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <input
+        value={islandName}
+        onChange={(e) => setIslandName(e.target.value)}
+        spellCheck={false}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          padding: "15px 15px",
+          color: "black",
+          fontSize: 20,
+          width: 240,
+          pointerEvents: "auto",
+          fontFamily: "inherit",
+          background: "transparent",
+          border: "none",
+          outline: "none",
+        }}
+      />
+
+      <LibraryPanel 
+        open={libraryOpen} 
+        onClose={() => setLibraryOpen(false)} 
+        onOpenIsland={onOpenFromLibrary} 
+      />
+
+      <AssetsPanel
+        open={assetsOpen}
+        onClose={() => setAssetsOpen(false)}
+        onRequestPlace={beginPlaceAsset}
+        onRequestSaveSelected={onSaveSelectedAsAsset}
+        selectedGroupId={selectedGroupId}
+        placingLabel={placingLabel}
+      />
+
+      <div style={{ position: "absolute", top: 0, right: 0, display: "flex", gap: 10, pointerEvents: "auto" }}>
+        <label onClick={onNew} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
+          New
+        </label>
+
+        <label onClick={onSaveToLibrary} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
+          Save
+        </label>
+
+        <label onClick={() => setLibraryOpen(true)} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
+          Worlds
+        </label>
+
+        <label onClick={() => setAssetsOpen(true)} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
+          Assets
+        </label>
+
+        <label style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
+          Import
+          <input
+            type="file"
+            accept=".vox"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) onImportVoxFile(f);
+              e.currentTarget.value = "";
+            }}
+          />
+        </label>
+
+      </div>
+
+      {selectedGroupId && (
+        <div
+          onClick={() => onFocusGroup(selectedGroupId)}
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: 30,
+            transform: "translateX(-50%)",
+            padding: "10px 14px",
+            border: "1px solid rgba(0,0,0,1.0)",
+            background: "rgba(255,255,255,0.92)",
+            color: "black",
+            fontSize: 20,
+            cursor: "pointer",
+            userSelect: "none",
+            pointerEvents: "auto",
+          }}
+        >
+          Focus mode
+        </div>
+      )}
+
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          padding: "15px 15px",
+          color: "black",
+          fontSize: 16,
+          lineHeight: 1.4,
+          pointerEvents: "none",
+        }}
+      >
+        <div>
+          Selected: <b>{selectedGroupId ?? "(none)"}</b>
+        </div>
+      </div>
+    </div>
+  );
+}
