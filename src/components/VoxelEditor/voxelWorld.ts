@@ -4,20 +4,29 @@ import { keyOf } from "./types";
 
 export type GroupId = string;
 
-type VoxelRecord = {
-  coord: VoxelCoord;
-  color: string; // base color #rrggbb stored
+export type LocalVoxel = {
+  local: VoxelCoord;       // coord relative to group position
+  color: string;           // base color #rrggbb stored
   mesh: THREE.Mesh;
   isBlueprint: boolean;
   groupId: GroupId;
 };
 
+type GroupRecord = {
+  id: GroupId;
+  position: VoxelCoord;         // world-space integer cell coord of group origin
+  root: THREE.Group;            // THREE transform root for the group
+  voxels: Map<string, LocalVoxel>; // keyOf(local) -> voxel
+};
+
 export type WorldPacked = {
+  // NOTE: still flattened for now so your library db doesn't break.
+  // Later we can introduce a v2 packed format with groupPositions + localPositions.
   positions: Int32Array;
   colors: Uint32Array; // 0xRRGGBB
   blueprints?: Uint8Array;
   groupIds?: Uint32Array;
-  groupTable?: string[]; 
+  groupTable?: string[];
 };
 
 const DEFAULT_GROUP: GroupId = "default";
@@ -77,7 +86,13 @@ function blueprintTint(hex: string): string {
 
 export class VoxelWorld {
   private scene: THREE.Scene;
-  private voxels = new Map<string, VoxelRecord>();
+
+  // NEW: groups are the source-of-truth
+  private groups = new Map<GroupId, GroupRecord>();
+
+  // NEW: fast world lookup so editor/raycast stays simple
+  // worldKey -> LocalVoxel record (stores groupId + local coord)
+  private worldIndex = new Map<string, LocalVoxel>();
 
   private geometry: THREE.BoxGeometry;
   private materialCache = new Map<string, THREE.MeshStandardMaterial>();
@@ -85,167 +100,299 @@ export class VoxelWorld {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
+
+    // ensure default group exists at origin
+    this.ensureGroup(DEFAULT_GROUP, { x: 0, y: 0, z: 0 });
   }
 
   dispose() {
-    for (const v of this.voxels.values()) this.scene.remove(v.mesh);
-    this.voxels.clear();
+    // remove all group roots (which also removes child meshes from render graph)
+    for (const g of this.groups.values()) this.scene.remove(g.root);
+    this.groups.clear();
+    this.worldIndex.clear();
 
     this.geometry.dispose();
     for (const m of this.materialCache.values()) m.dispose();
     this.materialCache.clear();
   }
 
-  has(coord: VoxelCoord) {
-    return this.voxels.has(keyOf(coord));
+  clear() {
+    for (const g of this.groups.values()) {
+      // remove meshes from group root
+      for (const v of g.voxels.values()) g.root.remove(v.mesh);
+    }
+    this.groups.clear();
+    this.worldIndex.clear();
+
+    // re-create default group
+    this.ensureGroup(DEFAULT_GROUP, { x: 0, y: 0, z: 0 });
   }
 
-  get(coord: VoxelCoord) {
-    return this.voxels.get(keyOf(coord));
+  // --- Group API (new) ---
+
+  addGroup(groupId: GroupId, position: VoxelCoord) {
+    this.ensureGroup(groupId, position);
   }
 
-  isBlueprint(coord: VoxelCoord) {
-    return this.voxels.get(keyOf(coord))?.isBlueprint ?? false;
+  getGroupPosition(groupId: GroupId): VoxelCoord {
+    return this.groups.get(groupId)?.position ?? { x: 0, y: 0, z: 0 };
   }
 
-  getGroupId(coord: VoxelCoord): GroupId {
-    return this.voxels.get(keyOf(coord))?.groupId ?? DEFAULT_GROUP;
-  }
+  setGroupPosition(groupId: GroupId, position: VoxelCoord) {
+    const g = this.groups.get(groupId);
+    if (!g) return;
 
-  listMeshes(): THREE.Mesh[] {
-    return Array.from(this.voxels.values()).map((v) => v.mesh);
+    const oldPos = g.position;
+    if (oldPos.x === position.x && oldPos.y === position.y && oldPos.z === position.z) return;
+
+    // remove old world keys for this group
+    for (const v of g.voxels.values()) {
+      const world = {
+        x: oldPos.x + v.local.x,
+        y: oldPos.y + v.local.y,
+        z: oldPos.z + v.local.z,
+      };
+      this.worldIndex.delete(keyOf(world));
+    }
+
+    // apply transform
+    g.position = { ...position };
+    g.root.position.set(position.x, position.y, position.z);
+
+    // re-add world keys + update mesh userData.coord
+    for (const v of g.voxels.values()) {
+      const world = {
+        x: position.x + v.local.x,
+        y: position.y + v.local.y,
+        z: position.z + v.local.z,
+      };
+      this.worldIndex.set(keyOf(world), v);
+
+      v.mesh.userData.coord = { ...world };
+      v.mesh.userData.groupId = groupId;
+    }
   }
 
   listGroupIds(): GroupId[] {
-    const s = new Set<GroupId>();
-    for (const v of this.voxels.values()) s.add(v.groupId);
-    return Array.from(s.values());
+    return Array.from(this.groups.keys());
   }
 
-  clear() {
-    for (const v of this.voxels.values()) this.scene.remove(v.mesh);
-    this.voxels.clear();
+  // --- World-Coord API (kept, so editor/raycast doesn’t need rewriting yet) ---
+
+  has(coord: VoxelCoord) {
+    return this.worldIndex.has(keyOf(coord));
   }
 
+  get(coord: VoxelCoord) {
+    const v = this.worldIndex.get(keyOf(coord));
+    if (!v) return undefined;
+
+    const g = this.groups.get(v.groupId);
+    const gp = g?.position ?? { x: 0, y: 0, z: 0 };
+
+    return {
+      coord,             // world coord (as asked)
+      color: v.color,
+      mesh: v.mesh,
+      isBlueprint: v.isBlueprint,
+      groupId: v.groupId,
+      local: { ...v.local }, // extra (useful later)
+      groupPosition: { ...gp }, // extra (useful later)
+    };
+  }
+
+  isBlueprint(coord: VoxelCoord) {
+    return this.worldIndex.get(keyOf(coord))?.isBlueprint ?? false;
+  }
+
+  getGroupId(coord: VoxelCoord): GroupId {
+    return this.worldIndex.get(keyOf(coord))?.groupId ?? DEFAULT_GROUP;
+  }
+
+  listMeshes(): THREE.Mesh[] {
+    const out: THREE.Mesh[] = [];
+    for (const g of this.groups.values()) {
+      for (const v of g.voxels.values()) out.push(v.mesh);
+    }
+    return out;
+  }
+
+  // Add voxel by WORLD coord (existing call sites keep working)
   addVoxel(
     coord: VoxelCoord,
     color: string,
     opts?: { isBlueprint?: boolean; groupId?: GroupId }
   ) {
-    const k = keyOf(coord);
-    if (this.voxels.has(k)) return;
+    const groupId = opts?.groupId ?? DEFAULT_GROUP;
+    const g = this.ensureGroup(groupId, { x: 0, y: 0, z: 0 });
+
+    const local: VoxelCoord = {
+      x: coord.x - g.position.x,
+      y: coord.y - g.position.y,
+      z: coord.z - g.position.z,
+    };
+
+    this.addVoxelLocal(groupId, local, color, { isBlueprint: opts?.isBlueprint });
+  }
+
+  // NEW: Add voxel by LOCAL coord within a group
+  addVoxelLocal(
+    groupId: GroupId,
+    local: VoxelCoord,
+    color: string,
+    opts?: { isBlueprint?: boolean }
+  ) {
+    const g = this.ensureGroup(groupId, { x: 0, y: 0, z: 0 });
+
+    const world: VoxelCoord = {
+      x: g.position.x + local.x,
+      y: g.position.y + local.y,
+      z: g.position.z + local.z,
+    };
+
+    const worldKey = keyOf(world);
+    if (this.worldIndex.has(worldKey)) return; // occupied by any group
+
+    const localKey = keyOf(local);
+    if (g.voxels.has(localKey)) return;
 
     const isBlueprint = !!opts?.isBlueprint;
-    const groupId = opts?.groupId ?? DEFAULT_GROUP;
-
     const mat = this.getMaterial(color, isBlueprint);
 
     const mesh = new THREE.Mesh(this.geometry, mat);
-    mesh.position.set(coord.x + 0.5, coord.y + 0.5, coord.z + 0.5);
+    mesh.position.set(local.x + 0.5, local.y + 0.5, local.z + 0.5);
     mesh.castShadow = !isBlueprint;
     mesh.receiveShadow = true;
     mesh.renderOrder = isBlueprint ? 1 : 0;
 
-    mesh.userData.coord = { ...coord };
+    mesh.userData.coord = { ...world };
     mesh.userData.isBlueprint = isBlueprint;
     mesh.userData.groupId = groupId;
+    mesh.userData.local = { ...local };
 
-    this.scene.add(mesh);
-    this.voxels.set(k, { coord, color, mesh, isBlueprint, groupId });
+    g.root.add(mesh);
+
+    const rec: LocalVoxel = { local: { ...local }, color, mesh, isBlueprint, groupId };
+    g.voxels.set(localKey, rec);
+    this.worldIndex.set(worldKey, rec);
   }
 
   removeVoxel(coord: VoxelCoord) {
-    const k = keyOf(coord);
-    const v = this.voxels.get(k);
+    const worldKey = keyOf(coord);
+    const v = this.worldIndex.get(worldKey);
     if (!v) return;
 
-    this.scene.remove(v.mesh);
-    this.voxels.delete(k);
+    const g = this.groups.get(v.groupId);
+    if (!g) {
+      this.worldIndex.delete(worldKey);
+      return;
+    }
+
+    const localKey = keyOf(v.local);
+    g.root.remove(v.mesh);
+    g.voxels.delete(localKey);
+    this.worldIndex.delete(worldKey);
   }
 
   setIsBlueprint(coord: VoxelCoord, isBlueprint: boolean) {
-    const rec = this.voxels.get(keyOf(coord));
-    if (!rec) return;
-    if (rec.isBlueprint === isBlueprint) return;
+    const v = this.worldIndex.get(keyOf(coord));
+    if (!v) return;
+    if (v.isBlueprint === isBlueprint) return;
 
-    rec.isBlueprint = isBlueprint;
-    rec.mesh.material = this.getMaterial(rec.color, isBlueprint);
-    rec.mesh.castShadow = !isBlueprint;
-    rec.mesh.renderOrder = isBlueprint ? 1 : 0;
+    v.isBlueprint = isBlueprint;
+    v.mesh.material = this.getMaterial(v.color, isBlueprint);
+    v.mesh.castShadow = !isBlueprint;
+    v.mesh.renderOrder = isBlueprint ? 1 : 0;
 
-    rec.mesh.userData.isBlueprint = isBlueprint;
+    v.mesh.userData.isBlueprint = isBlueprint;
   }
 
   setColor(coord: VoxelCoord, color: string) {
-    const rec = this.voxels.get(keyOf(coord));
-    if (!rec) return;
-    if (rec.color === color) return;
+    const v = this.worldIndex.get(keyOf(coord));
+    if (!v) return;
+    if (v.color === color) return;
 
-    rec.color = color;
-    rec.mesh.material = this.getMaterial(rec.color, rec.isBlueprint);
+    v.color = color;
+    v.mesh.material = this.getMaterial(v.color, v.isBlueprint);
   }
 
-  setGroupId(coord: VoxelCoord, groupId: GroupId) {
-    const rec = this.voxels.get(keyOf(coord));
-    if (!rec) return;
-    if (rec.groupId === groupId) return;
+  // Move voxel between groups while keeping the same WORLD coordinate
+  setGroupId(coord: VoxelCoord, nextGroupId: GroupId) {
+    const worldKey = keyOf(coord);
+    const v = this.worldIndex.get(worldKey);
+    if (!v) return;
+    if (v.groupId === nextGroupId) return;
 
-    rec.groupId = groupId;
-    rec.mesh.userData.groupId = groupId;
+    const from = this.groups.get(v.groupId);
+    if (!from) return;
+
+    const to = this.ensureGroup(nextGroupId, { x: 0, y: 0, z: 0 });
+
+    // compute new local in target group
+    const nextLocal: VoxelCoord = {
+      x: coord.x - to.position.x,
+      y: coord.y - to.position.y,
+      z: coord.z - to.position.z,
+    };
+
+    const nextLocalKey = keyOf(nextLocal);
+    if (to.voxels.has(nextLocalKey)) return; // occupied inside target group
+    if (this.worldIndex.get(worldKey)?.groupId !== v.groupId) return;
+
+    // detach from old group
+    from.root.remove(v.mesh);
+    from.voxels.delete(keyOf(v.local));
+
+    // attach to new group
+    v.groupId = nextGroupId;
+    v.local = { ...nextLocal };
+
+    v.mesh.position.set(nextLocal.x + 0.5, nextLocal.y + 0.5, nextLocal.z + 0.5);
+    v.mesh.userData.groupId = nextGroupId;
+    v.mesh.userData.local = { ...nextLocal };
+
+    to.root.add(v.mesh);
+    to.voxels.set(nextLocalKey, v);
+    this.worldIndex.set(worldKey, v);
   }
 
   getGroupBounds(groupId: GroupId): { min: VoxelCoord; max: VoxelCoord } | null {
+    const g = this.groups.get(groupId);
+    if (!g || g.voxels.size === 0) return null;
+
     let minX = Infinity, minY = Infinity, minZ = Infinity;
     let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
-    let found = false;
+    for (const v of g.voxels.values()) {
+      const x = g.position.x + v.local.x;
+      const y = g.position.y + v.local.y;
+      const z = g.position.z + v.local.z;
 
-    for (const v of this.voxels.values()) {
-      if (v.groupId !== groupId) continue;
-      found = true;
-
-      minX = Math.min(minX, v.coord.x); maxX = Math.max(maxX, v.coord.x);
-      minY = Math.min(minY, v.coord.y); maxY = Math.max(maxY, v.coord.y);
-      minZ = Math.min(minZ, v.coord.z); maxZ = Math.max(maxZ, v.coord.z);
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
     }
 
-    if (!found) return null;
-
-    return {
-      min: { x: minX, y: minY, z: minZ },
-      max: { x: maxX, y: maxY, z: maxZ },
-    };
+    return { min: { x: minX, y: minY, z: minZ }, max: { x: maxX, y: maxY, z: maxZ } };
   }
 
   getAllGroupBounds(): Map<GroupId, { min: VoxelCoord; max: VoxelCoord }> {
     const out = new Map<GroupId, { min: VoxelCoord; max: VoxelCoord }>();
 
-    for (const v of this.voxels.values()) {
-      const g = v.groupId ?? DEFAULT_GROUP;
-
-      const b = out.get(g);
-      if (!b) {
-        out.set(g, {
-          min: { ...v.coord },
-          max: { ...v.coord },
-        });
-        continue;
-      }
-
-      b.min.x = Math.min(b.min.x, v.coord.x);
-      b.min.y = Math.min(b.min.y, v.coord.y);
-      b.min.z = Math.min(b.min.z, v.coord.z);
-
-      b.max.x = Math.max(b.max.x, v.coord.x);
-      b.max.y = Math.max(b.max.y, v.coord.y);
-      b.max.z = Math.max(b.max.z, v.coord.z);
+    for (const [groupId, g] of this.groups.entries()) {
+      if (g.voxels.size === 0) continue;
+      const b = this.getGroupBounds(groupId);
+      if (b) out.set(groupId, b);
     }
 
     return out;
   }
 
+  // --- Packing (still flat/legacy for now) ---
+
   exportPacked(): WorldPacked {
-    const n = this.voxels.size;
+    // flatten from worldIndex to keep current save format stable
+    const n = this.worldIndex.size;
     const positions = new Int32Array(n * 3);
     const colors = new Uint32Array(n);
     const blueprints = new Uint8Array(n);
@@ -264,17 +411,24 @@ export class VoxelWorld {
     };
 
     let i = 0;
-    for (const v of this.voxels.values()) {
-      positions[i * 3 + 0] = v.coord.x | 0;
-      positions[i * 3 + 1] = v.coord.y | 0;
-      positions[i * 3 + 2] = v.coord.z | 0;
+    for (const [worldKey, v] of this.worldIndex.entries()) {
+      // recover world coord from key (fast + safe fallback)
+      // but you already have mesh.userData.coord; use that:
+      const c = v.mesh.userData.coord as VoxelCoord | undefined;
+      const coord = c ?? (() => {
+        // very defensive fallback; parse "x|y|z"
+        const parts = worldKey.split("|").map((n) => parseInt(n, 10));
+        return { x: parts[0] | 0, y: parts[1] | 0, z: parts[2] | 0 };
+      })();
+
+      positions[i * 3 + 0] = coord.x | 0;
+      positions[i * 3 + 1] = coord.y | 0;
+      positions[i * 3 + 2] = coord.z | 0;
 
       colors[i] = hexToRgb24(v.color);
       blueprints[i] = v.isBlueprint ? 1 : 0;
 
-      const g = v.groupId ?? DEFAULT_GROUP;
-      groupIds[i] = ensureGroup(g);
-
+      groupIds[i] = ensureGroup(v.groupId ?? DEFAULT_GROUP);
       i++;
     }
 
@@ -306,8 +460,34 @@ export class VoxelWorld {
         groupId = groupTable[gi] ?? DEFAULT_GROUP;
       }
 
+      // groups imported from packed currently have position {0,0,0} (legacy flat format)
+      this.ensureGroup(groupId, { x: 0, y: 0, z: 0 });
       this.addVoxel({ x, y, z }, color, { isBlueprint, groupId });
     }
+  }
+
+  // --- internals ---
+
+  private ensureGroup(groupId: GroupId, position: VoxelCoord): GroupRecord {
+    let g = this.groups.get(groupId);
+    if (g) return g;
+
+    const root = new THREE.Group();
+    root.name = `voxel-group:${groupId}`;
+    root.position.set(position.x, position.y, position.z);
+    root.userData.groupId = groupId;
+
+    this.scene.add(root);
+
+    g = {
+      id: groupId,
+      position: { ...position },
+      root,
+      voxels: new Map(),
+    };
+
+    this.groups.set(groupId, g);
+    return g;
   }
 
   private getMaterial(color: string, isBlueprint: boolean) {
@@ -323,9 +503,7 @@ export class VoxelWorld {
       opacity: isBlueprint ? 0.7 : 1.0,
     });
 
-    if (isBlueprint) {
-      mat.depthWrite = false;
-    }
+    if (isBlueprint) mat.depthWrite = false;
 
     this.materialCache.set(key, mat);
     return mat;

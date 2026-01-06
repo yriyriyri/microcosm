@@ -102,9 +102,8 @@ function raycastVoxelGrid(
 
 type PendingImport = {
   fileName: string;
-  voxels: { x: number; y: number; z: number; color: string; groupId: string }[];
+  groups: { groupId: string; position: VoxelCoord; voxels: { x:number;y:number;z:number;color:string }[] }[];
 };
-
 export default function VoxelEditor() {
   const mountRef = useRef<HTMLDivElement | null>(null);
 
@@ -196,13 +195,17 @@ export default function VoxelEditor() {
   
     world.clear();
     currentIslandIdRef.current = null;
-  
-    for (const v of pending.voxels) {
-      world.addVoxel(
-        { x: v.x, y: v.y, z: v.z },
-        v.color,
-        { isBlueprint: opts.asBlueprint, groupId: v.groupId }
-      );
+
+    for (const g of pending.groups) {
+      world.addGroup(g.groupId, g.position);
+      for (const v of g.voxels) {
+        world.addVoxelLocal(
+          g.groupId,
+          { x: v.x, y: v.y, z: v.z },
+          v.color,
+          { isBlueprint: opts.asBlueprint }
+        );
+      }
     }
   
     pendingGroupBoxesSyncRef.current = true;
@@ -213,12 +216,9 @@ export default function VoxelEditor() {
   async function onImportVoxFile(file: File) {
     try {
       const buffer = await file.arrayBuffer();
-      const imported = parseVox(buffer);
+      const groups = parseVox(buffer);
 
-      setImportModal({
-        fileName: file.name,
-        voxels: imported,
-      });
+      setImportModal({ fileName: file.name, groups });
     } catch (err) {
       console.error(err);
       alert(err instanceof Error ? err.message : "Failed to import .vox");
@@ -837,7 +837,7 @@ export default function VoxelEditor() {
             <div style={{ fontSize: 20, marginBottom: 20, padding: "0px 0px"}}>{"Import .vox"}</div>
             <div style={{ fontSize: 15, marginBottom: 14, padding: "0px 0px" }}>
               <div style={{ marginBottom: 4 }}> {importModal.fileName} </div>
-              <div>{importModal.voxels.length.toLocaleString()} voxels</div>
+              <div>{importModal.groups.length.toLocaleString()} objects</div>
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

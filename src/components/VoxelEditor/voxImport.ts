@@ -1,11 +1,14 @@
-// voxImport.ts (drop-in) — Option B: group per nSHP instance
-
 export type ImportedVoxel = {
   x: number;
   y: number;
   z: number;
   color: string;
+};
+
+export type ImportedGroup = {
   groupId: string;
+  position: { x: number; y: number; z: number }; // world-space group origin
+  voxels: ImportedVoxel[]; // LOCAL coords relative to position
 };
 
 type VoxRGBA = { r: number; g: number; b: number; a: number };
@@ -13,12 +16,12 @@ type VoxVec3 = { x: number; y: number; z: number };
 
 type Model = {
   size: VoxVec3;
-  voxels: { x: number; y: number; z: number; ci: number }[]; // ci = color index (1..255)
+  voxels: { x: number; y: number; z: number; ci: number }[];
 };
 
 type TRN = { id: number; child: number; rotPacked: number; t: VoxVec3 };
 type GRP = { id: number; children: number[] };
-type SHP = { id: number; modelIds: number[] }; // can be >1 animation frames; we use first
+type SHP = { id: number; modelIds: number[] };
 
 type Node =
   | { kind: "trn"; trn: TRN }
@@ -65,9 +68,6 @@ class R {
     }
     return out;
   }
-  skip(n: number) {
-    this.o += n;
-  }
 }
 
 function parseTranslation(s?: string): VoxVec3 {
@@ -76,7 +76,6 @@ function parseTranslation(s?: string): VoxVec3 {
   return { x: parts[0] || 0, y: parts[1] || 0, z: parts[2] || 0 };
 }
 
-// rotating right by 1 makes ci=1 map to palette[1] visually
 function rotatePaletteRightBy1(p: VoxRGBA[]): VoxRGBA[] {
   const out = p.slice();
   const last = out[255];
@@ -85,7 +84,8 @@ function rotatePaletteRightBy1(p: VoxRGBA[]): VoxRGBA[] {
   return out;
 }
 
-// packed rotation decoder for nTRN "_r"
+const ID3: number[] = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+
 function decodePackedRotation(packed: number): number[] {
   const i0 = (packed >> 0) & 0x3;
   const i1 = (packed >> 2) & 0x3;
@@ -127,10 +127,8 @@ function mulMat3Vec3(m: number[], v: VoxVec3): VoxVec3 {
 }
 
 type Xform = { R: number[]; t: VoxVec3 };
-const ID3: number[] = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 
 function compose(parent: Xform, local: Xform): Xform {
-  // world = parent * local
   const R = mulMat3(parent.R, local.R);
   const tLocalInParent = mulMat3Vec3(parent.R, local.t);
   const t = {
@@ -152,12 +150,10 @@ function mvToEditor(p: VoxVec3): VoxVec3 {
 }
 
 function roundCellFromCenter(center: number): number {
-  // VoxelWorld is: mesh.position = cell + 0.5
-  // so: cell = center - 0.5
   return Math.round(center - 0.5);
 }
 
-export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
+export function parseVox(buffer: ArrayBuffer): ImportedGroup[] {
   const r = new R(buffer);
 
   const magic = r.id4();
@@ -171,7 +167,6 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
   let palette: VoxRGBA[] | null = null;
   const models: Model[] = [];
   const nodes = new Map<number, Node>();
-
   let pendingSize: VoxVec3 | null = null;
 
   function parseChunkList(endOffset: number) {
@@ -186,15 +181,10 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
 
       switch (chunkId) {
         case "MAIN": {
-          // MAIN normally has 0 bytes payload, just children
           r.o = dataEnd;
           if (childSize > 0) parseChunkList(childrenEnd);
           r.o = childrenEnd;
           continue;
-        }
-
-        case "PACK": {
-          break;
         }
 
         case "SIZE": {
@@ -222,19 +212,17 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
 
         case "RGBA": {
           const raw: VoxRGBA[] = new Array(256);
-          for (let i = 0; i < 256; i++) {
-            raw[i] = { r: r.u8(), g: r.u8(), b: r.u8(), a: r.u8() };
-          }
+          for (let i = 0; i < 256; i++) raw[i] = { r: r.u8(), g: r.u8(), b: r.u8(), a: r.u8() };
           palette = rotatePaletteRightBy1(raw);
           break;
         }
 
         case "nTRN": {
           const id = r.i32();
-          r.dict(); // node attrs
+          r.dict();
           const child = r.i32();
-          r.i32(); // reserved
-          r.i32(); // layer id
+          r.i32();
+          r.i32();
           const numFrames = r.i32();
 
           const frame0 = r.dict();
@@ -263,7 +251,7 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
           const modelIds: number[] = [];
           for (let k = 0; k < numModels; k++) {
             modelIds.push(r.i32());
-            r.dict(); // model attrs per frame
+            r.dict();
           }
           nodes.set(id, { kind: "shp", shp: { id, modelIds } });
           break;
@@ -273,13 +261,8 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
           break;
       }
 
-      // jump to end of payload
       r.o = dataEnd;
-
-      // parse children
       if (childSize > 0) parseChunkList(childrenEnd);
-
-      // jump to end of children
       r.o = childrenEnd;
     }
   }
@@ -287,26 +270,21 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
   parseChunkList(buffer.byteLength);
 
   if (!palette) {
-    // fallback
-    palette = new Array(256)
-      .fill(0)
-      .map((_, i) => ({ r: i, g: i, b: i, a: 255 }));
+    palette = new Array(256).fill(0).map((_, i) => ({ r: i, g: i, b: i, a: 255 }));
     palette[0].a = 0;
   }
 
-  // build scene graph instances
+  // build instances (Option B: group per nSHP)
   type Instance = { modelId: number; xf: Xform; groupId: string };
   const instances: Instance[] = [];
 
   if (nodes.size === 0) {
-    // classic file -> single model at origin, no group info
     instances.push({
       modelId: 0,
       xf: { R: ID3, t: { x: 0, y: 0, z: 0 } },
       groupId: "default",
     });
   } else {
-    // find nodes not referenced as a child
     const referenced = new Set<number>();
     for (const n of nodes.values()) {
       if (n.kind === "trn") referenced.add(n.trn.child);
@@ -316,11 +294,7 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
     const roots = [...nodes.keys()].filter((id) => !referenced.has(id));
     const startRoots = roots.length ? roots : nodes.has(0) ? [0] : [...nodes.keys()].slice(0, 1);
 
-    function groupKeyFromGrpId(id: number) {
-      return `grp:${id}`;
-    }
-
-    function walk(nodeId: number, parentXf: Xform, leafGroupId: string, stack: Set<number>) {
+    function walk(nodeId: number, parentXf: Xform, stack: Set<number>) {
       const n = nodes.get(nodeId);
       if (!n) return;
 
@@ -329,45 +303,47 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
 
       if (n.kind === "trn") {
         const local: Xform = { R: decodePackedRotation(n.trn.rotPacked), t: n.trn.t };
-        walk(n.trn.child, compose(parentXf, local), leafGroupId, stack);
+        walk(n.trn.child, compose(parentXf, local), stack);
         stack.delete(nodeId);
         return;
       }
 
       if (n.kind === "grp") {
-        const nextLeafGroupId = groupKeyFromGrpId(n.grp.id);
-        for (const c of n.grp.children) walk(c, parentXf, nextLeafGroupId, stack);
+        for (const c of n.grp.children) walk(c, parentXf, stack);
         stack.delete(nodeId);
         return;
       }
 
+      // nSHP => instance
       const modelId = n.shp.modelIds[0] ?? 0;
-      const groupId = `shp:${n.shp.id}`; 
+      const groupId = `shp:${n.shp.id}`;
       instances.push({ modelId, xf: parentXf, groupId });
 
       stack.delete(nodeId);
     }
 
-    for (const root of startRoots) {
-      walk(root, { R: ID3, t: { x: 0, y: 0, z: 0 } }, "default", new Set());
-    }
+    for (const root of startRoots) walk(root, { R: ID3, t: { x: 0, y: 0, z: 0 } }, new Set());
   }
 
-  // emit voxels
-  const out: ImportedVoxel[] = [];
-  const dedupe = new Set<string>();
+  // emit WORLD voxels first (then convert to group-local)
+  const voxelsByGroup = new Map<string, { x: number; y: number; z: number; color: string }[]>();
+  const globalDedupe = new Set<string>();
 
   for (const inst of instances) {
     const model = models[inst.modelId];
     if (!model) continue;
 
-    // treat each voxel as a unit cube whose CENTER is (x+0.5, y+0.5, z+0.5)
-    // and center the whole model by subtracting (size/2)
     const pivot = {
       x: model.size.x / 2,
       y: model.size.y / 2,
       z: model.size.z / 2,
     };
+
+    let arr = voxelsByGroup.get(inst.groupId);
+    if (!arr) {
+      arr = [];
+      voxelsByGroup.set(inst.groupId, arr);
+    }
 
     for (const v of model.voxels) {
       const localCenter: VoxVec3 = {
@@ -396,47 +372,68 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
       const color = rgbaToHex(c);
 
       const k = `${cell.x}|${cell.y}|${cell.z}`;
-      if (dedupe.has(k)) continue;
-      dedupe.add(k);
+      if (globalDedupe.has(k)) continue;
+      globalDedupe.add(k);
 
-      out.push({ x: cell.x, y: cell.y, z: cell.z, color, groupId: inst.groupId });
+      arr.push({ x: cell.x, y: cell.y, z: cell.z, color });
     }
   }
 
-  // recentre + ground  MIGHT CHANGE
-  if (out.length) {
-    let minX = Infinity,
-      minY = Infinity,
-      minZ = Infinity;
-    let maxX = -Infinity,
-      maxY = -Infinity,
-      maxZ = -Infinity;
+  // convert WORLD voxels -> GROUPS with local coords
+  const groups: ImportedGroup[] = [];
 
-    for (const v of out) {
+  for (const [groupId, worldVoxels] of voxelsByGroup.entries()) {
+    if (worldVoxels.length === 0) continue;
+
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+
+    for (const v of worldVoxels) {
       minX = Math.min(minX, v.x);
-      maxX = Math.max(maxX, v.x);
       minY = Math.min(minY, v.y);
-      maxY = Math.max(maxY, v.y);
       minZ = Math.min(minZ, v.z);
-      maxZ = Math.max(maxZ, v.z);
     }
 
-    const offX = -Math.floor((minX + maxX) / 2);
-    const offY = -minY;
-    const offZ = -Math.floor((minZ + maxZ) / 2);
+    const position = { x: minX, y: minY, z: minZ };
 
-    for (const v of out) {
-      v.x += offX;
-      v.y += offY;
-      v.z += offZ;
-    }
+    const localVoxels: ImportedVoxel[] = worldVoxels.map((v) => ({
+      x: v.x - position.x,
+      y: v.y - position.y,
+      z: v.z - position.z,
+      color: v.color,
+    }));
+
+    groups.push({ groupId, position, voxels: localVoxels });
   }
 
-  const groupCounts = new Map<string, number>();
-  for (const v of out) groupCounts.set(v.groupId, (groupCounts.get(v.groupId) ?? 0) + 1);
+  // recenter + ground (apply to group positions, not voxel locals)
+  if (groups.length) {
+    let gMinX = Infinity, gMinY = Infinity, gMinZ = Infinity;
+    let gMaxX = -Infinity, gMaxY = -Infinity, gMaxZ = -Infinity;
+
+    for (const g of groups) {
+      for (const v of g.voxels) {
+        const x = g.position.x + v.x;
+        const y = g.position.y + v.y;
+        const z = g.position.z + v.z;
+        gMinX = Math.min(gMinX, x); gMaxX = Math.max(gMaxX, x);
+        gMinY = Math.min(gMinY, y); gMaxY = Math.max(gMaxY, y);
+        gMinZ = Math.min(gMinZ, z); gMaxZ = Math.max(gMaxZ, z);
+      }
+    }
+
+    const offX = -Math.floor((gMinX + gMaxX) / 2);
+    const offY = -gMinY;
+    const offZ = -Math.floor((gMinZ + gMaxZ) / 2);
+
+    for (const g of groups) {
+      g.position.x += offX;
+      g.position.y += offY;
+      g.position.z += offZ;
+    }
+  }
 
   console.log("[vox] models:", models.length, "nodes:", nodes.size, "instances:", instances.length);
-  console.log("[vox] groups:", [...groupCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20));
+  console.log("[vox] groups:", groups.map((g) => [g.groupId, g.voxels.length]).sort((a, b) => (b[1] as number) - (a[1] as number)).slice(0, 20));
 
-  return out;
+  return groups;
 }
