@@ -102,7 +102,7 @@ function raycastVoxelGrid(
 
 type PendingImport = {
   fileName: string;
-  voxels: { x: number; y: number; z: number; color: string }[];
+  voxels: { x: number; y: number; z: number; color: string; groupId: string }[];
 };
 
 export default function VoxelEditor() {
@@ -141,6 +141,9 @@ export default function VoxelEditor() {
 
   const hoverPlaneRef = useRef<THREE.Mesh | null>(null);
   const pendingHoverRaycastRef = useRef(false);
+
+  const groupBoxHelpersRef = useRef<Map<string, THREE.Box3Helper>>(new Map());
+  const pendingGroupBoxesSyncRef = useRef(false);
 
   const [importModal, setImportModal] = useState<PendingImport | null>(null);
 
@@ -183,44 +186,27 @@ export default function VoxelEditor() {
     }
   
     pendingHoverRaycastRef.current = true;
+    pendingGroupBoxesSyncRef.current = true;
   }
 
   function applyImport(opts: { asBlueprint: boolean }) {
     const world = worldRef.current;
     const pending = importModal;
     if (!world || !pending) return;
-
+  
     world.clear();
     currentIslandIdRef.current = null;
-
-    const imported = pending.voxels;
-    for (const v of imported) {
+  
+    for (const v of pending.voxels) {
       world.addVoxel(
         { x: v.x, y: v.y, z: v.z },
         v.color,
-        { isBlueprint: opts.asBlueprint }
+        { isBlueprint: opts.asBlueprint, groupId: v.groupId }
       );
     }
-
+  
+    pendingGroupBoxesSyncRef.current = true;
     pendingHoverRaycastRef.current = true;
-
-    if (imported.length) {
-      let minX = Infinity, minY = Infinity, minZ = Infinity;
-      let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-
-      for (const v of imported) {
-        minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
-        minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
-        minZ = Math.min(minZ, v.z); maxZ = Math.max(maxZ, v.z);
-      }
-
-      recenterCameraOnBounds({
-        minX, minY, minZ, maxX, maxY, maxZ,
-        controls: controlsRef.current,
-        camera: cameraRef.current,
-      });
-    }
-
     setImportModal(null);
   }
 
@@ -271,6 +257,7 @@ export default function VoxelEditor() {
 
     world.importPacked(loaded.packed);
     pendingHoverRaycastRef.current = true;
+    pendingGroupBoxesSyncRef.current = true;
 
     const pos = loaded.packed.positions;
     const n = Math.floor(pos.length / 3);
@@ -393,10 +380,14 @@ export default function VoxelEditor() {
     const world = new VoxelWorld(scene);
     worldRef.current = world;
 
+    const groupBoxes = groupBoxHelpersRef.current;
+
     world.addVoxel({ x: 0, y: 0, z: 0 }, "#ff9500");
     world.addVoxel({ x: 1, y: 0, z: 0 }, "#ff9500");
     world.addVoxel({ x: 0, y: 0, z: 1 }, "#ff9500");
     world.addVoxel({ x: 0, y: -1, z: 0 }, "#ff9500");
+
+    syncGroupBoxes();
 
     const hoverMat = new THREE.MeshBasicMaterial({
       color: new THREE.Color("#7dd3fc"),
@@ -531,6 +522,35 @@ export default function VoxelEditor() {
       m.visible = true;
     }
 
+    function clearGroupBoxes() {
+      for (const h of groupBoxes.values()) {
+        scene.remove(h);
+        (h.material as THREE.Material).dispose();
+      }
+      groupBoxes.clear();
+    }
+
+    function syncGroupBoxes() {
+      const w = worldRef.current;
+      if (!w) return;
+
+      clearGroupBoxes();
+
+      const boundsByGroup = w.getAllGroupBounds();
+      for (const [groupId, b] of boundsByGroup) {
+        const box = new THREE.Box3(
+          new THREE.Vector3(b.min.x, b.min.y, b.min.z),
+          new THREE.Vector3(b.max.x + 1, b.max.y + 1, b.max.z + 1)
+        );
+
+        const helper = new THREE.Box3Helper(box, 0x111111);
+        helper.renderOrder = 1000; 
+
+        scene.add(helper);
+        groupBoxes.set(groupId, helper);
+      }
+    }
+
     function fillBox(a: VoxelCoord, b: VoxelCoord, w: VoxelWorld, color: string) {
       const minX = Math.min(a.x, b.x);
       const minY = Math.min(a.y, b.y);
@@ -564,6 +584,7 @@ export default function VoxelEditor() {
     function onPointerLeave() {
       hideHover();
     }
+
     function onPointerDown(e: PointerEvent) {
       updateRayFromMouse(e);
     
@@ -598,7 +619,6 @@ export default function VoxelEditor() {
           return;
         }
       
-        // left click only
         if (e.button !== 0) return;
       
         if (!hit) return;
@@ -606,18 +626,16 @@ export default function VoxelEditor() {
         const placeAt = getPlacementCoord(hit, w);
         if (!placeAt) return;
       
-        // first click -> set start  NO placement
         if (!marqueeStartRef.current) {
           marqueeStartRef.current = placeAt;
       
-          // show initial preview 1x1x1
           showMarqueePreview(placeAt, placeAt);
           pendingHoverRaycastRef.current = true;
           return;
         }
       
-        // Second click -> fill cuboid and clear state
         fillBox(marqueeStartRef.current, placeAt, w, colorRef.current);
+        syncGroupBoxes();
         marqueeStartRef.current = null;
         hideMarqueePreview();
       
@@ -628,7 +646,9 @@ export default function VoxelEditor() {
       // pencil  default
     
       if (e.button === 2) {
-        if (hit) w.removeVoxel(hit.coord);
+        if (hit) 
+        w.removeVoxel(hit.coord);
+        syncGroupBoxes();
         pendingHoverRaycastRef.current = true;
         return;
       }
@@ -651,6 +671,7 @@ export default function VoxelEditor() {
                 w.setIsBlueprint(placeAt, false);
               } else if (!target) {
                 w.addVoxel(placeAt, colorRef.current);
+                syncGroupBoxes();
               }
             }
           }
@@ -683,6 +704,11 @@ export default function VoxelEditor() {
       if (pendingHoverRaycastRef.current) {
         pendingHoverRaycastRef.current = false;
         updateHoverFace();
+      }
+
+      if (pendingGroupBoxesSyncRef.current) {
+        pendingGroupBoxesSyncRef.current = false;
+        syncGroupBoxes();
       }
 
       renderer.render(scene, camera);
@@ -724,6 +750,8 @@ export default function VoxelEditor() {
 
       mount.removeChild(renderer.domElement);
       renderer.dispose();
+
+      clearGroupBoxes();
     };
   }, [mouseNDC, raycaster]);
 

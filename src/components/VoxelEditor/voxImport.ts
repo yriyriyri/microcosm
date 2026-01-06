@@ -1,4 +1,12 @@
-export type ImportedVoxel = { x: number; y: number; z: number; color: string };
+// voxImport.ts (drop-in) — Option B: group per nSHP instance
+
+export type ImportedVoxel = {
+  x: number;
+  y: number;
+  z: number;
+  color: string;
+  groupId: string;
+};
 
 type VoxRGBA = { r: number; g: number; b: number; a: number };
 type VoxVec3 = { x: number; y: number; z: number };
@@ -10,7 +18,7 @@ type Model = {
 
 type TRN = { id: number; child: number; rotPacked: number; t: VoxVec3 };
 type GRP = { id: number; children: number[] };
-type SHP = { id: number; modelIds: number[] }; // can be >1 animation frames;  we use first
+type SHP = { id: number; modelIds: number[] }; // can be >1 animation frames; we use first
 
 type Node =
   | { kind: "trn"; trn: TRN }
@@ -68,7 +76,7 @@ function parseTranslation(s?: string): VoxVec3 {
   return { x: parts[0] || 0, y: parts[1] || 0, z: parts[2] || 0 };
 }
 
-// rotating right by 1 makes ci=1 map to palette[1] visually 
+// rotating right by 1 makes ci=1 map to palette[1] visually
 function rotatePaletteRightBy1(p: VoxRGBA[]): VoxRGBA[] {
   const out = p.slice();
   const last = out[255];
@@ -77,18 +85,14 @@ function rotatePaletteRightBy1(p: VoxRGBA[]): VoxRGBA[] {
   return out;
 }
 
- //packed rotation decoder for nTRN "_r"
- // - i0 = bits 0..1 (row0 axis), i1 = bits 2..3 (row1 axis)
- //- signs: bit4 row0, bit5 row1, bit6 row2
- //- row2 axis is remaining axis from {0,1,2}
-
+// packed rotation decoder for nTRN "_r"
 function decodePackedRotation(packed: number): number[] {
   const i0 = (packed >> 0) & 0x3;
   const i1 = (packed >> 2) & 0x3;
 
-  const s0 = ((packed >> 4) & 1) ? -1 : 1;
-  const s1 = ((packed >> 5) & 1) ? -1 : 1;
-  const s2 = ((packed >> 6) & 1) ? -1 : 1;
+  const s0 = (packed >> 4) & 1 ? -1 : 1;
+  const s1 = (packed >> 5) & 1 ? -1 : 1;
+  const s2 = (packed >> 6) & 1 ? -1 : 1;
 
   if (i0 > 2 || i1 > 2 || i0 === i1) return ID3.slice();
 
@@ -142,7 +146,7 @@ function rgbaToHex(c: VoxRGBA): string {
   return `#${to2(c.r)}${to2(c.g)}${to2(c.b)}`;
 }
 
-// map to y up 
+// map to y up
 function mvToEditor(p: VoxVec3): VoxVec3 {
   return { x: p.x, y: p.z, z: -p.y };
 }
@@ -182,7 +186,7 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
 
       switch (chunkId) {
         case "MAIN": {
-          // MAIN normally has 0 bytes payload,, just children
+          // MAIN normally has 0 bytes payload, just children
           r.o = dataEnd;
           if (childSize > 0) parseChunkList(childrenEnd);
           r.o = childrenEnd;
@@ -190,7 +194,6 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
         }
 
         case "PACK": {
-          // not needed for parsing in this vers
           break;
         }
 
@@ -285,17 +288,23 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
 
   if (!palette) {
     // fallback
-    palette = new Array(256).fill(0).map((_, i) => ({ r: i, g: i, b: i, a: 255 }));
+    palette = new Array(256)
+      .fill(0)
+      .map((_, i) => ({ r: i, g: i, b: i, a: 255 }));
     palette[0].a = 0;
   }
 
   // build scene graph instances
-  type Instance = { modelId: number; xf: Xform };
+  type Instance = { modelId: number; xf: Xform; groupId: string };
   const instances: Instance[] = [];
 
   if (nodes.size === 0) {
-    // classic file - >  single model at origin
-    instances.push({ modelId: 0, xf: { R: ID3, t: { x: 0, y: 0, z: 0 } } });
+    // classic file -> single model at origin, no group info
+    instances.push({
+      modelId: 0,
+      xf: { R: ID3, t: { x: 0, y: 0, z: 0 } },
+      groupId: "default",
+    });
   } else {
     // find nodes not referenced as a child
     const referenced = new Set<number>();
@@ -305,37 +314,42 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
     }
 
     const roots = [...nodes.keys()].filter((id) => !referenced.has(id));
-    const startRoots = roots.length ? roots : (nodes.has(0) ? [0] : [[...nodes.keys()][0]].filter(Boolean) as number[]);
+    const startRoots = roots.length ? roots : nodes.has(0) ? [0] : [...nodes.keys()].slice(0, 1);
 
-    function walk(nodeId: number, parentXf: Xform, stack: Set<number>) {
+    function groupKeyFromGrpId(id: number) {
+      return `grp:${id}`;
+    }
+
+    function walk(nodeId: number, parentXf: Xform, leafGroupId: string, stack: Set<number>) {
       const n = nodes.get(nodeId);
       if (!n) return;
 
-      // no cycles  but DO ALLOW the same node to be instantiated in different branches
       if (stack.has(nodeId)) return;
       stack.add(nodeId);
 
       if (n.kind === "trn") {
         const local: Xform = { R: decodePackedRotation(n.trn.rotPacked), t: n.trn.t };
-        walk(n.trn.child, compose(parentXf, local), stack);
+        walk(n.trn.child, compose(parentXf, local), leafGroupId, stack);
         stack.delete(nodeId);
         return;
       }
 
       if (n.kind === "grp") {
-        for (const c of n.grp.children) walk(c, parentXf, stack);
+        const nextLeafGroupId = groupKeyFromGrpId(n.grp.id);
+        for (const c of n.grp.children) walk(c, parentXf, nextLeafGroupId, stack);
         stack.delete(nodeId);
         return;
       }
 
-      // shp
       const modelId = n.shp.modelIds[0] ?? 0;
-      instances.push({ modelId, xf: parentXf });
+      const groupId = `shp:${n.shp.id}`; 
+      instances.push({ modelId, xf: parentXf, groupId });
+
       stack.delete(nodeId);
     }
 
     for (const root of startRoots) {
-      walk(root, { R: ID3, t: { x: 0, y: 0, z: 0 } }, new Set());
+      walk(root, { R: ID3, t: { x: 0, y: 0, z: 0 } }, "default", new Set());
     }
   }
 
@@ -347,9 +361,8 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
     const model = models[inst.modelId];
     if (!model) continue;
 
-    // treat each voxel as a unit cube whose CENTER is ( x+0.5,y+0.5,z+0.5 )
-    // and center the whole model by subtracting ( size/2 )
-    // this makes TRN transforms behave correctly for multi-part assemblies
+    // treat each voxel as a unit cube whose CENTER is (x+0.5, y+0.5, z+0.5)
+    // and center the whole model by subtracting (size/2)
     const pivot = {
       x: model.size.x / 2,
       y: model.size.y / 2,
@@ -357,7 +370,6 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
     };
 
     for (const v of model.voxels) {
-      // local cube centered about pivot
       const localCenter: VoxVec3 = {
         x: v.x + 0.5 - pivot.x,
         y: v.y + 0.5 - pivot.y,
@@ -366,7 +378,6 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
 
       const rotated = mulMat3Vec3(inst.xf.R, localCenter);
 
-      // TRN translation places the MODEL pivot in MV space
       const worldCenterMV: VoxVec3 = {
         x: rotated.x + inst.xf.t.x,
         y: rotated.y + inst.xf.t.y,
@@ -375,7 +386,6 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
 
       const worldCenterEditor = mvToEditor(worldCenterMV);
 
-      // convert cube center - > editor cell coordinate (int)
       const cell = {
         x: roundCellFromCenter(worldCenterEditor.x),
         y: roundCellFromCenter(worldCenterEditor.y),
@@ -389,19 +399,26 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
       if (dedupe.has(k)) continue;
       dedupe.add(k);
 
-      out.push({ x: cell.x, y: cell.y, z: cell.z, color });
+      out.push({ x: cell.x, y: cell.y, z: cell.z, color, groupId: inst.groupId });
     }
   }
 
   // recentre + ground  MIGHT CHANGE
   if (out.length) {
-    let minX = Infinity, minY = Infinity, minZ = Infinity;
-    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+    let minX = Infinity,
+      minY = Infinity,
+      minZ = Infinity;
+    let maxX = -Infinity,
+      maxY = -Infinity,
+      maxZ = -Infinity;
 
     for (const v of out) {
-      minX = Math.min(minX, v.x); maxX = Math.max(maxX, v.x);
-      minY = Math.min(minY, v.y); maxY = Math.max(maxY, v.y);
-      minZ = Math.min(minZ, v.z); maxZ = Math.max(maxZ, v.z);
+      minX = Math.min(minX, v.x);
+      maxX = Math.max(maxX, v.x);
+      minY = Math.min(minY, v.y);
+      maxY = Math.max(maxY, v.y);
+      minZ = Math.min(minZ, v.z);
+      maxZ = Math.max(maxZ, v.z);
     }
 
     const offX = -Math.floor((minX + maxX) / 2);
@@ -414,6 +431,12 @@ export function parseVox(buffer: ArrayBuffer): ImportedVoxel[] {
       v.z += offZ;
     }
   }
+
+  const groupCounts = new Map<string, number>();
+  for (const v of out) groupCounts.set(v.groupId, (groupCounts.get(v.groupId) ?? 0) + 1);
+
+  console.log("[vox] models:", models.length, "nodes:", nodes.size, "instances:", instances.length);
+  console.log("[vox] groups:", [...groupCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 20));
 
   return out;
 }

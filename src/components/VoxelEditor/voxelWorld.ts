@@ -2,18 +2,25 @@ import * as THREE from "three";
 import type { VoxelCoord } from "./types";
 import { keyOf } from "./types";
 
+export type GroupId = string;
+
 type VoxelRecord = {
   coord: VoxelCoord;
   color: string; // base color #rrggbb stored
   mesh: THREE.Mesh;
   isBlueprint: boolean;
+  groupId: GroupId;
 };
 
 export type WorldPacked = {
   positions: Int32Array;
   colors: Uint32Array; // 0xRRGGBB
-  blueprints?: Uint8Array; 
+  blueprints?: Uint8Array;
+  groupIds?: Uint32Array;
+  groupTable?: string[]; 
 };
+
+const DEFAULT_GROUP: GroupId = "default";
 
 function hexToRgb24(hex: string): number {
   const h = hex.startsWith("#") ? hex.slice(1) : hex;
@@ -43,8 +50,7 @@ function rgb01ToHex(r: number, g: number, b: number): string {
     .padStart(2, "0")}`;
 }
 
-//white shift matrix
-
+// white shift matrix
 const BLUEPRINT_M = [
   0.75, 0,    0,    0, 0.25,
   0,    0.75, 0,    0, 0.25,
@@ -68,6 +74,7 @@ function blueprintTint(hex: string): string {
 
   return rgb01ToHex(clamp01(r2), clamp01(g2), clamp01(b2));
 }
+
 export class VoxelWorld {
   private scene: THREE.Scene;
   private voxels = new Map<string, VoxelRecord>();
@@ -101,8 +108,18 @@ export class VoxelWorld {
     return this.voxels.get(keyOf(coord))?.isBlueprint ?? false;
   }
 
+  getGroupId(coord: VoxelCoord): GroupId {
+    return this.voxels.get(keyOf(coord))?.groupId ?? DEFAULT_GROUP;
+  }
+
   listMeshes(): THREE.Mesh[] {
     return Array.from(this.voxels.values()).map((v) => v.mesh);
+  }
+
+  listGroupIds(): GroupId[] {
+    const s = new Set<GroupId>();
+    for (const v of this.voxels.values()) s.add(v.groupId);
+    return Array.from(s.values());
   }
 
   clear() {
@@ -110,11 +127,17 @@ export class VoxelWorld {
     this.voxels.clear();
   }
 
-  addVoxel(coord: VoxelCoord, color: string, opts?: { isBlueprint?: boolean }) {
+  addVoxel(
+    coord: VoxelCoord,
+    color: string,
+    opts?: { isBlueprint?: boolean; groupId?: GroupId }
+  ) {
     const k = keyOf(coord);
     if (this.voxels.has(k)) return;
 
     const isBlueprint = !!opts?.isBlueprint;
+    const groupId = opts?.groupId ?? DEFAULT_GROUP;
+
     const mat = this.getMaterial(color, isBlueprint);
 
     const mesh = new THREE.Mesh(this.geometry, mat);
@@ -125,9 +148,10 @@ export class VoxelWorld {
 
     mesh.userData.coord = { ...coord };
     mesh.userData.isBlueprint = isBlueprint;
+    mesh.userData.groupId = groupId;
 
     this.scene.add(mesh);
-    this.voxels.set(k, { coord, color, mesh, isBlueprint });
+    this.voxels.set(k, { coord, color, mesh, isBlueprint, groupId });
   }
 
   removeVoxel(coord: VoxelCoord) {
@@ -161,23 +185,100 @@ export class VoxelWorld {
     rec.mesh.material = this.getMaterial(rec.color, rec.isBlueprint);
   }
 
+  setGroupId(coord: VoxelCoord, groupId: GroupId) {
+    const rec = this.voxels.get(keyOf(coord));
+    if (!rec) return;
+    if (rec.groupId === groupId) return;
+
+    rec.groupId = groupId;
+    rec.mesh.userData.groupId = groupId;
+  }
+
+  getGroupBounds(groupId: GroupId): { min: VoxelCoord; max: VoxelCoord } | null {
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+    let found = false;
+
+    for (const v of this.voxels.values()) {
+      if (v.groupId !== groupId) continue;
+      found = true;
+
+      minX = Math.min(minX, v.coord.x); maxX = Math.max(maxX, v.coord.x);
+      minY = Math.min(minY, v.coord.y); maxY = Math.max(maxY, v.coord.y);
+      minZ = Math.min(minZ, v.coord.z); maxZ = Math.max(maxZ, v.coord.z);
+    }
+
+    if (!found) return null;
+
+    return {
+      min: { x: minX, y: minY, z: minZ },
+      max: { x: maxX, y: maxY, z: maxZ },
+    };
+  }
+
+  getAllGroupBounds(): Map<GroupId, { min: VoxelCoord; max: VoxelCoord }> {
+    const out = new Map<GroupId, { min: VoxelCoord; max: VoxelCoord }>();
+
+    for (const v of this.voxels.values()) {
+      const g = v.groupId ?? DEFAULT_GROUP;
+
+      const b = out.get(g);
+      if (!b) {
+        out.set(g, {
+          min: { ...v.coord },
+          max: { ...v.coord },
+        });
+        continue;
+      }
+
+      b.min.x = Math.min(b.min.x, v.coord.x);
+      b.min.y = Math.min(b.min.y, v.coord.y);
+      b.min.z = Math.min(b.min.z, v.coord.z);
+
+      b.max.x = Math.max(b.max.x, v.coord.x);
+      b.max.y = Math.max(b.max.y, v.coord.y);
+      b.max.z = Math.max(b.max.z, v.coord.z);
+    }
+
+    return out;
+  }
+
   exportPacked(): WorldPacked {
     const n = this.voxels.size;
     const positions = new Int32Array(n * 3);
     const colors = new Uint32Array(n);
     const blueprints = new Uint8Array(n);
 
+    const groupTable: string[] = [];
+    const groupIndex = new Map<string, number>();
+    const groupIds = new Uint32Array(n);
+
+    const ensureGroup = (g: string) => {
+      let idx = groupIndex.get(g);
+      if (idx != null) return idx;
+      idx = groupTable.length;
+      groupTable.push(g);
+      groupIndex.set(g, idx);
+      return idx;
+    };
+
     let i = 0;
     for (const v of this.voxels.values()) {
       positions[i * 3 + 0] = v.coord.x | 0;
       positions[i * 3 + 1] = v.coord.y | 0;
       positions[i * 3 + 2] = v.coord.z | 0;
+
       colors[i] = hexToRgb24(v.color);
       blueprints[i] = v.isBlueprint ? 1 : 0;
+
+      const g = v.groupId ?? DEFAULT_GROUP;
+      groupIds[i] = ensureGroup(g);
+
       i++;
     }
 
-    return { positions, colors, blueprints };
+    return { positions, colors, blueprints, groupIds, groupTable };
   }
 
   importPacked(packed: WorldPacked) {
@@ -186,15 +287,26 @@ export class VoxelWorld {
     const { positions, colors } = packed;
     const bp = packed.blueprints;
 
+    const groupIds = packed.groupIds;
+    const groupTable = packed.groupTable;
+
     const n = Math.min(colors.length, Math.floor(positions.length / 3));
+
     for (let i = 0; i < n; i++) {
       const x = positions[i * 3 + 0];
       const y = positions[i * 3 + 1];
       const z = positions[i * 3 + 2];
+
       const color = rgb24ToHex(colors[i]);
       const isBlueprint = bp ? bp[i] === 1 : false;
 
-      this.addVoxel({ x, y, z }, color, { isBlueprint });
+      let groupId: GroupId = DEFAULT_GROUP;
+      if (groupIds && groupTable) {
+        const gi = groupIds[i] ?? 0;
+        groupId = groupTable[gi] ?? DEFAULT_GROUP;
+      }
+
+      this.addVoxel({ x, y, z }, color, { isBlueprint, groupId });
     }
   }
 
