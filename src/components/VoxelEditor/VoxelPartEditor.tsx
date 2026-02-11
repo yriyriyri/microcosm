@@ -11,6 +11,8 @@ import { VoxelWorld } from "./VoxelWorld";
 import type { VoxelCoord } from "./Types";
 import { add } from "./Types";
 
+import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
+
 const FOCUS_GROUP_ID = "__focus__";
 
 type LoopCtx = {
@@ -146,6 +148,8 @@ export default function VoxelPartEditor(props: {
   onExit: () => void;
 }) {
   const { open, groupId, world, onExit } = props;
+
+  const { play, startLoop, stopLoop } = useSound();
 
   const mountRef = useRef<HTMLDivElement | null>(null);
 
@@ -330,8 +334,13 @@ export default function VoxelPartEditor(props: {
       if (!next) return;
 
       if (toolRef.current === "marquee" && next !== "marquee") {
+        const hadSelection = marqueeStartRef.current != null;
         marqueeStartRef.current = null;
         if (marqueePreviewRef.current) marqueePreviewRef.current.visible = false;
+        if (hadSelection) {
+          stopLoop("VoxelPartEditor:extrude", 80);
+          play("extrudeEnd");
+        }
       }
 
       setTool(next);
@@ -494,6 +503,7 @@ export default function VoxelPartEditor(props: {
           if (rec) {
             setColor(rec.color);
             colorRef.current = rec.color;
+            play("colorPick");
           }
         }
 
@@ -507,6 +517,8 @@ export default function VoxelPartEditor(props: {
           if (marqueeStartRef.current) {
             marqueeStartRef.current = null;
             hideMarqueePreview();
+            stopLoop("VoxelPartEditor:extrude", 80);
+            play("extrudeEnd");
             pendingHoverRaycastRef.current = true;
           }
           return;
@@ -521,6 +533,8 @@ export default function VoxelPartEditor(props: {
         if (!marqueeStartRef.current) {
           marqueeStartRef.current = placeAt;
           showMarqueePreview(placeAt, placeAt);
+          play("extrudeStart");
+          startLoop("VoxelPartEditor:extrude", "extrudeLoop");
           pendingHoverRaycastRef.current = true;
           return;
         }
@@ -528,13 +542,18 @@ export default function VoxelPartEditor(props: {
         fillBox(marqueeStartRef.current, placeAt, w, colorRef.current);
         marqueeStartRef.current = null;
         hideMarqueePreview();
+        stopLoop("VoxelPartEditor:extrude", 80);
+        play("extrudeEnd");
         pendingHoverRaycastRef.current = true;
         return;
       }
 
       // pencil
       if (e.button === 2) {
-        if (hit) w.removeVoxel(hit.coord);
+        if (hit) {
+          w.removeVoxel(hit.coord);
+          play("deleteVoxel", { detune: Math.random() * 80 - 40 });
+        }
         pendingHoverRaycastRef.current = true;
         return;
       }
@@ -547,6 +566,7 @@ export default function VoxelPartEditor(props: {
         if (rec?.isBlueprint) {
           w.setColor(hit.coord, colorRef.current);
           w.setIsBlueprint(hit.coord, false);
+          play("placeVoxel");
         } else {
           const n = hit.normal;
           if (n.x !== 0 || n.y !== 0 || n.z !== 0) {
@@ -558,6 +578,7 @@ export default function VoxelPartEditor(props: {
               w.setIsBlueprint(placeAt, false);
             } else if (!target) {
               w.addVoxel(placeAt, colorRef.current, { groupId: FOCUS_GROUP_ID });
+              play("placeVoxel");
             }
           }
         }

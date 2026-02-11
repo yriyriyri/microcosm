@@ -4,6 +4,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { RGBELoader } from "three/examples/jsm/Addons.js";
+
+import { applyHeightMistToStandardMaterial } from "@/materials/heightMist";
 
 import { VoxelWorld } from "./VoxelWorld";
 import type { GroupState } from "./VoxelWorld";
@@ -13,7 +17,7 @@ import { loadIsland, saveIsland } from "./database/LibraryDb";
 import AssetsPanel from "./ui/AssetsPanel";
 import { loadAsset, saveAsset } from "./database/AssetDb";
 import { parseVox } from "./vox/voxImport";
-//
+
 function recenterCameraOnBounds(params: {
   minX: number;
   minY: number;
@@ -62,6 +66,10 @@ export default function VoxelWorldEditor(props: {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const islandRootRef = useRef<THREE.Object3D | null>(null);
+
+  const envMapRef = useRef<THREE.Texture | null>(null);
+  const envRTRef = useRef<THREE.WebGLRenderTarget | null>(null);
 
   const currentIslandIdRef = useRef<string | null>(null);
 
@@ -83,6 +91,33 @@ export default function VoxelWorldEditor(props: {
   const hoverBoxRef = useRef<THREE.Box3Helper | null>(null);
   const pendingGroupBoxesSyncRef = useRef(false);
 
+  // const [camDebug, setCamDebug] = useState("");
+
+  // useEffect(() => {
+  //   const onKeyDown = (e: KeyboardEvent) => {
+  //     if (e.key.toLowerCase() !== "p") return; 
+  //     const cam = cameraRef.current;
+  //     const controls = controlsRef.current;
+  //     if (!cam || !controls) return;
+
+  //     const p = cam.position;
+  //     const t = controls.target;
+  //     const s =
+  //       `camera.position.set(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)});\n` +
+  //       `controls.target.set(${t.x.toFixed(3)}, ${t.y.toFixed(3)}, ${t.z.toFixed(3)});\n` +
+  //       `controls.update();\n` +
+  //       `camera.lookAt(controls.target);\n` +
+  //       `// fov=${cam.fov.toFixed(2)}\n`;
+
+  //     setCamDebug(s);
+  //     console.log(s);
+  //     try { navigator.clipboard.writeText(s); } catch {}
+  //   };
+
+  //   window.addEventListener("keydown", onKeyDown);
+  //   return () => window.removeEventListener("keydown", onKeyDown);
+  // }, []);
+
   useEffect(() => {
     selectedGroupIdLiveRef.current = selectedGroupId;
   }, [selectedGroupId]);
@@ -92,7 +127,7 @@ export default function VoxelWorldEditor(props: {
   }, [hoveredGroupId]);
 
   const focusOpenRef = useRef(focusOpen);
-  
+
   useEffect(() => {
     focusOpenRef.current = focusOpen;
   }, [focusOpen]);
@@ -119,31 +154,26 @@ export default function VoxelWorldEditor(props: {
     (h.material as THREE.Material).dispose();
     ref.current = null;
   }
-  
-  function upsertHelper(
-    ref: React.MutableRefObject<THREE.Box3Helper | null>,
-    box: THREE.Box3,
-    color: number
-  ) {
+
+  function upsertHelper(ref: React.MutableRefObject<THREE.Box3Helper | null>, box: THREE.Box3, color: number) {
     const scene = sceneRef.current;
     if (!scene) return;
-  
+
     clearHelper(ref);
-  
+
     const helper = new THREE.Box3Helper(box, color);
     helper.renderOrder = 1000;
     scene.add(helper);
     ref.current = helper;
   }
-  
+
   function syncGroupBoxes() {
     const w = worldRef.current;
     if (!w) return;
-  
+
     const selected = selectedGroupIdLiveRef.current;
     const hovered = hoveredGroupIdLiveRef.current;
-  
-    // selected outline
+
     if (selected) {
       const b = w.getGroupBounds(selected);
       if (b) {
@@ -158,8 +188,7 @@ export default function VoxelWorldEditor(props: {
     } else {
       clearHelper(selectedBoxRef);
     }
-  
-    // hover outline
+
     if (hovered && hovered !== selected) {
       const b = w.getGroupBounds(hovered);
       if (b) {
@@ -174,7 +203,6 @@ export default function VoxelWorldEditor(props: {
     } else {
       clearHelper(hoverBoxRef);
     }
-  
   }
 
   function setMouseFromEvent(e: PointerEvent) {
@@ -227,18 +255,11 @@ export default function VoxelWorldEditor(props: {
 
     w?.clear();
 
-    if (w) {
-      w.addVoxel({ x: 0, y: 0, z: 0 }, "#ff9500", { groupId: "default" });
-      w.addVoxel({ x: 1, y: 0, z: 0 }, "#ff9500", { groupId: "default" });
-      w.addVoxel({ x: 0, y: 0, z: 1 }, "#ff9500", { groupId: "default" });
-      w.addVoxel({ x: 0, y: -1, z: 0 }, "#ff9500", { groupId: "default" });
-    }
-
     if (controlsRef.current && cameraRef.current) {
-      controlsRef.current.target.set(0, 0, 0);
-      controlsRef.current.update();
-      cameraRef.current.position.set(40, 40, 40);
-      cameraRef.current.lookAt(0, 0, 0);
+      cameraRef.current.position.set(172.557, 77.391, 184.354);
+      controlsRef.current?.target.set(0, 0, 0);
+      controlsRef.current?.update();
+      cameraRef.current.lookAt(controlsRef.current!.target);
     }
 
     pendingGroupBoxesSyncRef.current = true;
@@ -258,12 +279,9 @@ export default function VoxelWorldEditor(props: {
     for (const g of pending.groups) {
       world.addGroup(g.groupId, g.position);
       for (const v of g.voxels) {
-        world.addVoxelLocal(
-          g.groupId,
-          { x: v.x, y: v.y, z: v.z },
-          v.color,
-          { isBlueprint: opts.asBlueprint }
-        );
+        world.addVoxelLocal(g.groupId, { x: v.x, y: v.y, z: v.z }, v.color, {
+          isBlueprint: opts.asBlueprint,
+        });
       }
     }
 
@@ -318,19 +336,21 @@ export default function VoxelWorldEditor(props: {
 
   function normalizeGroupToOrigin(g: GroupState): GroupState {
     if (!g.voxels.length) return { ...g, position: { x: 0, y: 0, z: 0 } };
-  
-    let minX = Infinity, minY = Infinity, minZ = Infinity;
+
+    let minX = Infinity,
+      minY = Infinity,
+      minZ = Infinity;
     for (const v of g.voxels) {
       minX = Math.min(minX, v.local.x);
       minY = Math.min(minY, v.local.y);
       minZ = Math.min(minZ, v.local.z);
     }
-  
+
     const voxels = g.voxels.map((v) => ({
       ...v,
       local: { x: v.local.x - minX, y: v.local.y - minY, z: v.local.z - minZ },
     }));
-  
+
     return { groupId: g.groupId, position: { x: 0, y: 0, z: 0 }, voxels };
   }
 
@@ -435,12 +455,10 @@ export default function VoxelWorldEditor(props: {
     setPlacingLabel(null);
   }
 
-  //sync group outline boxes
   useEffect(() => {
     pendingGroupBoxesSyncRef.current = true;
-  }, [selectedGroupId, hoveredGroupId,focusOpen]);
+  }, [selectedGroupId, hoveredGroupId, focusOpen]);
 
-  //world place cancel
   useEffect(() => {
     if (!placingLabel) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -450,44 +468,41 @@ export default function VoxelWorldEditor(props: {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [placingLabel]);
 
-  //delete group with del key
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
       if (focusOpenRef.current) return;
       if (importModal) return;
       if (placingLabel) return;
-  
+
       const el = document.activeElement as HTMLElement | null;
       const tag = el?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || (el as any)?.isContentEditable) return;
-  
+
       const w = worldRef.current;
       const gid = selectedGroupIdLiveRef.current;
       if (!w || !gid) return;
-  
+
       const ok = w.removeGroup?.(gid);
       if (!ok) return;
-  
-      // clear selection / hover if it was that group
+
       selectedGroupIdLiveRef.current = null;
       setSelectedGroupId(null);
-  
+
       if (hoveredGroupIdLiveRef.current === gid) {
         hoveredGroupIdLiveRef.current = null;
         setHoveredGroupId(null);
       }
-  
+
       pendingGroupBoxesSyncRef.current = true;
-  
+
       e.preventDefault();
     };
-  
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [importModal, placingLabel]);
 
-  // handle esc to close import modal only
   useEffect(() => {
     if (!importModal) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -504,54 +519,162 @@ export default function VoxelWorldEditor(props: {
 
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    scene.background = new THREE.Color("#ffffff");
+
+    scene.background = null;
 
     const camera = new THREE.PerspectiveCamera(40, mount.clientWidth / mount.clientHeight, 0.1, 2000);
     camera.position.set(40, 40, 40);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+      depth: true,
+      stencil: false,
+    });
     rendererRef.current = renderer;
+
+    const DPR = Math.min(window.devicePixelRatio, 2);
+    renderer.setPixelRatio(DPR);
     renderer.setSize(mount.clientWidth, mount.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
     mount.appendChild(renderer.domElement);
 
     const preventContextMenu = (e: Event) => e.preventDefault();
     renderer.domElement.addEventListener("contextmenu", preventContextMenu);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 2.0));
-    const dir = new THREE.DirectionalLight(0xffffff, 1.5);
-    dir.position.set(10, 18, 8);
+    // lighting closer to your home scene
+    scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+
+    const dir = new THREE.DirectionalLight(0xffffff, 3.5);
     dir.castShadow = true;
-    dir.shadow.mapSize.set(2048, 2048);
+    dir.shadow.bias = -0.0005;
+    dir.shadow.mapSize.set(512, 512);
+
+    // optional: similar shadow frustum
+    dir.shadow.camera.near = 1;
+    dir.shadow.camera.far = 1000;
+    const frustum = 50;
+    dir.shadow.camera.left = -frustum;
+    dir.shadow.camera.right = frustum;
+    dir.shadow.camera.top = frustum;
+    dir.shadow.camera.bottom = -frustum;
+    dir.shadow.camera.updateProjectionMatrix();
+
+    // similar "sun angle"
+    dir.position.setFromSphericalCoords(
+      150,
+      THREE.MathUtils.degToRad(80),
+      THREE.MathUtils.degToRad(-29)
+    );
+    dir.target.position.set(0, 0, 80);
+    scene.add(dir.target);
     scene.add(dir);
 
+    camera.position.set(172.557, 77.391, 184.354);
+    cameraRef.current = camera;
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.target.set(0, 0, 0);
+    controls.target.set(0.0, 0.0, 0.0);
     controls.update();
-    controlsRef.current = controls;
+    
+    camera.lookAt(controls.target);
+
+    const hdriLoader = new RGBELoader();
+    hdriLoader.load(
+      "/world/DayInTheClouds1K.hdr",
+      (texture) => {
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const rt = pmrem.fromEquirectangular(texture);
+        texture.dispose();
+        pmrem.dispose();
+
+        scene.environment = rt.texture;
+        (scene.environment as any).colorSpace = THREE.SRGBColorSpace;
+
+        envMapRef.current = rt.texture;
+        envRTRef.current = rt;
+      },
+      undefined,
+      (err) => console.error("Failed to load HDRI /world/DayInTheClouds1K.hdr", err)
+    );
+
+    const gltfLoader = new GLTFLoader();
+
+    gltfLoader.load(
+      "/baked/island.glb",
+      (gltf) => {
+        if (islandRootRef.current) {
+          scene.remove(islandRootRef.current);
+          islandRootRef.current = null;
+        }
+
+        const root = gltf.scene;
+        root.name = "baked:island";
+
+        root.position.set(0, 0, 0);
+        root.rotation.set(0, 0, 0);
+        root.scale.set(1, 1, 1);
+
+        root.traverse((obj) => {
+          const mesh = obj as THREE.Mesh;
+          if (!(mesh as any).isMesh) return;
+
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+
+          const applyTo = (mat: THREE.Material) => {
+            const m = mat as THREE.MeshStandardMaterial;
+            if (!("roughness" in m)) return;
+
+            m.roughness = 1;
+            m.metalness = 0;
+
+            if (scene.environment) (m as any).envMap = scene.environment;
+
+            applyHeightMistToStandardMaterial(m, {
+              yBottom: -12,
+              yTop: 3,
+              maxOpacity: 0.3,
+              color: 0xffffff,
+            });
+
+            m.needsUpdate = true;
+          };
+
+          if (Array.isArray(mesh.material)) mesh.material.forEach(applyTo);
+          else applyTo(mesh.material);
+        });
+
+        scene.add(root);
+        islandRootRef.current = root;
+      },
+      undefined,
+      (err) => {
+        console.error("Failed to load /baked/island.glb", err);
+      }
+    );
 
     const world = new VoxelWorld(scene);
     worldRef.current = world;
     props.onWorldReady?.(world);
 
-    // default scene
-    world.addVoxel({ x: 0, y: 0, z: 0 }, "#ff9500", { groupId: "default" });
-    world.addVoxel({ x: 1, y: 0, z: 0 }, "#ff9500", { groupId: "default" });
-    world.addVoxel({ x: 0, y: 0, z: 1 }, "#ff9500", { groupId: "default" });
-    world.addVoxel({ x: 0, y: -1, z: 0 }, "#ff9500", { groupId: "default" });
-
     pendingGroupBoxesSyncRef.current = true;
 
     function onPointerDown(e: PointerEvent) {
       if (focusOpenRef.current) return;
-    
+
       updateRayFromMouse(e);
 
-      //asset placement
       if (placingAssetRef.current && e.button === 0) {
         const w = worldRef.current;
         if (!w) return;
@@ -589,41 +712,38 @@ export default function VoxelWorldEditor(props: {
         e.stopImmediatePropagation?.();
         return;
       }
-    
-      //on click set current selected to group under mouse
+
       const gid = pickGroupUnderMouse();
-    
+
       if (!gid) {
         selectedGroupIdLiveRef.current = null;
         setSelectedGroupId(null);
         pendingGroupBoxesSyncRef.current = true;
         return;
       }
-      
+
       selectedGroupIdLiveRef.current = gid;
       setSelectedGroupId(gid);
       pendingGroupBoxesSyncRef.current = true;
-        
-      // only left button starts drag
+
       if (e.button !== 0) return;
-    
+
       const w = worldRef.current;
       const renderer = rendererRef.current;
       if (!w || !renderer) return;
-    
+
       const gp = w.getGroupPosition ? w.getGroupPosition(gid) : { x: 0, y: 0, z: 0 };
-    
-      // drag plane is horizontal at groups Y
+
       const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -gp.y);
       const hit = rayPlaneIntersection(plane);
       if (!hit) return;
-    
+
       setOrbitalControlsEnabled(false);
       renderer.domElement.setPointerCapture(e.pointerId);
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation?.();
-    
+
       dragRef.current = {
         active: true,
         pointerId: e.pointerId,
@@ -633,43 +753,40 @@ export default function VoxelWorldEditor(props: {
         plane,
       };
     }
-    
+
     function onPointerMove(e: PointerEvent) {
       if (focusOpenRef.current) return;
-    
-      //currently dragging logic
+
       const d = dragRef.current;
       if (d?.active) {
-
         updateRayFromMouse(e);
-    
+
         const hit = rayPlaneIntersection(d.plane);
         if (!hit) return;
-    
+
         const delta = new THREE.Vector3().subVectors(hit, d.startHitPoint);
         const dx = Math.round(delta.x);
         const dz = Math.round(delta.z);
-    
+
         const w = worldRef.current;
         if (!w?.setGroupPosition) return;
-    
+
         const next = {
           x: d.startGroupPos.x + dx,
           y: d.startGroupPos.y,
           z: d.startGroupPos.z + dz,
         };
-    
+
         w.setGroupPosition(d.groupId!, next);
         pendingGroupBoxesSyncRef.current = true;
-    
+
         e.preventDefault();
         return;
       }
-    
-      // not dragging ,, update hover outline target
+
       updateRayFromMouse(e);
       const gid = pickGroupUnderMouse();
-      
+
       const prev = hoveredGroupIdLiveRef.current;
       if (prev !== gid) {
         hoveredGroupIdLiveRef.current = gid;
@@ -696,16 +813,15 @@ export default function VoxelWorldEditor(props: {
       pendingGroupBoxesSyncRef.current = true;
       endDrag();
     }
-    
+
     function onPointerUp() {
       endDrag();
     }
-    
+
     function onPointerCancel() {
       endDrag();
     }
 
-    //listeners
     renderer.domElement.addEventListener("pointerdown", onPointerDown, true);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointercancel", onPointerCancel);
@@ -718,7 +834,9 @@ export default function VoxelWorldEditor(props: {
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      const dpr = Math.min(window.devicePixelRatio, 2);
+      renderer.setPixelRatio(dpr);
     };
     window.addEventListener("resize", onResize);
 
@@ -748,36 +866,70 @@ export default function VoxelWorldEditor(props: {
       renderer.domElement.removeEventListener("contextmenu", preventContextMenu);
 
       props.onWorldReady?.(null);
+
       world.dispose();
       worldRef.current = null;
 
       controls.dispose();
       controlsRef.current = null;
 
-      cameraRef.current = null;
-      rendererRef.current = null;
-      sceneRef.current = null;
+      if (islandRootRef.current) {
+        scene.remove(islandRootRef.current);
+        islandRootRef.current = null;
+      }
+
+      scene.environment = null;
+      envMapRef.current = null;
+      if (envRTRef.current) {
+        envRTRef.current.dispose();
+        envRTRef.current = null;
+      }
 
       clearHelper(selectedBoxRef);
       clearHelper(hoverBoxRef);
 
-      mount.removeChild(renderer.domElement);
+      cameraRef.current = null;
+      rendererRef.current = null;
+      sceneRef.current = null;
+
+      if (renderer.domElement.parentElement === mount) {
+        mount.removeChild(renderer.domElement);
+      }
       renderer.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mouseNDC, raycaster]);
 
   return (
     <div
-      ref={mountRef}
       style={{
         position: "relative",
         width: "100%",
         height: "100%",
         overflow: "hidden",
         userSelect: "none",
+  
+        backgroundImage: `url('/world/bg.png')`,
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "center center",
+        backgroundSize: "cover",
       }}
     >
+      <div className="clouds" aria-hidden>
+        <img className="cloud cloudBg" src="/world/bgc.png" alt="" />
+        <img className="cloud cloudMg" src="/world/mgc.png" alt="" />
+        <img className="cloud cloudFg" src="/world/fgc.png" alt="" />
+      </div>
+  
+      <div
+        ref={mountRef}
+        style={{
+          position: "absolute",
+          inset: 0,
+          overflow: "hidden",
+          zIndex: 10,
+        }}
+      />
+  
       {importModal && (
         <div
           style={{
@@ -801,27 +953,36 @@ export default function VoxelWorldEditor(props: {
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div style={{ fontSize: 20, marginBottom: 20 }}>{"Import .vox"}</div>
-
+  
             <div style={{ fontSize: 15, marginBottom: 14 }}>
               <div style={{ marginBottom: 4 }}>{importModal.fileName}</div>
               <div>{importModal.groups.length.toLocaleString()} objects</div>
             </div>
-
+  
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <label onClick={() => applyImport({ asBlueprint: false })} style={{ padding: "10px 0px", cursor: "pointer", fontSize: 15 }}>
+              <label
+                onClick={() => applyImport({ asBlueprint: false })}
+                style={{ padding: "10px 0px", cursor: "pointer", fontSize: 15 }}
+              >
                 Import normally
               </label>
-              <label onClick={() => applyImport({ asBlueprint: true })} style={{ padding: "10px 12px", cursor: "pointer", fontSize: 15 }}>
+              <label
+                onClick={() => applyImport({ asBlueprint: true })}
+                style={{ padding: "10px 12px", cursor: "pointer", fontSize: 15 }}
+              >
                 Import as blueprint
               </label>
-              <label onClick={() => setImportModal(null)} style={{ padding: "10px 12px", cursor: "pointer", fontSize: 15 }}>
+              <label
+                onClick={() => setImportModal(null)}
+                style={{ padding: "10px 12px", cursor: "pointer", fontSize: 15 }}
+              >
                 Cancel
               </label>
             </div>
           </div>
         </div>
       )}
-
+  
       <input
         value={islandName}
         onChange={(e) => setIslandName(e.target.value)}
@@ -839,41 +1000,40 @@ export default function VoxelWorldEditor(props: {
           background: "transparent",
           border: "none",
           outline: "none",
+          zIndex: 20,
         }}
       />
-
-      <LibraryPanel 
-        open={libraryOpen} 
-        onClose={() => setLibraryOpen(false)} 
-        onOpenIsland={onOpenFromLibrary} 
-      />
-
-      <AssetsPanel
-        open={assetsOpen}
-        onClose={() => setAssetsOpen(false)}
-        onRequestPlace={beginPlaceAsset}
-        onRequestSaveSelected={onSaveSelectedAsAsset}
-        selectedGroupId={selectedGroupId}
-        placingLabel={placingLabel}
-      />
-
-      <div style={{ position: "absolute", top: 0, right: 0, display: "flex", gap: 10, pointerEvents: "auto" }}>
+  
+      <div style={{ position: "relative", zIndex: 20, pointerEvents: "auto" }}>
+        <LibraryPanel open={libraryOpen} onClose={() => setLibraryOpen(false)} onOpenIsland={onOpenFromLibrary} />
+  
+        <AssetsPanel
+          open={assetsOpen}
+          onClose={() => setAssetsOpen(false)}
+          onRequestPlace={beginPlaceAsset}
+          onRequestSaveSelected={onSaveSelectedAsAsset}
+          selectedGroupId={selectedGroupId}
+          placingLabel={placingLabel}
+        />
+      </div>
+  
+      <div style={{ position: "absolute", top: 0, right: 0, display: "flex", gap: 10, pointerEvents: "auto", zIndex: 20 }}>
         <label onClick={onNew} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
           New
         </label>
-
+  
         <label onClick={onSaveToLibrary} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
           Save
         </label>
-
+  
         <label onClick={() => setLibraryOpen(true)} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
           Worlds
         </label>
-
+  
         <label onClick={() => setAssetsOpen(true)} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
           Assets
         </label>
-
+  
         <label style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
           Import
           <input
@@ -887,9 +1047,8 @@ export default function VoxelWorldEditor(props: {
             }}
           />
         </label>
-
       </div>
-
+  
       {selectedGroupId && (
         <div
           onClick={() => onFocusGroup(selectedGroupId)}
@@ -906,12 +1065,13 @@ export default function VoxelWorldEditor(props: {
             cursor: "pointer",
             userSelect: "none",
             pointerEvents: "auto",
+            zIndex: 20,
           }}
         >
           Focus mode
         </div>
       )}
-
+  
       <div
         style={{
           position: "absolute",
@@ -922,12 +1082,69 @@ export default function VoxelWorldEditor(props: {
           fontSize: 16,
           lineHeight: 1.4,
           pointerEvents: "none",
+          zIndex: 20,
         }}
       >
         <div>
           Selected: <b>{selectedGroupId ?? "(none)"}</b>
         </div>
       </div>
+  
+      <style jsx>{`
+  .clouds {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .cloud {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+
+    /* smaller overscan */
+    width: 200%;
+    height: 200%;
+
+    object-fit: cover;
+
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+
+    transform: translate3d(-50%, -50%, 0);
+    will-change: transform;
+  }
+
+  .cloudBg {
+    animation: cloudSineBg 18s ease-in-out infinite;
+  }
+  .cloudMg {
+    animation: cloudSineMg 14s ease-in-out infinite;
+  }
+  .cloudFg {
+    animation: cloudSineFg 12s ease-in-out infinite;
+  }
+
+  @keyframes cloudSineBg {
+    0%   { transform: translate3d(calc(-50% - 0.4%), -50%, 0); }
+    50%  { transform: translate3d(calc(-50% + 0.4%), -50%, 0); }
+    100% { transform: translate3d(calc(-50% - 0.4%), -50%, 0); }
+  }
+
+  @keyframes cloudSineMg {
+    0%   { transform: translate3d(calc(-50% + 0.6%), calc(-50% + 0.1%), 0); }
+    50%  { transform: translate3d(calc(-50% - 0.6%), calc(-50% - 0.1%), 0); }
+    100% { transform: translate3d(calc(-50% + 0.6%), calc(-50% + 0.1%), 0); }
+  }
+
+  @keyframes cloudSineFg {
+    0%   { transform: translate3d(calc(-50% - 0.8%), calc(-50% - 0.15%), 0); }
+    50%  { transform: translate3d(calc(-50% + 0.8%), calc(-50% + 0.15%), 0); }
+    100% { transform: translate3d(calc(-50% - 0.8%), calc(-50% - 0.15%), 0); }
+  }
+`}</style>
     </div>
   );
 }
