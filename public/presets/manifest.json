@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "presets": [
+    {
+      "id": "preset_cat",
+      "name": "Cat",
+      "json": "/presets/assets/cat.json",
+      "thumb": "/presets/thumbs/cat.png"
+    },
+    {
+      "id": "preset_dog",
+      "name": "Dog",
+      "json": "/presets/assets/dog.json",
+      "thumb": "/presets/thumbs/dog.png"
+    },
+    {
+      "id": "preset_pig",
+      "name": "Pig",
+      "json": "/presets/assets/pig.json",
+      "thumb": "/presets/thumbs/pig.png"
+    },
+    {
+      "id": "preset_rabbit",
+      "name": "Rabbit",
+      "json": "/presets/assets/rabbit.json",
+      "thumb": "/presets/thumbs/rabbit.png"
+    },
+    {
+      "id": "preset_capybara",
+      "name": "Capybara",
+      "json": "/presets/assets/capybara.json",
+      "thumb": "/presets/thumbs/capybara.png"
+    }
+  ]
+}

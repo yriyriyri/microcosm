@@ -171,3 +171,45 @@ export async function renameAsset(id: string, name: string): Promise<void> {
   tx.objectStore(STORE_META).put(meta);
   await txDone(tx);
 }
+
+function safeSlug(name: string): string {
+  return (name || "asset")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 80) || "asset";
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function exportAssetToFiles(id: string): Promise<void> {
+  const loaded = await loadAsset(id);
+  if (!loaded) throw new Error("Asset not found");
+
+  const { meta, group } = loaded;
+  const base = safeSlug(meta.name);
+
+  const jsonText = JSON.stringify(group, null, 2);
+  const jsonBlob = new Blob([jsonText], { type: "application/json" });
+  downloadBlob(jsonBlob, `${base}.json`);
+
+  if (meta.thumb) {
+    const pngBlob =
+      meta.thumb.type === "image/png"
+        ? meta.thumb
+        : new Blob([meta.thumb], { type: "image/png" });
+
+    downloadBlob(pngBlob, `${base}.png`);
+  }
+}

@@ -40,3 +40,25 @@ a {
     color-scheme: dark;
   }
 }
+
+.pix-icon {
+  display: inline-block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+
+  transform: translateZ(0) scale(1);
+  transform-origin: center;
+  transition: transform 120ms ease-out;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pix-icon:hover {
+  transform: translateZ(0) scale(1.08);
+}
+
+.pix-icon:active {
+  transform: translateZ(0) scale(0.92);
+  transition: transform 60ms ease-in;
+}

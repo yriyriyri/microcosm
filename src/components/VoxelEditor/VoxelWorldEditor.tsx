@@ -14,6 +14,7 @@ import type { GroupState } from "./VoxelWorld";
 import type { VoxelCoord } from "./Types";
 import LibraryPanel from "./ui/LibraryPanel";
 import { loadIsland, saveIsland } from "./database/LibraryDb";
+import AdminAssetsPanel from "./ui/AdminAssetsPanel";
 import AssetsPanel from "./ui/AssetsPanel";
 import { loadAsset, saveAsset } from "./database/AssetDb";
 import { parseVox } from "./vox/voxImport";
@@ -49,10 +50,22 @@ type PendingImport = {
   }[];
 };
 
+const PRIMARY_WORLD_ID_KEY = "voxbox:primaryWorldId";
+const ADMIN = false;
+
+function getPrimaryWorldId(): string | null {
+  try { return localStorage.getItem(PRIMARY_WORLD_ID_KEY); } catch { return null; }
+}
+
+function setPrimaryWorldId(id: string) {
+  try { localStorage.setItem(PRIMARY_WORLD_ID_KEY, id); } catch {}
+}
+
 export default function VoxelWorldEditor(props: {
   onFocusGroup: (groupId: string) => void;
   focusOpen: boolean;
   onWorldReady?: (world: VoxelWorld | null) => void;
+  onRequestAutosaveRef?: (fn: (opts?: { immediate?: boolean; reason?: string }) => void) => void;
 }) {
   const { onFocusGroup, focusOpen } = props;
 
@@ -90,6 +103,17 @@ export default function VoxelWorldEditor(props: {
   const selectedBoxRef = useRef<THREE.Box3Helper | null>(null);
   const hoverBoxRef = useRef<THREE.Box3Helper | null>(null);
   const pendingGroupBoxesSyncRef = useRef(false);
+
+  const dirtyRef = useRef(false);
+  const autosaveTimerRef = useRef<number | null>(null);
+  const lastSaveAtRef = useRef<number>(0);
+  const autosaveInFlightRef = useRef(false);
+  const autosaveQueuedRef = useRef(false);
+
+  const AUTOSAVE_DEBOUNCE_MS = 1800;
+  const AUTOSAVE_MAX_INTERVAL_MS = 25000;
+
+  const showUI = !focusOpen;
 
   // const [camDebug, setCamDebug] = useState("");
 
@@ -196,7 +220,7 @@ export default function VoxelWorldEditor(props: {
           new THREE.Vector3(b.min.x, b.min.y, b.min.z),
           new THREE.Vector3(b.max.x + 1, b.max.y + 1, b.max.z + 1)
         );
-        upsertHelper(hoverBoxRef, box, 0x111111);
+        upsertHelper(hoverBoxRef, box, 0xC7ECFF);
       } else {
         clearHelper(hoverBoxRef);
       }
@@ -287,6 +311,7 @@ export default function VoxelWorldEditor(props: {
 
     pendingGroupBoxesSyncRef.current = true;
     setImportModal(null);
+    requestAutosave({ immediate: true, reason: "import-vox" });
   }
 
   async function onImportVoxFile(file: File) {
@@ -354,23 +379,80 @@ export default function VoxelWorldEditor(props: {
     return { groupId: g.groupId, position: { x: 0, y: 0, z: 0 }, voxels };
   }
 
-  async function onSaveToLibrary() {
+  async function autosave(opts?: { withThumb?: boolean }) {
     const world = worldRef.current;
     if (!world) return;
-
-    const name = islandName.trim() || "My Voxbox";
+    if (!currentIslandIdRef.current) return; 
+  
     const packed = world.exportPacked();
-    const thumb = await captureSquareThumbnailFromCurrentCamera();
-
+    const thumb = opts?.withThumb
+      ? await captureSquareThumbnailFromCurrentCamera()
+      : undefined;
+  
     const id = await saveIsland({
-      name,
+      name: "Primary World",
       packed,
       thumb,
-      id: currentIslandIdRef.current ?? undefined,
+      id: currentIslandIdRef.current,
     });
-
+  
+    lastSaveAtRef.current = performance.now();
     currentIslandIdRef.current = id;
-    setLibraryOpen(true);
+    setPrimaryWorldId(id);
+  }
+
+  function requestAutosave(opts?: { immediate?: boolean; reason?: string }) {
+    dirtyRef.current = true;
+  
+    const doSchedule = () => {
+      if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+      autosaveTimerRef.current = window.setTimeout(() => {
+        flushAutosave();
+      }, AUTOSAVE_DEBOUNCE_MS);
+    };
+  
+    if (opts?.immediate) {
+      flushAutosave();
+      return;
+    }
+  
+    const now = performance.now();
+    if (dirtyRef.current && now - lastSaveAtRef.current > AUTOSAVE_MAX_INTERVAL_MS) {
+      flushAutosave();
+      return;
+    }
+  
+    doSchedule();
+  }
+
+  async function flushAutosave() {
+    if (!dirtyRef.current) return;
+  
+    if (autosaveInFlightRef.current) {
+      autosaveQueuedRef.current = true;
+      return;
+    }
+  
+    autosaveInFlightRef.current = true;
+  
+    try {
+      await autosave({ withThumb: false });
+      dirtyRef.current = false;
+      lastSaveAtRef.current = performance.now();
+    } catch (e) {
+      console.error("Autosave failed", e);
+    } finally {
+      autosaveInFlightRef.current = false;
+  
+      if (autosaveQueuedRef.current) {
+        autosaveQueuedRef.current = false;
+        flushAutosave();
+      }
+    }
+  }
+
+  async function onSaveToLibrary() {
+    await autosave({ withThumb: true });
   }
 
   async function onOpenFromLibrary(id: string) {
@@ -455,6 +537,10 @@ export default function VoxelWorldEditor(props: {
     setPlacingLabel(null);
   }
 
+  function toggleAssets() {
+    setAssetsOpen((v) => !v);
+  }
+
   useEffect(() => {
     pendingGroupBoxesSyncRef.current = true;
   }, [selectedGroupId, hoveredGroupId, focusOpen]);
@@ -496,6 +582,7 @@ export default function VoxelWorldEditor(props: {
 
       pendingGroupBoxesSyncRef.current = true;
 
+      requestAutosave({ immediate: true, reason: "delete-group" });
       e.preventDefault();
     };
 
@@ -511,6 +598,29 @@ export default function VoxelWorldEditor(props: {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [importModal]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "hidden") flushAutosave();
+    };
+  
+    const onPageHide = () => {
+      flushAutosave();
+    };
+  
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pagehide", onPageHide);
+  
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, []);
+
+  useEffect(() => {
+    props.onRequestAutosaveRef?.(requestAutosave);
+    return () => props.onRequestAutosaveRef?.(() => {});
+  }, []);
 
   // main three js boot
   useEffect(() => {
@@ -643,7 +753,7 @@ export default function VoxelWorldEditor(props: {
 
             applyHeightMistToStandardMaterial(m, {
               yBottom: -12,
-              yTop: 3,
+              yTop: 1,
               maxOpacity: 0.3,
               color: 0xffffff,
             });
@@ -667,6 +777,45 @@ export default function VoxelWorldEditor(props: {
     const world = new VoxelWorld(scene);
     worldRef.current = world;
     props.onWorldReady?.(world);
+
+    let cancelled = false;
+
+    (async () => {
+      let id = getPrimaryWorldId();
+
+      if (id) {
+        const loaded = await loadIsland(id);
+        if (cancelled) return;
+
+        if (loaded) {
+          currentIslandIdRef.current = loaded.meta.id;
+          world.importPacked(loaded.packed);
+
+          setSelectedGroupId(null);
+          setHoveredGroupId(null);
+          hoveredGroupIdLiveRef.current = null;
+          pendingGroupBoxesSyncRef.current = true;
+
+          return;
+        }
+
+        id = null;
+      }
+
+      const packed = world.exportPacked();
+      const thumb = await captureSquareThumbnailFromCurrentCamera();
+      if (cancelled) return;
+
+      const newId = await saveIsland({
+        name: "Primary World",
+        packed,
+        thumb,
+      });
+      if (cancelled) return;
+
+      currentIslandIdRef.current = newId;
+      setPrimaryWorldId(newId);
+    })();
 
     pendingGroupBoxesSyncRef.current = true;
 
@@ -702,6 +851,8 @@ export default function VoxelWorldEditor(props: {
           at: pos,
           baseId: placingAssetRef.current.metaName,
         });
+
+        requestAutosave({ reason: "place-asset" });
 
         pendingGroupBoxesSyncRef.current = true;
 
@@ -780,6 +931,7 @@ export default function VoxelWorldEditor(props: {
         w.setGroupPosition(d.groupId!, next);
         pendingGroupBoxesSyncRef.current = true;
 
+        requestAutosave({ reason: "move-group" });
         e.preventDefault();
         return;
       }
@@ -843,13 +995,16 @@ export default function VoxelWorldEditor(props: {
     let raf = 0;
     const tick = () => {
       raf = requestAnimationFrame(tick);
+    
+      if (focusOpenRef.current) return;
+    
       controls.update();
-
+    
       if (pendingGroupBoxesSyncRef.current) {
         pendingGroupBoxesSyncRef.current = false;
         syncGroupBoxes();
       }
-
+    
       renderer.render(scene, camera);
     };
     tick();
@@ -866,6 +1021,8 @@ export default function VoxelWorldEditor(props: {
       renderer.domElement.removeEventListener("contextmenu", preventContextMenu);
 
       props.onWorldReady?.(null);
+
+      cancelled = true;
 
       world.dispose();
       worldRef.current = null;
@@ -891,6 +1048,8 @@ export default function VoxelWorldEditor(props: {
       cameraRef.current = null;
       rendererRef.current = null;
       sceneRef.current = null;
+
+      if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
 
       if (renderer.domElement.parentElement === mount) {
         mount.removeChild(renderer.domElement);
@@ -927,6 +1086,9 @@ export default function VoxelWorldEditor(props: {
           inset: 0,
           overflow: "hidden",
           zIndex: 10,
+          opacity: focusOpen ? 0 : 1,
+          transition: "opacity 120ms linear",
+          pointerEvents: focusOpen ? "none" : "auto",
         }}
       />
   
@@ -983,168 +1145,203 @@ export default function VoxelWorldEditor(props: {
         </div>
       )}
   
-      <input
-        value={islandName}
-        onChange={(e) => setIslandName(e.target.value)}
-        spellCheck={false}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          padding: "15px 15px",
-          color: "black",
-          fontSize: 20,
-          width: 240,
-          pointerEvents: "auto",
-          fontFamily: "inherit",
-          background: "transparent",
-          border: "none",
-          outline: "none",
-          zIndex: 20,
-        }}
-      />
-  
-      <div style={{ position: "relative", zIndex: 20, pointerEvents: "auto" }}>
-        <LibraryPanel open={libraryOpen} onClose={() => setLibraryOpen(false)} onOpenIsland={onOpenFromLibrary} />
-  
-        <AssetsPanel
-          open={assetsOpen}
-          onClose={() => setAssetsOpen(false)}
-          onRequestPlace={beginPlaceAsset}
-          onRequestSaveSelected={onSaveSelectedAsAsset}
-          selectedGroupId={selectedGroupId}
-          placingLabel={placingLabel}
-        />
-      </div>
-  
-      <div style={{ position: "absolute", top: 0, right: 0, display: "flex", gap: 10, pointerEvents: "auto", zIndex: 20 }}>
-        <label onClick={onNew} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
-          New
-        </label>
-  
-        <label onClick={onSaveToLibrary} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
-          Save
-        </label>
-  
-        <label onClick={() => setLibraryOpen(true)} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
-          Worlds
-        </label>
-  
-        <label onClick={() => setAssetsOpen(true)} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
-          Assets
-        </label>
-  
-        <label style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
-          Import
-          <input
-            type="file"
-            accept=".vox"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onImportVoxFile(f);
-              e.currentTarget.value = "";
-            }}
+      {showUI && (
+        <div style={{ position: "relative", zIndex: 20, pointerEvents: "auto" }}>
+          <LibraryPanel
+            open={libraryOpen}
+            onClose={() => setLibraryOpen(false)}
+            onOpenIsland={onOpenFromLibrary}
           />
-        </label>
-      </div>
-  
-      {selectedGroupId && (
-        <div
-          onClick={() => onFocusGroup(selectedGroupId)}
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: 30,
-            transform: "translateX(-50%)",
-            padding: "10px 14px",
-            border: "1px solid rgba(0,0,0,1.0)",
-            background: "rgba(255,255,255,0.92)",
-            color: "black",
-            fontSize: 20,
-            cursor: "pointer",
-            userSelect: "none",
-            pointerEvents: "auto",
-            zIndex: 20,
-          }}
-        >
-          Focus mode
         </div>
       )}
   
-      <div
-        style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          padding: "15px 15px",
-          color: "black",
-          fontSize: 16,
-          lineHeight: 1.4,
-          pointerEvents: "none",
-          zIndex: 20,
-        }}
-      >
-        <div>
-          Selected: <b>{selectedGroupId ?? "(none)"}</b>
+      {ADMIN && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            display: "flex",
+            gap: 10,
+            pointerEvents: "auto",
+            zIndex: 10,
+          }}
+        >
+          <label
+            onClick={() => setAssetsOpen(true)}
+            style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
+          >
+            Assets
+          </label>
+
+          <label onClick={onNew} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
+            New
+          </label>
+
+          <label
+            onClick={onSaveToLibrary}
+            style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
+          >
+            Save
+          </label>
+
+          <label
+            onClick={() => setLibraryOpen(true)}
+            style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
+          >
+            Worlds
+          </label>
+
+          <label style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
+            Import
+            <input
+              type="file"
+              accept=".vox"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onImportVoxFile(f);
+                e.currentTarget.value = "";
+              }}
+            />
+          </label>
         </div>
-      </div>
+      )}
+
+      {showUI && (
+        <div
+          style={{
+            position: "absolute",
+            top: 20,
+            right: 20,
+            zIndex: 30,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 20,
+            pointerEvents: "auto",
+          }}
+        >
+          {assetsOpen && (
+            <div style={{ pointerEvents: "auto" }}>
+              {ADMIN ? (
+                <AdminAssetsPanel
+                  open={true}
+                  onClose={() => setAssetsOpen(false)}
+                  onRequestPlace={beginPlaceAsset}
+                  onRequestSaveSelected={onSaveSelectedAsAsset}
+                  selectedGroupId={selectedGroupId}
+                  placingLabel={placingLabel}
+                />
+              ) : (
+                <AssetsPanel
+                  open={true}
+                  onClose={() => setAssetsOpen(false)}
+                  onRequestPlace={beginPlaceAsset}
+                />
+              )}
+            </div>
+          )}
+
+          <img
+            className="pix-icon"
+            src="/icons/assets.png"
+            alt="Assets"
+            onClick={toggleAssets}
+            style={{
+              height: "10vh",
+              width: "auto",
+              objectFit: "contain",
+              imageRendering: "pixelated",
+              cursor: "pointer",
+              pointerEvents: "auto",
+              flex: "0 0 auto",
+            }}
+          />
+        </div>
+      )}
   
+      {showUI && selectedGroupId && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: 50,
+            transform: "translateX(-50%)",
+            zIndex: 20,
+            pointerEvents: "auto",
+          }}
+        >
+          <div
+            className="pix-icon"
+            onClick={() => onFocusGroup(selectedGroupId)}
+            style={{
+              padding: "10px 14px",
+              borderRadius: 5,
+              background: "rgba(0, 50, 110, 0.5)",
+              color: "white",
+              fontSize: 20,
+            }}
+          >
+            focus mode
+          </div>
+        </div>
+      )}
+
       <style jsx>{`
-  .clouds {
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    pointer-events: none;
-    overflow: hidden;
-  }
+        .clouds {
+          position: absolute;
+          inset: 0;
+          z-index: 5;
+          pointer-events: none;
+          overflow: hidden;
+        }
 
-  .cloud {
-    position: absolute;
-    left: 50%;
-    top: 50%;
+        .cloud {
+          position: absolute;
+          left: 50%;
+          top: 50%;
 
-    /* smaller overscan */
-    width: 200%;
-    height: 200%;
+          /* smaller overscan */
+          width: 200%;
+          height: 200%;
 
-    object-fit: cover;
+          object-fit: cover;
 
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
+          image-rendering: pixelated;
+          image-rendering: crisp-edges;
 
-    transform: translate3d(-50%, -50%, 0);
-    will-change: transform;
-  }
+          transform: translate3d(-50%, -50%, 0);
+          will-change: transform;
+        }
 
-  .cloudBg {
-    animation: cloudSineBg 18s ease-in-out infinite;
-  }
-  .cloudMg {
-    animation: cloudSineMg 14s ease-in-out infinite;
-  }
-  .cloudFg {
-    animation: cloudSineFg 12s ease-in-out infinite;
-  }
+        .cloudBg {
+          animation: cloudSineBg 18s ease-in-out infinite;
+        }
+        .cloudMg {
+          animation: cloudSineMg 14s ease-in-out infinite;
+        }
+        .cloudFg {
+          animation: cloudSineFg 12s ease-in-out infinite;
+        }
 
-  @keyframes cloudSineBg {
-    0%   { transform: translate3d(calc(-50% - 0.4%), -50%, 0); }
-    50%  { transform: translate3d(calc(-50% + 0.4%), -50%, 0); }
-    100% { transform: translate3d(calc(-50% - 0.4%), -50%, 0); }
-  }
+        @keyframes cloudSineBg {
+          0%   { transform: translate3d(calc(-50% - 0.2%), -50%, 0); }
+          50%  { transform: translate3d(calc(-50% + 0.2%), -50%, 0); }
+          100% { transform: translate3d(calc(-50% - 0.2%), -50%, 0); }
+        }
 
-  @keyframes cloudSineMg {
-    0%   { transform: translate3d(calc(-50% + 0.6%), calc(-50% + 0.1%), 0); }
-    50%  { transform: translate3d(calc(-50% - 0.6%), calc(-50% - 0.1%), 0); }
-    100% { transform: translate3d(calc(-50% + 0.6%), calc(-50% + 0.1%), 0); }
-  }
+        @keyframes cloudSineMg {
+          0%   { transform: translate3d(calc(-50% + 0.3%), calc(-50% + 0.05%), 0); }
+          50%  { transform: translate3d(calc(-50% - 0.3%), calc(-50% - 0.05%), 0); }
+          100% { transform: translate3d(calc(-50% + 0.3%), calc(-50% + 0.05%), 0); }
+        }
 
-  @keyframes cloudSineFg {
-    0%   { transform: translate3d(calc(-50% - 0.8%), calc(-50% - 0.15%), 0); }
-    50%  { transform: translate3d(calc(-50% + 0.8%), calc(-50% + 0.15%), 0); }
-    100% { transform: translate3d(calc(-50% - 0.8%), calc(-50% - 0.15%), 0); }
-  }
-`}</style>
+        @keyframes cloudSineFg {
+          0%   { transform: translate3d(calc(-50% - 0.4%), calc(-50% - 0.075%), 0); }
+          50%  { transform: translate3d(calc(-50% + 0.4%), calc(-50% + 0.075%), 0); }
+          100% { transform: translate3d(calc(-50% - 0.4%), calc(-50% - 0.075%), 0); }
+        }
+      `}</style>
     </div>
   );
 }

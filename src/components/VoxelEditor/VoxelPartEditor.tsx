@@ -142,9 +142,8 @@ export default function VoxelPartEditor(props: {
   open: boolean;
   groupId: string | null;
 
-  // pass live world from VoxelWorldEditor
   world: VoxelWorld | null;
-
+  
   onExit: () => void;
 }) {
   const { open, groupId, world, onExit } = props;
@@ -174,6 +173,9 @@ export default function VoxelPartEditor(props: {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const warmedRef = useRef(false);
 
   const openRef = useRef(open);
   useEffect(() => void (openRef.current = open), [open]);
@@ -282,7 +284,6 @@ export default function VoxelPartEditor(props: {
         updateHoverFace();
       }
   
-      // WebGLRenderer.render(scene: Object3D, camera: Camera)
       ctx.renderer.render(ctx.scene, ctx.camera);
     };
   
@@ -359,14 +360,17 @@ export default function VoxelPartEditor(props: {
 
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    scene.background = new THREE.Color("#ffffff");
 
     const camera = new THREE.PerspectiveCamera(40, mount.clientWidth / mount.clientHeight, 0.1, 2000);
     camera.position.set(40, 40, 40);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+    });
+    renderer.setClearColor(0x000000, 0);
     rendererRef.current = renderer;
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -719,6 +723,37 @@ export default function VoxelPartEditor(props: {
     return () => stop();
   }, [open]);
 
+  //warm video
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || warmedRef.current) return;
+  
+    warmedRef.current = true;
+  
+    v.preload = "auto";
+    v.load();
+  
+    const p = v.play();
+    if (p && typeof (p as any).catch === "function") {
+      (p as any).catch(() => {
+      });
+    }
+  
+    v.pause();
+  }, []);
+
+  //play / pause vid
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+  
+    if (open) {
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  }, [open]);
+
   const hints = getToolHints(tool);
 
   return (
@@ -726,14 +761,36 @@ export default function VoxelPartEditor(props: {
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 100000,
+        zIndex: 10,
         pointerEvents: open ? "auto" : "none",
         opacity: open ? 1 : 0,
         transition: "opacity 120ms linear",
-        background: "#fff",
+        background: "transparent",
       }}
       aria-hidden={!open}
     >
+      <video
+        ref={videoRef}
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="auto"
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          opacity: open ? 0.8 : 0,
+          transition: "opacity 120ms linear",
+          zIndex: 0,
+          pointerEvents: "none",
+        }}
+      >
+        <source src="/focus/screen.mp4" type="video/mp4" />
+      </video>
+  
       <div
         ref={mountRef}
         style={{
@@ -741,30 +798,58 @@ export default function VoxelPartEditor(props: {
           inset: 0,
           overflow: "hidden",
           userSelect: "none",
+          zIndex: 1,
         }}
       />
-
-      <div style={{ position: "absolute", top: 0, left: 0, padding: 12, pointerEvents: "auto" }}>
-        <div style={{ fontSize: 18, marginBottom: 8 }}>
-          Focus Mode — Group: <b>{groupId ?? "(none)"}</b>
-        </div>
+  
+      <div
+        style={{
+          position: "absolute",
+          top: "15vh",
+          left: 0,
+          padding: 12,
+          pointerEvents: "auto",
+          zIndex: 2,
+        }}
+      >
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <ColorPalette value={color} onChange={setColor} />
+
+            <div style={{ height: "5vh" }} />
+
             <ToolPalette value={tool} onChange={setTool} />
           </div>
         </div>
       </div>
-
-      <div style={{ position: "absolute", top: 0, right: 0, display: "flex", gap: 10, pointerEvents: "auto" }}>
-        <label
+  
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          bottom: 50,
+          transform: "translateX(-50%)",
+          zIndex: 2,
+          pointerEvents: "auto",
+        }}
+      >
+        <div
+          className="pix-icon"
           onClick={commitAndExit}
-          style={{ padding: "15px 15px", color: "black", fontSize: 18, cursor: "pointer", textDecoration: "underline" }}
+          style={{
+            padding: "10px 14px",
+            borderRadius: 5,
+            background: "rgba(0, 50, 110, 0.5)",
+            color: "white",
+            fontSize: 20,
+            userSelect: "none",
+            cursor: "pointer",
+          }}
         >
-          Done
-        </label>
+          world mode
+        </div>
       </div>
-
+        
       <div
         style={{
           position: "absolute",
@@ -775,12 +860,12 @@ export default function VoxelPartEditor(props: {
           fontSize: 16,
           lineHeight: 1.4,
           pointerEvents: "none",
+          zIndex: 2,
         }}
       >
-        <div>{hints.shortcut}</div>
+        {/* <div>{hints.shortcut}</div>
         <div>{hints.left}</div>
-        <div>{hints.right}</div>
-        <div style={{ opacity: 0.7 }}>Esc: done + exit</div>
+        <div>{hints.right}</div> */}
       </div>
     </div>
   );

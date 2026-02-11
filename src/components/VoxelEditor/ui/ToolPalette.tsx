@@ -8,9 +8,9 @@ type Props = {
 };
 
 const TOOLS: { id: ToolId; title: string; src: string }[] = [
-  { id: "pencil", title: "Pencil", src: "/icons/pencil-tool.png" },
-  { id: "marquee", title: "Marquee", src: "/icons/marquee-tool.png" },
-  { id: "eyedropper", title: "Eyedropper", src: "/icons/eyedropper-tool.png" },
+  { id: "pencil", title: "Pencil", src: "/icons/pencil.png" },
+  { id: "marquee", title: "Marquee", src: "/icons/marquee.png" },
+  { id: "eyedropper", title: "Eyedropper", src: "/icons/eyedropper.png" },
 ];
 
 export default function ToolPalette({ value, onChange }: Props) {
@@ -19,44 +19,37 @@ export default function ToolPalette({ value, onChange }: Props) {
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 8,
-        padding: 0,
+        gap: 10,
         alignItems: "center",
+        padding: 0,
       }}
     >
-      <div style={{ width: 22, height: 1, background: "rgba(0,0,0,0.25)" }} />
-      {TOOLS.map((t) => (
-        <button
-          key={t.id}
-          onClick={() => onChange(t.id)}
-          title={t.title}
-          aria-label={t.title}
-          style={{
-            width: 26,
-            height: 26,
-            padding: 0,
-            border:
-              t.id === value ? "2px solid black" : "2px solid rgba(0,0,0,0.35)",
-            background: "transparent",
-            cursor: "pointer",
-            display: "grid",
-            placeItems: "center",
-          }}
-        >
+
+      {TOOLS.map((t) => {
+        const selected = t.id === value;
+
+        return (
           <img
+            key={t.id}
+            className="pix-icon"
             src={t.src}
             alt={t.title}
-            width={18}
-            height={18}
+            title={t.title}
+            onClick={() => onChange(t.id)}
             style={{
+              height: "7vh",
+              width: "auto",
+              objectFit: "contain",
               imageRendering: "pixelated",
-              display: "block",
-              pointerEvents: "none",
-              userSelect: "none",
+              cursor: "pointer",
+              pointerEvents: "auto",
+              opacity: selected ? 1 : 0.85,
+              transition: "opacity 120ms ease-out",
+              filter: selected ? "none" : "none",
             }}
           />
-        </button>
-      ))}
+        );
+      })}
     </div>
   );
 }
