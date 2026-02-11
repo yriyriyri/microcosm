@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import type { AssetMeta } from "../database/AssetDb";
 import { listAssets } from "../database/AssetDb";
+import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
+
 
 export default function AssetsPanel(props: {
   open: boolean;
@@ -10,6 +12,7 @@ export default function AssetsPanel(props: {
   onRequestPlace: (assetId: string) => void;
 }) {
   const { open, onClose, onRequestPlace } = props;
+  const { click } = useSound();
 
   const [assets, setAssets] = useState<AssetMeta[]>([]);
 
@@ -68,7 +71,10 @@ export default function AssetsPanel(props: {
           return (
             <button
               key={a.id}
-              onClick={() => onRequestPlace(a.id)}
+              onClick={() => {
+                click();
+                onRequestPlace(a.id);
+              }}
               title={a.name}
               style={{
                 appearance: "none",

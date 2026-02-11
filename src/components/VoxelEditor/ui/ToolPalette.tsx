@@ -1,4 +1,5 @@
 "use client";
+import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 
 export type ToolId = "pencil" | "marquee" | "eyedropper";
 
@@ -14,6 +15,7 @@ const TOOLS: { id: ToolId; title: string; src: string }[] = [
 ];
 
 export default function ToolPalette({ value, onChange }: Props) {
+  const { click } = useSound();
   return (
     <div
       style={{
@@ -35,7 +37,10 @@ export default function ToolPalette({ value, onChange }: Props) {
             src={t.src}
             alt={t.title}
             title={t.title}
-            onClick={() => onChange(t.id)}
+            onClick={() => {
+              click();
+              onChange(t.id);
+            }}
             style={{
               height: "7vh",
               width: "auto",

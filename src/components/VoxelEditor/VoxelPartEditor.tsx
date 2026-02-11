@@ -148,7 +148,7 @@ export default function VoxelPartEditor(props: {
 }) {
   const { open, groupId, world, onExit } = props;
 
-  const { play, startLoop, stopLoop } = useSound();
+  const { play, startLoop, stopLoop, click } = useSound();
 
   const mountRef = useRef<HTMLDivElement | null>(null);
 
@@ -292,6 +292,8 @@ export default function VoxelPartEditor(props: {
 
   // commit changes back to live world passed 
   function commitAndExit() {
+    play("whoosh");
+
     if (!world || !groupId) return onExit();
 
     const fw = focusWorldRef.current;
@@ -344,6 +346,7 @@ export default function VoxelPartEditor(props: {
         }
       }
 
+      click();
       setTool(next);
       toolRef.current = next;
       e.preventDefault();

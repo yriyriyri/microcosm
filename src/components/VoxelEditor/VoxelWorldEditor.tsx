@@ -19,6 +19,8 @@ import AssetsPanel from "./ui/AssetsPanel";
 import { loadAsset, saveAsset } from "./database/AssetDb";
 import { parseVox } from "./vox/voxImport";
 
+import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
+
 function recenterCameraOnBounds(params: {
   minX: number;
   minY: number;
@@ -68,6 +70,7 @@ export default function VoxelWorldEditor(props: {
   onRequestAutosaveRef?: (fn: (opts?: { immediate?: boolean; reason?: string }) => void) => void;
 }) {
   const { onFocusGroup, focusOpen } = props;
+  const { unlock, play, startLoopAt, setLoopVolume, getTime, startLoop, click } = useSound();
 
   const mountRef = useRef<HTMLDivElement | null>(null);
 
@@ -114,6 +117,7 @@ export default function VoxelWorldEditor(props: {
   const AUTOSAVE_MAX_INTERVAL_MS = 25000;
 
   const showUI = !focusOpen;
+  const focusCtaVisible = showUI && !!selectedGroupId;
 
   // const [camDebug, setCamDebug] = useState("");
 
@@ -538,6 +542,7 @@ export default function VoxelWorldEditor(props: {
   }
 
   function toggleAssets() {
+    click();
     setAssetsOpen((v) => !v);
   }
 
@@ -571,6 +576,8 @@ export default function VoxelWorldEditor(props: {
 
       const ok = w.removeGroup?.(gid);
       if (!ok) return;
+
+      play("deletePart");
 
       selectedGroupIdLiveRef.current = null;
       setSelectedGroupId(null);
@@ -852,6 +859,8 @@ export default function VoxelWorldEditor(props: {
           baseId: placingAssetRef.current.metaName,
         });
 
+        play("placePart");
+
         requestAutosave({ reason: "place-asset" });
 
         pendingGroupBoxesSyncRef.current = true;
@@ -872,6 +881,11 @@ export default function VoxelWorldEditor(props: {
         pendingGroupBoxesSyncRef.current = true;
         return;
       }
+
+      const prev = selectedGroupIdLiveRef.current;
+      if (prev !== gid) {
+        play("placeVoxel");
+      }    
 
       selectedGroupIdLiveRef.current = gid;
       setSelectedGroupId(gid);
@@ -1260,20 +1274,28 @@ export default function VoxelWorldEditor(props: {
         </div>
       )}
   
-      {showUI && selectedGroupId && (
+      {showUI && (
         <div
           style={{
             position: "absolute",
             left: "50%",
             bottom: 50,
-            transform: "translateX(-50%)",
+            transform: focusCtaVisible
+              ? "translate(-50%, 0)"
+              : "translate(-50%, 140%)",
+            opacity: focusCtaVisible ? 1 : 0,
+            transition: "transform 220ms cubic-bezier(.2,.9,.2,1), opacity 180ms ease-out",
             zIndex: 20,
-            pointerEvents: "auto",
+            pointerEvents: focusCtaVisible ? "auto" : "none",
+            willChange: "transform, opacity",
           }}
         >
           <div
             className="pix-icon"
-            onClick={() => onFocusGroup(selectedGroupId)}
+            onClick={() => {
+              play("whoosh");
+              onFocusGroup(selectedGroupId!);
+            }}
             style={{
               padding: "10px 14px",
               borderRadius: 5,

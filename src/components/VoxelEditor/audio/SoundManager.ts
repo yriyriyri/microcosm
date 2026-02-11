@@ -57,6 +57,10 @@ export class SoundManager {
     for (const [id, def] of Object.entries(defs)) this.defs.set(id, def);
   }
 
+  getTime() {
+    return this.ctx?.currentTime ?? 0;
+  }
+
   async unlock() {
     if (this.unlocked) return;
 
@@ -264,6 +268,72 @@ export class SoundManager {
       try { loop.gain.disconnect(); } catch {}
       try { loop.src.disconnect(); } catch {}
     };
+  }
+
+  startLoopAt(key: string, id: SfxId, opts: PlayOptions = {}, startAtTime: number) {
+    const def = this.defs.get(id);
+    if (!def) return;
+
+    this.ensureCtx();
+    if (!this.ctx || !this.master) return;
+
+    if (this.loops.has(key)) return;
+
+    let bufferKey = id;
+    let url: string | null = null;
+    const defaultVol = def.defaultVolume ?? 1;
+
+    if (def.kind === "variants") {
+      bufferKey = `${id}#0`;
+      url = def.urls?.[0] ?? null;
+    } else {
+      url = def.url ?? null;
+    }
+
+    if (!this.buffers.has(bufferKey)) {
+      if (url) void this.loadBuffer(bufferKey, url);
+      return;
+    }
+
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.buffers.get(bufferKey)!;
+    src.loop = true;
+
+    if (opts.rate != null) src.playbackRate.value = opts.rate;
+    if (opts.detune != null) src.detune.value = opts.detune;
+
+    const gain = this.ctx.createGain();
+    const vol = defaultVol * (opts.volume ?? 1);
+    gain.gain.value = Math.max(0, Math.min(1, vol));
+
+    src.connect(gain);
+    gain.connect(this.master);
+
+    this.loops.set(key, { src, gain, id });
+
+    try {
+      src.start(startAtTime);
+    } catch {}
+  }
+
+  setLoopVolume(key: string, target: number, fadeMs: number = 120) {
+    const loop = this.loops.get(key);
+    if (!loop || !this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const g = loop.gain.gain;
+    const t = Math.max(0, Math.min(1, target));
+    const dur = Math.max(0, fadeMs) / 1000;
+
+    try {
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(g.value, now);
+      if (dur <= 0) {
+        g.setValueAtTime(t, now);
+      } else {
+        g.linearRampToValueAtTime(t, now + dur);
+      }
+    } catch {}
   }
 }
 

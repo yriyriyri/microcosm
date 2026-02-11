@@ -1,4 +1,5 @@
 "use client";
+import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 
 type Props = {
   value: string;
@@ -15,10 +16,10 @@ const SWATCHES = [
   "#00c7be",
   "#007aff",
   "#af52de",
-  // removed "#ff2d55"
 ];
 
 export default function ColorPalette({ value, onChange }: Props) {
+  const { click } = useSound();
   return (
     <div
       style={{
@@ -40,8 +41,13 @@ export default function ColorPalette({ value, onChange }: Props) {
         {SWATCHES.map((c) => (
           <button
             key={c}
-            onClick={() => onChange(c)}
+            className="pix-icon"
+            onClick={() => {
+              click();
+              onChange(c);
+            }}
             title={c}
+            type="button"
             style={{
               width: 26,
               height: 26,
@@ -49,6 +55,11 @@ export default function ColorPalette({ value, onChange }: Props) {
               background: c,
               cursor: "pointer",
               padding: 0,
+              appearance: "none",
+              WebkitAppearance: "none",
+              outline: "none",
+              display: "block",
+              imageRendering: "pixelated",
             }}
           />
         ))}
