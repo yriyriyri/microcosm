@@ -16,6 +16,8 @@ export default function AssetsPanel(props: {
 
   const [assets, setAssets] = useState<AssetMeta[]>([]);
 
+  const SHOW_THUMBS = false;
+
   async function refresh() {
     const rows = await listAssets();
     setAssets(rows);
@@ -66,7 +68,7 @@ export default function AssetsPanel(props: {
         }}
       >
         {assets.map((a) => {
-          const url = thumbUrls.get(a.id);
+          const url = SHOW_THUMBS ? thumbUrls.get(a.id) : undefined;
   
           return (
             <button
@@ -85,6 +87,7 @@ export default function AssetsPanel(props: {
               }}
             >
               <div
+                className="pix-icon"
                 style={{
                   width: "100%",
                   aspectRatio: "1 / 1",
@@ -112,12 +115,17 @@ export default function AssetsPanel(props: {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
+                      textAlign: "center",
+                      padding: 10,
                       color: "white",
-                      opacity: 0.6,
-                      fontSize: 12,
+                      fontSize: 20,
+                      lineHeight: 1.1,
+                      userSelect: "none",
+                      overflow: "hidden",
+                      wordBreak: "break-word",
                     }}
                   >
-                    —
+                    {a.name}
                   </div>
                 )}
               </div>

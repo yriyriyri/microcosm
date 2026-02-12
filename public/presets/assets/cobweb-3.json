@@ -1,0 +1,739 @@
+{
+  "groupId": "shp:7",
+  "position": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "voxels": [
+    {
+      "local": {
+        "x": 0,
+        "y": 0,
+        "z": 12
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 12
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 12
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 7,
+        "y": 0,
+        "z": 12
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 12,
+        "y": 0,
+        "z": 12
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 11
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 11
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 11
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 8,
+        "y": 0,
+        "z": 11
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 11,
+        "y": 0,
+        "z": 11
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 10
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 10
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 10
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 9,
+        "y": 0,
+        "z": 10
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 10,
+        "y": 0,
+        "z": 10
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 9
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 9
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 9
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 9
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 7,
+        "y": 0,
+        "z": 9
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 9,
+        "y": 0,
+        "z": 9
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 10,
+        "y": 0,
+        "z": 9
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 8
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 8
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 8
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 8,
+        "y": 0,
+        "z": 8
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 11,
+        "y": 0,
+        "z": 8
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 0,
+        "y": 0,
+        "z": 7
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 7
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 7
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 7
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 7,
+        "y": 0,
+        "z": 7
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 9,
+        "y": 0,
+        "z": 7
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 12,
+        "y": 0,
+        "z": 7
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 0,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 7,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 8,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 9,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 10,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 11,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 12,
+        "y": 0,
+        "z": 6
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 0,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 7,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 9,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 12,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 8,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 11,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 7,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 9,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 10,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 9,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 10,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 8,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 11,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 7,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 12,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#dddddd",
+      "isBlueprint": true
+    }
+  ]
+}

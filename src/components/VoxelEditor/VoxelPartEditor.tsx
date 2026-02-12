@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { RGBELoader } from "three/examples/jsm/Addons.js";
 
 import ColorPalette from "./ui/ColorPalette";
 import ToolPalette, { type ToolId } from "./ui/ToolPalette";
@@ -379,16 +380,44 @@ export default function VoxelPartEditor(props: {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     mount.appendChild(renderer.domElement);
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.0;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
     const preventContextMenu = (e: Event) => e.preventDefault();
     renderer.domElement.addEventListener("contextmenu", preventContextMenu);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 2.0));
-    const dir = new THREE.DirectionalLight(0xffffff, 1.5);
-    dir.position.set(10, 18, 8);
+    scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+    const dir = new THREE.DirectionalLight(0xffffff, 3.5);
     dir.castShadow = true;
-    dir.shadow.mapSize.set(2048, 2048);
+    dir.shadow.bias = -0.0005;
+    dir.shadow.mapSize.set(512, 512);
+    dir.position.setFromSphericalCoords(
+      150,
+      THREE.MathUtils.degToRad(80),
+      THREE.MathUtils.degToRad(-29)
+    );
+    dir.target.position.set(0, 0, 80);
+    scene.add(dir.target);
     scene.add(dir);
+
+    const hdriLoader = new RGBELoader();
+      hdriLoader.load(
+        "/world/DayInTheClouds1K.hdr",
+        (texture) => {
+          const pmrem = new THREE.PMREMGenerator(renderer);
+          const rt = pmrem.fromEquirectangular(texture);
+          texture.dispose();
+          pmrem.dispose();
+
+          scene.environment = rt.texture;
+          (scene.environment as any).colorSpace = THREE.SRGBColorSpace;
+
+        },
+        undefined,
+        (err) => console.error("Failed to load HDRI", err)
+      );
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -396,7 +425,6 @@ export default function VoxelPartEditor(props: {
     controls.update();
     controlsRef.current = controls;
 
-    // focus world lives forever
     const fw = new VoxelWorld(scene);
     focusWorldRef.current = fw;
 

@@ -1,0 +1,280 @@
+{
+  "groupId": "shp:39",
+  "position": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "voxels": [
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 5
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 0,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 4
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 3
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 0,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 6,
+        "y": 0,
+        "z": 2
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 0,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 5,
+        "y": 0,
+        "z": 1
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 1,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 2,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 3,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    },
+    {
+      "local": {
+        "x": 4,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#417247",
+      "isBlueprint": true
+    }
+  ]
+}

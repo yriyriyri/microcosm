@@ -41,6 +41,14 @@ a {
   }
 }
 
+button,
+input,
+select,
+textarea,
+label {
+  font: inherit;
+}
+
 .pix-icon {
   display: inline-block;
   image-rendering: pixelated;

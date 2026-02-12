@@ -86,13 +86,13 @@ const SOUNDS = {
     ambientWorld: {
       kind: "oneshot" as const,
       url: "/audio/S_Ambiance/S_AmbientWorld.wav",
-      defaultVolume: 0.12,
+      defaultVolume: 0.3,
       maxConcurrent: 1,
     },
     ambientFocus: {
       kind: "oneshot" as const,
       url: "/audio/S_Ambiance/S_AmbientFocus.wav",
-      defaultVolume: 0.12,
+      defaultVolume: 0.3,
       maxConcurrent: 1,
     },
     ambientGrass: {

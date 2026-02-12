@@ -18,7 +18,7 @@ import AdminAssetsPanel from "./ui/AdminAssetsPanel";
 import AssetsPanel from "./ui/AssetsPanel";
 import { loadAsset, saveAsset } from "./database/AssetDb";
 import { parseVox } from "./vox/voxImport";
-
+import WorldToolPalette, { type WorldToolId } from "./ui/WorldToolPalette";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 
 function recenterCameraOnBounds(params: {
@@ -119,32 +119,8 @@ export default function VoxelWorldEditor(props: {
   const showUI = !focusOpen;
   const focusCtaVisible = showUI && !!selectedGroupId;
 
-  // const [camDebug, setCamDebug] = useState("");
-
-  // useEffect(() => {
-  //   const onKeyDown = (e: KeyboardEvent) => {
-  //     if (e.key.toLowerCase() !== "p") return; 
-  //     const cam = cameraRef.current;
-  //     const controls = controlsRef.current;
-  //     if (!cam || !controls) return;
-
-  //     const p = cam.position;
-  //     const t = controls.target;
-  //     const s =
-  //       `camera.position.set(${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)});\n` +
-  //       `controls.target.set(${t.x.toFixed(3)}, ${t.y.toFixed(3)}, ${t.z.toFixed(3)});\n` +
-  //       `controls.update();\n` +
-  //       `camera.lookAt(controls.target);\n` +
-  //       `// fov=${cam.fov.toFixed(2)}\n`;
-
-  //     setCamDebug(s);
-  //     console.log(s);
-  //     try { navigator.clipboard.writeText(s); } catch {}
-  //   };
-
-  //   window.addEventListener("keydown", onKeyDown);
-  //   return () => window.removeEventListener("keydown", onKeyDown);
-  // }, []);
+  const [worldTool, setWorldTool] = useState<WorldToolId>("planemovement");
+  const worldToolRef = useRef<WorldToolId>("planemovement");
 
   useEffect(() => {
     selectedGroupIdLiveRef.current = selectedGroupId;
@@ -164,9 +140,12 @@ export default function VoxelWorldEditor(props: {
     active: boolean;
     pointerId: number;
     groupId: string | null;
+    mode: "plane" | "up";
     startGroupPos: VoxelCoord;
-    startHitPoint: THREE.Vector3;
-    plane: THREE.Plane;
+    startHitPoint?: THREE.Vector3;
+    plane?: THREE.Plane;
+    startClientY?: number;
+    unitsPerPixelY?: number;
   } | null>(null);
 
   function setOrbitalControlsEnabled(enabled: boolean) {
@@ -209,7 +188,7 @@ export default function VoxelWorldEditor(props: {
           new THREE.Vector3(b.min.x, b.min.y, b.min.z),
           new THREE.Vector3(b.max.x + 1, b.max.y + 1, b.max.z + 1)
         );
-        upsertHelper(selectedBoxRef, box, 0x2563eb);
+        upsertHelper(selectedBoxRef, box, 0xC7ECFF);
       } else {
         clearHelper(selectedBoxRef);
       }
@@ -224,7 +203,7 @@ export default function VoxelWorldEditor(props: {
           new THREE.Vector3(b.min.x, b.min.y, b.min.z),
           new THREE.Vector3(b.max.x + 1, b.max.y + 1, b.max.z + 1)
         );
-        upsertHelper(hoverBoxRef, box, 0xC7ECFF);
+        upsertHelper(hoverBoxRef, box, 0x2563eb);
       } else {
         clearHelper(hoverBoxRef);
       }
@@ -266,6 +245,29 @@ export default function VoxelWorldEditor(props: {
     const out = new THREE.Vector3();
     const ok = raycaster.ray.intersectPlane(plane, out);
     return ok ? out : null;
+  }
+
+  function unitsPerScreenPixelAtWorldPointY(params: {
+    worldPoint: THREE.Vector3;
+    camera: THREE.PerspectiveCamera;
+    renderer: THREE.WebGLRenderer;
+  }) {
+    const { worldPoint, camera, renderer } = params;
+  
+    const rect = renderer.domElement.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    if (w <= 0 || h <= 0) return 0.02;
+  
+    const ndc = worldPoint.clone().project(camera);
+  
+    const ndc2 = new THREE.Vector3(ndc.x, ndc.y - 2 / h, ndc.z);
+  
+    const p1 = ndc.clone().unproject(camera);
+    const p2 = ndc2.unproject(camera);
+  
+    const d = p2.distanceTo(p1);
+    return Number.isFinite(d) && d > 0 ? d : 0.02;
   }
 
   function onNew() {
@@ -629,6 +631,10 @@ export default function VoxelWorldEditor(props: {
     return () => props.onRequestAutosaveRef?.(() => {});
   }, []);
 
+  useEffect(() => {
+    worldToolRef.current = worldTool;
+  }, [worldTool]);
+
   // main three js boot
   useEffect(() => {
     const mount = mountRef.current;
@@ -669,7 +675,6 @@ export default function VoxelWorldEditor(props: {
     const preventContextMenu = (e: Event) => e.preventDefault();
     renderer.domElement.addEventListener("contextmenu", preventContextMenu);
 
-    // lighting closer to your home scene
     scene.add(new THREE.AmbientLight(0xffffff, 2.2));
 
     const dir = new THREE.DirectionalLight(0xffffff, 3.5);
@@ -677,17 +682,6 @@ export default function VoxelWorldEditor(props: {
     dir.shadow.bias = -0.0005;
     dir.shadow.mapSize.set(512, 512);
 
-    // optional: similar shadow frustum
-    dir.shadow.camera.near = 1;
-    dir.shadow.camera.far = 1000;
-    const frustum = 50;
-    dir.shadow.camera.left = -frustum;
-    dir.shadow.camera.right = frustum;
-    dir.shadow.camera.top = frustum;
-    dir.shadow.camera.bottom = -frustum;
-    dir.shadow.camera.updateProjectionMatrix();
-
-    // similar "sun angle"
     dir.position.setFromSphericalCoords(
       150,
       THREE.MathUtils.degToRad(80),
@@ -781,7 +775,7 @@ export default function VoxelWorldEditor(props: {
       }
     );
 
-    const world = new VoxelWorld(scene);
+    const world = new VoxelWorld(scene, { blueprintOpacity: 0.4 });
     worldRef.current = world;
     props.onWorldReady?.(world);
 
@@ -828,15 +822,15 @@ export default function VoxelWorldEditor(props: {
 
     function onPointerDown(e: PointerEvent) {
       if (focusOpenRef.current) return;
-
+    
       updateRayFromMouse(e);
-
+    
       if (placingAssetRef.current && e.button === 0) {
         const w = worldRef.current;
         if (!w) return;
-
+    
         let p: THREE.Vector3 | null = null;
-
+    
         const meshes = w.listMeshes();
         const hits = raycaster.intersectObjects(meshes, false);
         if (hits.length) {
@@ -845,74 +839,103 @@ export default function VoxelWorldEditor(props: {
           const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
           p = rayPlaneIntersection(ground);
         }
-
+    
         if (!p) return;
-
+    
         const pos: VoxelCoord = {
           x: Math.floor(p.x),
           y: Math.floor(p.y),
           z: Math.floor(p.z),
         };
-
+    
         w.instantiateGroupState(placingAssetRef.current.group, {
           at: pos,
           baseId: placingAssetRef.current.metaName,
         });
-
+    
         play("placePart");
-
         requestAutosave({ reason: "place-asset" });
-
         pendingGroupBoxesSyncRef.current = true;
-
+    
         cancelPlaceAsset();
-
+    
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation?.();
         return;
       }
-
+    
       const gid = pickGroupUnderMouse();
-
+    
       if (!gid) {
         selectedGroupIdLiveRef.current = null;
         setSelectedGroupId(null);
         pendingGroupBoxesSyncRef.current = true;
         return;
       }
-
+    
       const prev = selectedGroupIdLiveRef.current;
       if (prev !== gid) {
         play("placeVoxel");
-      }    
-
+      }
+    
       selectedGroupIdLiveRef.current = gid;
       setSelectedGroupId(gid);
       pendingGroupBoxesSyncRef.current = true;
-
+    
       if (e.button !== 0) return;
-
+    
       const w = worldRef.current;
       const renderer = rendererRef.current;
-      if (!w || !renderer) return;
-
+      const cam = cameraRef.current;
+      if (!w || !renderer || !cam) return;
+    
       const gp = w.getGroupPosition ? w.getGroupPosition(gid) : { x: 0, y: 0, z: 0 };
-
-      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -gp.y);
-      const hit = rayPlaneIntersection(plane);
-      if (!hit) return;
-
+    
       setOrbitalControlsEnabled(false);
       renderer.domElement.setPointerCapture(e.pointerId);
+    
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation?.();
-
+    
+      const tool = worldToolRef.current;
+    
+      if (tool === "upmovement") {
+        const worldPoint = new THREE.Vector3(gp.x + 0.5, gp.y + 0.5, gp.z + 0.5);
+    
+        const upp = unitsPerScreenPixelAtWorldPointY({
+          worldPoint,
+          camera: cam,
+          renderer,
+        });
+    
+        dragRef.current = {
+          active: true,
+          pointerId: e.pointerId,
+          groupId: gid,
+    
+          mode: "up",
+    
+          startGroupPos: { ...gp },
+          startClientY: e.clientY,
+          unitsPerPixelY: upp,
+        };
+    
+        return;
+      }
+    
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -gp.y);
+      const hit = rayPlaneIntersection(plane);
+      if (!hit) return;
+    
       dragRef.current = {
         active: true,
         pointerId: e.pointerId,
         groupId: gid,
+    
+        mode: "plane",
+    
         startGroupPos: { ...gp },
         startHitPoint: hit.clone(),
         plane,
@@ -924,27 +947,50 @@ export default function VoxelWorldEditor(props: {
 
       const d = dragRef.current;
       if (d?.active) {
-        updateRayFromMouse(e);
-
-        const hit = rayPlaneIntersection(d.plane);
-        if (!hit) return;
-
-        const delta = new THREE.Vector3().subVectors(hit, d.startHitPoint);
-        const dx = Math.round(delta.x);
-        const dz = Math.round(delta.z);
-
         const w = worldRef.current;
         if (!w?.setGroupPosition) return;
-
+      
+        if (d.mode === "up") {
+          const startY = d.startGroupPos.y;
+          const startClientY = d.startClientY ?? e.clientY;
+          const upp = d.unitsPerPixelY ?? 0.02;
+      
+          const dyPx = e.clientY - startClientY;
+          const dyWorld = -dyPx * upp; 
+      
+          const next = {
+            x: d.startGroupPos.x,
+            y: Math.round(startY + dyWorld),
+            z: d.startGroupPos.z,
+          };
+      
+          w.setGroupPosition(d.groupId!, next);
+          pendingGroupBoxesSyncRef.current = true;
+          requestAutosave({ reason: "move-group-up" });
+      
+          e.preventDefault();
+          return;
+        }
+      
+        updateRayFromMouse(e);
+      
+        const plane = d.plane!;
+        const hit = rayPlaneIntersection(plane);
+        if (!hit) return;
+      
+        const delta = new THREE.Vector3().subVectors(hit, d.startHitPoint!);
+        const dx = Math.round(delta.x);
+        const dz = Math.round(delta.z);
+      
         const next = {
           x: d.startGroupPos.x + dx,
           y: d.startGroupPos.y,
           z: d.startGroupPos.z + dz,
         };
-
+      
         w.setGroupPosition(d.groupId!, next);
         pendingGroupBoxesSyncRef.current = true;
-
+      
         requestAutosave({ reason: "move-group" });
         e.preventDefault();
         return;
@@ -1226,6 +1272,50 @@ export default function VoxelWorldEditor(props: {
         <div
           style={{
             position: "absolute",
+            top: "30px",
+            left: 0,
+            padding: 12,
+            pointerEvents: "auto",
+            zIndex: 30,
+            overflow: "visible",
+          }}
+        >
+          <WorldToolPalette
+            value={worldTool}
+            onSelect={(t) => {
+              if (t === "planemovement" || t === "upmovement") {
+                setWorldTool(t);
+                return;
+              }
+
+              if (t === "rotateleft" || t === "rotateright") {
+                const w = worldRef.current;
+                const gid = selectedGroupIdLiveRef.current;
+                if (!w || !gid || dragRef.current?.active) return;
+              
+                const dir: 1 | -1 = t === "rotateright" ? 1 : -1;
+                const tool = worldToolRef.current;
+              
+                let axis: "x" | "y" | "z" = "y"; 
+                if (tool === "upmovement") axis = "x";
+              
+                const ok = (w as any).rotateGroupLocals90?.(gid, axis, dir);
+                if (!ok) return;
+              
+                click();
+                pendingGroupBoxesSyncRef.current = true;
+                requestAutosave({ reason: `rotate-group-${axis}` });
+                return;
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {showUI && (
+        <div
+          style={{
+            position: "absolute",
             top: 20,
             right: 20,
             zIndex: 30,
@@ -1269,6 +1359,8 @@ export default function VoxelWorldEditor(props: {
               cursor: "pointer",
               pointerEvents: "auto",
               flex: "0 0 auto",
+              opacity: assetsOpen ? 1 : 0.7,
+              transition: "opacity 120ms ease-out",
             }}
           />
         </div>

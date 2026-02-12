@@ -16,6 +16,7 @@ const TOOLS: { id: ToolId; title: string; src: string }[] = [
 
 export default function ToolPalette({ value, onChange }: Props) {
   const { click } = useSound();
+
   return (
     <div
       style={{
@@ -24,9 +25,9 @@ export default function ToolPalette({ value, onChange }: Props) {
         gap: 10,
         alignItems: "center",
         padding: 0,
+        overflow: "visible",
       }}
     >
-
       {TOOLS.map((t) => {
         const selected = t.id === value;
 
@@ -50,11 +51,48 @@ export default function ToolPalette({ value, onChange }: Props) {
               pointerEvents: "auto",
               opacity: selected ? 1 : 0.85,
               transition: "opacity 120ms ease-out",
-              filter: selected ? "none" : "none",
             }}
           />
         );
       })}
+
+      <div
+        style={{
+          marginTop: "5vh",
+          textAlign: "center",
+          fontSize: 14,
+          lineHeight: 1.2,
+          color: "#00324C",
+          opacity: 0.85,
+          userSelect: "none",
+          pointerEvents: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {value === "pencil" && (
+          <>
+            <div>Q: pencil</div>
+            <div>LMB: draw</div>
+            <div>RMB: erase</div>
+          </>
+        )}
+
+        {value === "marquee" && (
+          <>
+            <div>W: fill box</div>
+            <div>LMB ×2: fill</div>
+            <div>RMB: cancel</div>
+          </>
+        )}
+
+        {value === "eyedropper" && (
+          <>
+            <div>E: eyedropper</div>
+            <div>LMB: pick color</div>
+            <div>RMB: nothinf</div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

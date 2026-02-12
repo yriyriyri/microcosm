@@ -49,6 +49,14 @@ export type WorldPacked = {
   groupPositions?: Int32Array;
 };
 
+//render config 
+
+export type VoxelWorldRenderConfig = {
+  blueprintOpacity?: number;
+  blueprintDepthWrite?: boolean;
+  blueprintTint?: boolean;
+};
+
 const DEFAULT_GROUP: GroupId = "default";
 
 function hexToRgb24(hex: string): number {
@@ -79,26 +87,80 @@ function rgb01ToHex(r: number, g: number, b: number): string {
     .padStart(2, "0")}`;
 }
 
-const BLUEPRINT_M = [
-  0.75, 0, 0, 0, 0.25,
-  0, 0.75, 0, 0, 0.25,
-  0, 0, 0.75, 0, 0.25,
-  0, 0, 0, 1, 0.0,
-];
-
 function clamp01(x: number) {
   return Math.min(1, Math.max(0, x));
 }
 
+function rgbToHsv(r: number, g: number, b: number) {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h /= 6;
+    if (h < 0) h += 1;
+  }
+
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+
+  return { h, s, v };
+}
+
+function hsvToRgb(h: number, s: number, v: number) {
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+
+  switch (i % 6) {
+    case 0: return { r: v, g: t, b: p };
+    case 1: return { r: q, g: v, b: p };
+    case 2: return { r: p, g: v, b: t };
+    case 3: return { r: p, g: q, b: v };
+    case 4: return { r: t, g: p, b: v };
+    case 5: return { r: v, g: p, b: q };
+    default: return { r: v, g: t, b: p };
+  }
+}
+
 function blueprintTint(hex: string): string {
   const { r, g, b } = hexToRgb01(hex);
-  const a = 1;
 
-  const m = BLUEPRINT_M;
+  const lum = clamp01(0.2126 * r + 0.7152 * g + 0.0722 * b);
 
-  const r2 = m[0] * r + m[1] * g + m[2] * b + m[3] * a + m[4];
-  const g2 = m[5] * r + m[6] * g + m[7] * b + m[8] * a + m[9];
-  const b2 = m[10] * r + m[11] * g + m[12] * b + m[13] * a + m[14];
+  const hsv0 = rgbToHsv(r, g, b);
+
+  const BLUE_MIN = 195 / 360;
+  const BLUE_MAX = 225 / 360;
+
+  const h2 = BLUE_MIN + hsv0.h * (BLUE_MAX - BLUE_MIN);
+
+  const s2 = 0.6;
+
+  const V_MIN = 0.72;
+  const V_MAX = 0.995;
+
+  const lum2 = Math.pow(lum, 0.9);
+  const v2 = V_MIN + (V_MAX - V_MIN) * lum2;
+
+  const bp = hsvToRgb(h2, s2, clamp01(v2));
+
+  const bpMix = 0.6;
+
+  let r2 = r * (1 - bpMix) + bp.r * bpMix;
+  let g2 = g * (1 - bpMix) + bp.g * bpMix;
+  let b2 = b * (1 - bpMix) + bp.b * bpMix;
+
+  const lift = 1.1;
+  r2 *= lift;
+  g2 *= lift;
+  b2 *= lift;
 
   return rgb01ToHex(clamp01(r2), clamp01(g2), clamp01(b2));
 }
@@ -112,9 +174,16 @@ export class VoxelWorld {
   private geometry: THREE.BoxGeometry;
   private materialCache = new Map<string, THREE.MeshStandardMaterial>();
 
-  constructor(scene: THREE.Scene) {
+  private renderCfg: Required<VoxelWorldRenderConfig>;
+
+  constructor(scene: THREE.Scene, cfg?: VoxelWorldRenderConfig) {
     this.scene = scene;
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
+    this.renderCfg = {
+      blueprintOpacity: cfg?.blueprintOpacity ?? 0.7, 
+      blueprintDepthWrite: cfg?.blueprintDepthWrite ?? false,
+      blueprintTint: cfg?.blueprintTint ?? false,
+    };
     this.ensureGroup(DEFAULT_GROUP, { x: 0, y: 0, z: 0 });
   }
 
@@ -459,7 +528,70 @@ export class VoxelWorld {
     v.mesh.material = this.getMaterial(v.color, v.isBlueprint);
   }
 
-  
+  //part scale modification
+
+  rotateGroupLocals90(groupId: GroupId, axis: "x" | "y" | "z", dir: 1 | -1): boolean {
+    const g = this.groups.get(groupId);
+    if (!g) return false;
+
+    const gp = g.position;
+
+    const rot = (p: VoxelCoord): VoxelCoord => {
+      const x = p.x | 0, y = p.y | 0, z = p.z | 0;
+
+      if (axis === "y") {
+        return dir === 1
+          ? { x: z,  y, z: -x }
+          : { x: -z, y, z: x };
+      }
+
+      if (axis === "x") {
+        return dir === 1
+          ? { x, y: z,  z: -y }
+          : { x, y: -z, z: y };
+      }
+
+      return dir === 1
+        ? { x: y,  y: -x, z }
+        : { x: -y, y: x,  z };
+    };
+
+    for (const v of g.voxels.values()) {
+      const worldOld = this.worldFrom(gp, v.local);
+      this.worldIndex.delete(keyOf(worldOld));
+    }
+
+    const nextVoxels = new Map<string, LocalVoxel>();
+
+    for (const v of g.voxels.values()) {
+      const nextLocal = rot(v.local);
+      const nextLocalKey = keyOf(nextLocal);
+
+      if (nextVoxels.has(nextLocalKey)) {
+        for (const vv of g.voxels.values()) {
+          const world = this.worldFrom(gp, vv.local);
+          this.worldIndex.set(keyOf(world), vv);
+        }
+        return false;
+      }
+
+      v.local = { ...nextLocal };
+
+      v.mesh.position.set(nextLocal.x + 0.5, nextLocal.y + 0.5, nextLocal.z + 0.5);
+
+      const worldNew = this.worldFrom(gp, nextLocal);
+      v.mesh.userData.local = { ...nextLocal };
+      v.mesh.userData.coord = { ...worldNew };
+      v.mesh.userData.groupId = groupId;
+
+      nextVoxels.set(nextLocalKey, v);
+      this.worldIndex.set(keyOf(worldNew), v);
+    }
+
+    g.voxels = nextVoxels;
+    return true;
+  }
+
   //return a pure-data snapshot of a group with local coordinates for assets / focus of parts
   //no three meshes/objects are exposed
   getGroupSnapshot(groupId: GroupId): GroupState | null {
@@ -631,19 +763,22 @@ export class VoxelWorld {
   }
 
   private getMaterial(color: string, isBlueprint: boolean) {
-    const key = `${color}|${isBlueprint ? "bp" : "solid"}`;
+    const key = `${color}|${isBlueprint ? "bp" : "solid"}|${isBlueprint ? this.renderCfg.blueprintOpacity : 1}`;
     let mat = this.materialCache.get(key);
     if (mat) return mat;
 
-    const displayColor = isBlueprint ? blueprintTint(color) : color;
+    const displayColor =
+      isBlueprint && this.renderCfg.blueprintTint ? blueprintTint(color) : color;
 
     mat = new THREE.MeshStandardMaterial({
       color: new THREE.Color(displayColor),
       transparent: isBlueprint,
-      opacity: isBlueprint ? 0.7 : 1.0,
+      opacity: isBlueprint ? this.renderCfg.blueprintOpacity : 0.7,
     });
 
-    if (isBlueprint) mat.depthWrite = false;
+    if (isBlueprint) {
+      mat.depthWrite = this.renderCfg.blueprintDepthWrite;
+    }
 
     this.materialCache.set(key, mat);
     return mat;

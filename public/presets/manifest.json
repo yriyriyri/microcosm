@@ -2,22 +2,598 @@
   "version": 1,
   "presets": [
     {
+      "id": "preset_big-fish-4",
+      "name": "Big Fish 4",
+      "json": "/presets/assets/big-fish-4.json",
+      "thumb": "/presets/thumbs/big-fish-4.png"
+    },
+    {
+      "id": "preset_big-fish-3",
+      "name": "Big Fish 3",
+      "json": "/presets/assets/big-fish-3.json",
+      "thumb": "/presets/thumbs/big-fish-3.png"
+    },
+    {
+      "id": "preset_big-fish-2",
+      "name": "Big Fish 2",
+      "json": "/presets/assets/big-fish-2.json",
+      "thumb": "/presets/thumbs/big-fish-2.png"
+    },
+    {
+      "id": "preset_big-fish-1",
+      "name": "Big Fish 1",
+      "json": "/presets/assets/big-fish-1.json",
+      "thumb": "/presets/thumbs/big-fish-1.png"
+    },
+    {
+      "id": "preset_fish-skeleton",
+      "name": "Fish Skeleton",
+      "json": "/presets/assets/fish-skeleton.json",
+      "thumb": "/presets/thumbs/fish-skeleton.png"
+    },
+    {
+      "id": "preset_fish-7",
+      "name": "Fish 7",
+      "json": "/presets/assets/fish-7.json",
+      "thumb": "/presets/thumbs/fish-7.png"
+    },
+    {
+      "id": "preset_fish-6",
+      "name": "Fish 6",
+      "json": "/presets/assets/fish-6.json",
+      "thumb": "/presets/thumbs/fish-6.png"
+    },
+    {
+      "id": "preset_fish-5",
+      "name": "Fish 5",
+      "json": "/presets/assets/fish-5.json",
+      "thumb": "/presets/thumbs/fish-5.png"
+    },
+    {
+      "id": "preset_fish-4",
+      "name": "Fish 4",
+      "json": "/presets/assets/fish-4.json",
+      "thumb": "/presets/thumbs/fish-4.png"
+    },
+    {
+      "id": "preset_fish-3",
+      "name": "Fish 3",
+      "json": "/presets/assets/fish-3.json",
+      "thumb": "/presets/thumbs/fish-3.png"
+    },
+    {
+      "id": "preset_fish-2",
+      "name": "Fish 2",
+      "json": "/presets/assets/fish-2.json",
+      "thumb": "/presets/thumbs/fish-2.png"
+    },
+    {
+      "id": "preset_fish-1",
+      "name": "Fish 1",
+      "json": "/presets/assets/fish-1.json",
+      "thumb": "/presets/thumbs/fish-1.png"
+    },
+    {
+      "id": "preset_squid",
+      "name": "Squid",
+      "json": "/presets/assets/squid.json",
+      "thumb": "/presets/thumbs/squid.png"
+    },
+    {
+      "id": "preset_frog",
+      "name": "Frog",
+      "json": "/presets/assets/frog.json",
+      "thumb": "/presets/thumbs/frog.png"
+    },
+    {
+      "id": "preset_octopus",
+      "name": "Octopus",
+      "json": "/presets/assets/octopus.json",
+      "thumb": "/presets/thumbs/octopus.png"
+    },
+    {
+      "id": "preset_axolotl",
+      "name": "Axolotl",
+      "json": "/presets/assets/axolotl.json",
+      "thumb": "/presets/thumbs/axolotl.png"
+    },
+    {
+      "id": "preset_rolled-rug",
+      "name": "Rolled Rug",
+      "json": "/presets/assets/rolled-rug.json",
+      "thumb": "/presets/thumbs/rolled-rug.png"
+    },
+    {
+      "id": "preset_ornate-rug",
+      "name": "Ornate Rug",
+      "json": "/presets/assets/ornate-rug.json",
+      "thumb": "/presets/thumbs/ornate-rug.png"
+    },
+    {
+      "id": "preset_chest-2",
+      "name": "Chest 2",
+      "json": "/presets/assets/chest-2.json",
+      "thumb": "/presets/thumbs/chest-2.png"
+    },
+    {
+      "id": "preset_chest-1",
+      "name": "Chest 1",
+      "json": "/presets/assets/chest-1.json",
+      "thumb": "/presets/thumbs/chest-1.png"
+    },
+    {
+      "id": "preset_saw",
+      "name": "Saw",
+      "json": "/presets/assets/saw.json",
+      "thumb": "/presets/thumbs/saw.png"
+    },
+    {
+      "id": "preset_mallet",
+      "name": "Mallet",
+      "json": "/presets/assets/mallet.json",
+      "thumb": "/presets/thumbs/mallet.png"
+    },
+    {
+      "id": "preset_hammer",
+      "name": "Hammer",
+      "json": "/presets/assets/hammer.json",
+      "thumb": "/presets/thumbs/hammer.png"
+    },
+    {
+      "id": "preset_scythe",
+      "name": "Scythe",
+      "json": "/presets/assets/scythe.json",
+      "thumb": "/presets/thumbs/scythe.png"
+    },
+    {
+      "id": "preset_hoe",
+      "name": "Hoe",
+      "json": "/presets/assets/hoe.json",
+      "thumb": "/presets/thumbs/hoe.png"
+    },
+    {
+      "id": "preset_rake",
+      "name": "Rake",
+      "json": "/presets/assets/rake.json",
+      "thumb": "/presets/thumbs/rake.png"
+    },
+    {
+      "id": "preset_shovel",
+      "name": "Shovel",
+      "json": "/presets/assets/shovel.json",
+      "thumb": "/presets/thumbs/shovel.png"
+    },
+    {
+      "id": "preset_axe",
+      "name": "Axe",
+      "json": "/presets/assets/axe.json",
+      "thumb": "/presets/thumbs/axe.png"
+    },
+    {
+      "id": "preset_signpost",
+      "name": "Signpost",
+      "json": "/presets/assets/signpost.json",
+      "thumb": "/presets/thumbs/signpost.png"
+    },
+    {
+      "id": "preset_tiki-torch",
+      "name": "Tiki Torch",
+      "json": "/presets/assets/tiki-torch.json",
+      "thumb": "/presets/thumbs/tiki-torch.png"
+    },
+    {
+      "id": "preset_gravestone",
+      "name": "Gravestone",
+      "json": "/presets/assets/gravestone.json",
+      "thumb": "/presets/thumbs/gravestone.png"
+    },
+    {
+      "id": "preset_stone-statue",
+      "name": "Stone Statue",
+      "json": "/presets/assets/stone-statue.json",
+      "thumb": "/presets/thumbs/stone-statue.png"
+    },
+    {
+      "id": "preset_log-bench",
+      "name": "Log Bench",
+      "json": "/presets/assets/log-bench.json",
+      "thumb": "/presets/thumbs/log-bench.png"
+    },
+    {
+      "id": "preset_wooden-bench",
+      "name": "Wooden Bench",
+      "json": "/presets/assets/wooden-bench.json",
+      "thumb": "/presets/thumbs/wooden-bench.png"
+    },
+    {
+      "id": "preset_stump",
+      "name": "Stump",
+      "json": "/presets/assets/stump.json",
+      "thumb": "/presets/thumbs/stump.png"
+    },
+    {
+      "id": "preset_pennants",
+      "name": "Pennants",
+      "json": "/presets/assets/pennants.json",
+      "thumb": "/presets/thumbs/pennants.png"
+    },
+    {
+      "id": "preset_metal-fence",
+      "name": "Metal Fence",
+      "json": "/presets/assets/metal-fence.json",
+      "thumb": "/presets/thumbs/metal-fence.png"
+    },
+    {
+      "id": "preset_caution-fence",
+      "name": "Caution Fence",
+      "json": "/presets/assets/caution-fence.json",
+      "thumb": "/presets/thumbs/caution-fence.png"
+    },
+    {
+      "id": "preset_barbed-wire-fence",
+      "name": "Barbed Wire Fence",
+      "json": "/presets/assets/barbed-wire-fence.json",
+      "thumb": "/presets/thumbs/barbed-wire-fence.png"
+    },
+    {
+      "id": "preset_barbed-wire",
+      "name": "Barbed Wire",
+      "json": "/presets/assets/barbed-wire.json",
+      "thumb": "/presets/thumbs/barbed-wire.png"
+    },
+    {
+      "id": "preset_tv",
+      "name": "TV",
+      "json": "/presets/assets/tv.json",
+      "thumb": "/presets/thumbs/tv.png"
+    },
+    {
+      "id": "preset_pc-keyboard",
+      "name": "PC Keyboard",
+      "json": "/presets/assets/pc-keyboard.json",
+      "thumb": "/presets/thumbs/pc-keyboard.png"
+    },
+    {
+      "id": "preset_pc",
+      "name": "PC",
+      "json": "/presets/assets/pc.json",
+      "thumb": "/presets/thumbs/pc.png"
+    },
+    {
+      "id": "preset_laptop",
+      "name": "Laptop",
+      "json": "/presets/assets/laptop.json",
+      "thumb": "/presets/thumbs/laptop.png"
+    },
+    {
+      "id": "preset_antenna",
+      "name": "Antenna",
+      "json": "/presets/assets/antenna.json",
+      "thumb": "/presets/thumbs/antenna.png"
+    },
+    {
+      "id": "preset_gong",
+      "name": "Gong",
+      "json": "/presets/assets/gong.json",
+      "thumb": "/presets/thumbs/gong.png"
+    },
+    {
+      "id": "preset_boombox",
+      "name": "Boombox",
+      "json": "/presets/assets/boombox.json",
+      "thumb": "/presets/thumbs/boombox.png"
+    },
+    {
+      "id": "preset_satellite-dish",
+      "name": "Satellite Dish",
+      "json": "/presets/assets/satellite-dish.json",
+      "thumb": "/presets/thumbs/satellite-dish.png"
+    },
+    {
+      "id": "preset_stone-fence-section",
+      "name": "Stone Fence Section",
+      "json": "/presets/assets/stone-fence-section.json",
+      "thumb": "/presets/thumbs/stone-fence-section.png"
+    },
+    {
+      "id": "preset_corner-stone-fence-section",
+      "name": "Corner Stone Fence Section",
+      "json": "/presets/assets/corner-stone-fence-section.json",
+      "thumb": "/presets/thumbs/corner-stone-fence-section.png"
+    },
+    {
+      "id": "preset_mailbox",
+      "name": "Mailbox",
+      "json": "/presets/assets/mailbox.json",
+      "thumb": "/presets/thumbs/mailbox.png"
+    },
+    {
+      "id": "preset_globe",
+      "name": "Globe",
+      "json": "/presets/assets/globe.json",
+      "thumb": "/presets/thumbs/globe.png"
+    },
+    {
+      "id": "preset_for-sale-sign",
+      "name": "For Sale Sign",
+      "json": "/presets/assets/for-sale-sign.json",
+      "thumb": "/presets/thumbs/for-sale-sign.png"
+    },
+    {
+      "id": "preset_corner-fence-section",
+      "name": "Corner Fence Section",
+      "json": "/presets/assets/corner-fence-section.json",
+      "thumb": "/presets/thumbs/corner-fence-section.png"
+    },
+    {
+      "id": "preset_fence-section",
+      "name": "Fence Section",
+      "json": "/presets/assets/fence-section.json",
+      "thumb": "/presets/thumbs/fence-section.png"
+    },
+    {
+      "id": "preset_well",
+      "name": "Well",
+      "json": "/presets/assets/well.json",
+      "thumb": "/presets/thumbs/well.png"
+    },
+    {
+      "id": "preset_cage",
+      "name": "Cage",
+      "json": "/presets/assets/cage.json",
+      "thumb": "/presets/thumbs/cage.png"
+    },
+    {
+      "id": "preset_birthbath",
+      "name": "Birthbath",
+      "json": "/presets/assets/birthbath.json",
+      "thumb": "/presets/thumbs/birthbath.png"
+    },
+    {
+      "id": "preset_crop-field",
+      "name": "Crop Field",
+      "json": "/presets/assets/crop-field.json",
+      "thumb": "/presets/thumbs/crop-field.png"
+    },
+    {
+      "id": "preset_candle-4",
+      "name": "Candle 4",
+      "json": "/presets/assets/candle-4.json",
+      "thumb": "/presets/thumbs/candle-4.png"
+    },
+    {
+      "id": "preset_candle-3",
+      "name": "Candle 3",
+      "json": "/presets/assets/candle-3.json",
+      "thumb": "/presets/thumbs/candle-3.png"
+    },
+    {
+      "id": "preset_candle-2",
+      "name": "Candle 2",
+      "json": "/presets/assets/candle-2.json",
+      "thumb": "/presets/thumbs/candle-2.png"
+    },
+    {
+      "id": "preset_candle-1",
+      "name": "Candle 1",
+      "json": "/presets/assets/candle-1.json",
+      "thumb": "/presets/thumbs/candle-1.png"
+    },
+    {
+      "id": "preset_lantern",
+      "name": "Lantern",
+      "json": "/presets/assets/lantern.json",
+      "thumb": "/presets/thumbs/lantern.png"
+    },
+    {
+      "id": "preset_limelight",
+      "name": "Limelight",
+      "json": "/presets/assets/limelight.json",
+      "thumb": "/presets/thumbs/limelight.png"
+    },
+    {
+      "id": "preset_glass-ball",
+      "name": "Glass Ball",
+      "json": "/presets/assets/glass-ball.json",
+      "thumb": "/presets/thumbs/glass-ball.png"
+    },
+    {
+      "id": "preset_wall-mounted-torch",
+      "name": "Wall Mounted Torch",
+      "json": "/presets/assets/wall-mounted-torch.json",
+      "thumb": "/presets/thumbs/wall-mounted-torch.png"
+    },
+    {
+      "id": "preset_anvil",
+      "name": "Anvil",
+      "json": "/presets/assets/anvil.json",
+      "thumb": "/presets/thumbs/anvil.png"
+    },
+    {
+      "id": "preset_small-jack-o-lantern",
+      "name": "Small Jack'O'Lantern",
+      "json": "/presets/assets/small-jack-o-lantern.json",
+      "thumb": "/presets/thumbs/small-jack-o-lantern.png"
+    },
+    {
+      "id": "preset_big-jack-o-lantern",
+      "name": "Big Jack'O'Lantern",
+      "json": "/presets/assets/big-jack-o-lantern.json",
+      "thumb": "/presets/thumbs/big-jack-o-lantern.png"
+    },
+    {
+      "id": "preset_desk-lamp",
+      "name": "Desk Lamp",
+      "json": "/presets/assets/desk-lamp.json",
+      "thumb": "/presets/thumbs/desk-lamp.png"
+    },
+    {
+      "id": "preset_poker-table",
+      "name": "Poker Table",
+      "json": "/presets/assets/poker-table.json",
+      "thumb": "/presets/thumbs/poker-table.png"
+    },
+    {
+      "id": "preset_open-sign",
+      "name": "Open Sign",
+      "json": "/presets/assets/open-sign.json",
+      "thumb": "/presets/thumbs/open-sign.png"
+    },
+    {
+      "id": "preset_office-chair",
+      "name": "Office Chair",
+      "json": "/presets/assets/office-chair.json",
+      "thumb": "/presets/thumbs/office-chair.png"
+    },
+    {
+      "id": "preset_barstool",
+      "name": "Barstool",
+      "json": "/presets/assets/barstool.json",
+      "thumb": "/presets/thumbs/barstool.png"
+    },
+    {
+      "id": "preset_stool",
+      "name": "Stool",
+      "json": "/presets/assets/stool.json",
+      "thumb": "/presets/thumbs/stool.png"
+    },
+    {
+      "id": "preset_throne",
+      "name": "Throne",
+      "json": "/presets/assets/throne.json",
+      "thumb": "/presets/thumbs/throne.png"
+    },
+    {
+      "id": "preset_bench",
+      "name": "Bench",
+      "json": "/presets/assets/bench.json",
+      "thumb": "/presets/thumbs/bench.png"
+    },
+    {
+      "id": "preset_small-lilypad-1",
+      "name": "Small Lilypad 1",
+      "json": "/presets/assets/small-lilypad-1.json",
+      "thumb": "/presets/thumbs/small-lilypad-1.png"
+    },
+    {
+      "id": "preset_medium-lilypad-1",
+      "name": "Medium Lilypad 1",
+      "json": "/presets/assets/medium-lilypad-1.json",
+      "thumb": "/presets/thumbs/medium-lilypad-1.png"
+    },
+    {
+      "id": "preset_big-lilypad-2",
+      "name": "Big Lilypad 2",
+      "json": "/presets/assets/big-lilypad-2.json",
+      "thumb": "/presets/thumbs/big-lilypad-2.png"
+    },
+    {
+      "id": "preset_big-lilypad-1",
+      "name": "Big Lilypad 1",
+      "json": "/presets/assets/big-lilypad-1.json",
+      "thumb": "/presets/thumbs/big-lilypad-1.png"
+    },
+    {
+      "id": "preset_cobweb-3",
+      "name": "Cobweb 3",
+      "json": "/presets/assets/cobweb-3.json",
+      "thumb": "/presets/thumbs/cobweb-3.png"
+    },
+    {
+      "id": "preset_cobweb-2",
+      "name": "Cobweb 2",
+      "json": "/presets/assets/cobweb-2.json",
+      "thumb": "/presets/thumbs/cobweb-2.png"
+    },
+    {
+      "id": "preset_cobweb-1",
+      "name": "Cobweb 1",
+      "json": "/presets/assets/cobweb-1.json",
+      "thumb": "/presets/thumbs/cobweb-1.png"
+    },
+    {
+      "id": "preset_flag-3",
+      "name": "Flag 3",
+      "json": "/presets/assets/flag-3.json",
+      "thumb": "/presets/thumbs/flag-3.png"
+    },
+    {
+      "id": "preset_flag-2",
+      "name": "Flag 2",
+      "json": "/presets/assets/flag-2.json",
+      "thumb": "/presets/thumbs/flag-2.png"
+    },
+    {
+      "id": "preset_flag-1",
+      "name": "Flag 1",
+      "json": "/presets/assets/flag-1.json",
+      "thumb": "/presets/thumbs/flag-1.png"
+    },
+    {
+      "id": "preset_flagpole",
+      "name": "Flagpole",
+      "json": "/presets/assets/flagpole.json",
+      "thumb": "/presets/thumbs/flagpole.png"
+    },
+    {
+      "id": "preset_fossil-3",
+      "name": "Fossil 3",
+      "json": "/presets/assets/fossil-3.json",
+      "thumb": "/presets/thumbs/fossil-3.png"
+    },
+    {
+      "id": "preset_fossil-2",
+      "name": "Fossil 2",
+      "json": "/presets/assets/fossil-2.json",
+      "thumb": "/presets/thumbs/fossil-2.png"
+    },
+    {
+      "id": "preset_fossil-1",
+      "name": "Fossil 1",
+      "json": "/presets/assets/fossil-1.json",
+      "thumb": "/presets/thumbs/fossil-1.png"
+    },
+    {
+      "id": "preset_small-bowl",
+      "name": "Small Bowl",
+      "json": "/presets/assets/small-bowl.json",
+      "thumb": "/presets/thumbs/small-bowl.png"
+    },
+    {
+      "id": "preset_big-bowl",
+      "name": "Big Bowl",
+      "json": "/presets/assets/big-bowl.json",
+      "thumb": "/presets/thumbs/big-bowl.png"
+    },
+    {
+      "id": "preset_gold-trophy",
+      "name": "Gold Trophy",
+      "json": "/presets/assets/gold-trophy.json",
+      "thumb": "/presets/thumbs/gold-trophy.png"
+    },
+    {
+      "id": "preset_silver-trophy",
+      "name": "Silver Trophy",
+      "json": "/presets/assets/silver-trophy.json",
+      "thumb": "/presets/thumbs/silver-trophy.png"
+    },
+    {
+      "id": "preset_bronze-trophy",
+      "name": "Bronze Trophy",
+      "json": "/presets/assets/bronze-trophy.json",
+      "thumb": "/presets/thumbs/bronze-trophy.png"
+    },
+    {
       "id": "preset_cat",
       "name": "Cat",
       "json": "/presets/assets/cat.json",
       "thumb": "/presets/thumbs/cat.png"
     },
     {
-      "id": "preset_dog",
-      "name": "Dog",
-      "json": "/presets/assets/dog.json",
-      "thumb": "/presets/thumbs/dog.png"
-    },
-    {
-      "id": "preset_pig",
-      "name": "Pig",
-      "json": "/presets/assets/pig.json",
-      "thumb": "/presets/thumbs/pig.png"
+      "id": "preset_capybara",
+      "name": "Capybara",
+      "json": "/presets/assets/capybara.json",
+      "thumb": "/presets/thumbs/capybara.png"
     },
     {
       "id": "preset_rabbit",
@@ -26,10 +602,16 @@
       "thumb": "/presets/thumbs/rabbit.png"
     },
     {
-      "id": "preset_capybara",
-      "name": "Capybara",
-      "json": "/presets/assets/capybara.json",
-      "thumb": "/presets/thumbs/capybara.png"
+      "id": "preset_pig",
+      "name": "Pig",
+      "json": "/presets/assets/pig.json",
+      "thumb": "/presets/thumbs/pig.png"
+    },
+    {
+      "id": "preset_dog",
+      "name": "Dog",
+      "json": "/presets/assets/dog.json",
+      "thumb": "/presets/thumbs/dog.png"
     }
   ]
 }
