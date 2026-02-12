@@ -13,7 +13,7 @@ const eagle = localFont({
 
 export const metadata: Metadata = {
   title: {
-    default: "micro voxl",
+    default: "Voxl Micro",
     template: "%s | micro voxl",
   },
 };
