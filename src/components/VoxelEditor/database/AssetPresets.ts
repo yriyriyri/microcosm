@@ -1,45 +1,134 @@
 import type { GroupState } from "../VoxelWorld";
-import { getAssetMeta, saveAsset } from "./AssetDb";
+import { getAssetMeta, saveAsset, getKv, setKv } from "./AssetDb";
 
 type PresetManifest = {
   version: number;
   presets: { id: string; name: string; json: string; thumb?: string }[];
 };
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const r = await fetch(url, { cache: "no-store" });
+const KV_PRESETS_VERSION = "presets:installedVersion";
+
+async function mapLimit<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<void>
+) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) return;
+      await fn(items[idx], idx);
+    }
+  });
+  await Promise.all(workers);
+}
+
+function resolvePresetUrl(u: string): string {
+  if (!u) return u;
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  if (u.startsWith("/")) return u;
+  return `/${u.replace(/^\.?\//, "")}`;
+}
+
+async function fetchJson<T>(url: string, cache: RequestCache, debug?: boolean): Promise<T> {
+  const t0 = performance.now();
+  const r = await fetch(url, { cache });
+  const ms = Math.round(performance.now() - t0);
+
+  if (debug) {
+    console.info("[preset fetch json]", {
+      url,
+      status: r.status,
+      ms,
+      cache,
+      cacheControl: r.headers.get("cache-control"),
+      contentLength: r.headers.get("content-length"),
+      contentType: r.headers.get("content-type"),
+    });
+  }
+
   if (!r.ok) throw new Error(`Failed to fetch ${url}: ${r.status}`);
   return (await r.json()) as T;
 }
 
-async function fetchBlob(url: string): Promise<Blob> {
-  const r = await fetch(url, { cache: "no-store" });
+async function fetchBlob(url: string, cache: RequestCache, debug?: boolean): Promise<Blob> {
+  const t0 = performance.now();
+  const r = await fetch(url, { cache });
+  const ms = Math.round(performance.now() - t0);
+
+  if (debug) {
+    console.info("[preset fetch blob]", {
+      url,
+      status: r.status,
+      ms,
+      cache,
+      cacheControl: r.headers.get("cache-control"),
+      contentLength: r.headers.get("content-length"),
+      contentType: r.headers.get("content-type"),
+    });
+  }
+
   if (!r.ok) throw new Error(`Failed to fetch ${url}: ${r.status}`);
   return await r.blob();
 }
 
-export async function ensurePresetAssetsInstalled(opts?: { force?: boolean }) {
-  const manifest = await fetchJson<PresetManifest>("/presets/manifest.json");
+export async function ensurePresetAssetsInstalled(opts?: {
+  force?: boolean;
+  debug?: boolean;
+  concurrency?: number; 
+}) {
+  const debug = !!opts?.debug;
+
+  const manifest = await fetchJson<PresetManifest>("/presets/manifest.json", "no-store", debug);
 
   if (manifest.version !== 1) {
     console.warn("Unknown preset manifest version:", manifest.version);
   }
 
-  for (const p of manifest.presets) {
+  if (!opts?.force) {
+    const installed = await getKv<number>(KV_PRESETS_VERSION).catch(() => null);
+    if (installed === manifest.version) {
+      if (debug) console.info("[presets] already installed version", installed);
+      return;
+    }
+  }
+
+  const presets = manifest.presets || [];
+  const concurrency = Math.max(1, Math.min(8, opts?.concurrency ?? 4));
+
+  const tAll0 = performance.now();
+
+  await mapLimit(presets, concurrency, async (p) => {
     if (!opts?.force) {
       const existing = await getAssetMeta(p.id).catch(() => null);
-      if (existing) continue;
+      if (existing) return;
     }
 
-    const group = await fetchJson<GroupState>(p.json);
+    const jsonUrl = resolvePresetUrl(p.json);
+    const thumbUrl = p.thumb ? resolvePresetUrl(p.thumb) : null;
 
-    const thumb = p.thumb ? await fetchBlob(p.thumb) : null;
+    const [group, thumb] = await Promise.all([
+      fetchJson<GroupState>(jsonUrl, "force-cache", debug),
+      thumbUrl ? fetchBlob(thumbUrl, "force-cache", debug) : Promise.resolve(null),
+    ]);
 
     await saveAsset({
       id: p.id,
       name: p.name,
       group,
       thumb,
+    });
+  });
+
+  await setKv(KV_PRESETS_VERSION, manifest.version).catch(() => {});
+
+  if (debug) {
+    console.info("[presets] installed", {
+      count: presets.length,
+      ms: Math.round(performance.now() - tAll0),
+      concurrency,
+      version: manifest.version,
     });
   }
 }

@@ -15,10 +15,13 @@ type AssetData = {
 };
 
 const DB_NAME = "voxel_editor_assets_db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORE_META = "asset_meta";
 const STORE_DATA = "asset_data";
+const STORE_KV = "kv";
+
+type KvRow = { key: string; value: any };
 
 function makeId(): string {
   const c: any = globalThis.crypto;
@@ -39,6 +42,10 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_DATA)) {
         db.createObjectStore(STORE_DATA, { keyPath: "id" });
       }
+
+      if (!db.objectStoreNames.contains(STORE_KV)) {
+        db.createObjectStore(STORE_KV, { keyPath: "key" });
+      }
     };
 
     req.onsuccess = () => resolve(req.result);
@@ -56,6 +63,23 @@ function txDone(tx: IDBTransaction): Promise<void> {
     tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
     tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
   });
+}
+
+export async function getKv<T = any>(key: string): Promise<T | null> {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([STORE_KV], "readonly");
+    const req = tx.objectStore(STORE_KV).get(key);
+    req.onsuccess = () => resolve(((req.result as KvRow | undefined)?.value as T) ?? null);
+    req.onerror = () => reject(req.error ?? new Error("Failed to read kv"));
+  });
+}
+
+export async function setKv(key: string, value: any): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction([STORE_KV], "readwrite");
+  tx.objectStore(STORE_KV).put({ key, value } satisfies KvRow);
+  await txDone(tx);
 }
 
 export async function listAssets(): Promise<AssetMeta[]> {
@@ -173,12 +197,14 @@ export async function renameAsset(id: string, name: string): Promise<void> {
 }
 
 function safeSlug(name: string): string {
-  return (name || "asset")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 80) || "asset";
+  return (
+    (name || "asset")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+      .slice(0, 80) || "asset"
+  );
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -206,9 +232,7 @@ export async function exportAssetToFiles(id: string): Promise<void> {
 
   if (meta.thumb) {
     const pngBlob =
-      meta.thumb.type === "image/png"
-        ? meta.thumb
-        : new Blob([meta.thumb], { type: "image/png" });
+      meta.thumb.type === "image/png" ? meta.thumb : new Blob([meta.thumb], { type: "image/png" });
 
     downloadBlob(pngBlob, `${base}.png`);
   }
