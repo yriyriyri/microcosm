@@ -89,7 +89,7 @@ export default function ToolPalette({ value, onChange }: Props) {
           <>
             <div>E: eyedropper</div>
             <div>LMB: pick color</div>
-            <div>RMB: nothinf</div>
+            <div>RMB: nothing</div>
           </>
         )}
       </div>
