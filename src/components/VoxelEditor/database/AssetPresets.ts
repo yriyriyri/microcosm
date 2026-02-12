@@ -91,7 +91,6 @@ export async function ensurePresetAssetsInstalled(opts?: {
     const installed = await getKv<number>(KV_PRESETS_VERSION).catch(() => null);
   
     if (installed === manifest.version) {
-      // NEW: verify DB actually contains presets
       const rows = await listAssets().catch(() => []);
       if (rows.length > 0) {
         if (debug) console.info("[presets] already installed version", installed);
