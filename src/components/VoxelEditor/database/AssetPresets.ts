@@ -76,7 +76,8 @@ async function fetchBlob(url: string, cache: RequestCache, debug?: boolean): Pro
 export async function ensurePresetAssetsInstalled(opts?: {
   force?: boolean;
   debug?: boolean;
-  concurrency?: number; 
+  concurrency?: number;
+  onProgress?: (p: number, info?: { done: number; total: number; id?: string; name?: string }) => void;
 }) {
   const debug = !!opts?.debug;
 
@@ -90,38 +91,55 @@ export async function ensurePresetAssetsInstalled(opts?: {
     const installed = await getKv<number>(KV_PRESETS_VERSION).catch(() => null);
     if (installed === manifest.version) {
       if (debug) console.info("[presets] already installed version", installed);
+      opts?.onProgress?.(1, { done: 1, total: 1 });
       return;
     }
   }
 
   const presets = manifest.presets || [];
+  const total = presets.length || 1;
   const concurrency = Math.max(1, Math.min(8, opts?.concurrency ?? 4));
 
   const tAll0 = performance.now();
 
+  let done = 0;
+  const tick = (info?: { id?: string; name?: string }) => {
+    done++;
+    const p = Math.max(0, Math.min(1, done / total));
+    opts?.onProgress?.(p, { done, total, ...info });
+  };
+
+  opts?.onProgress?.(0, { done: 0, total });
+
   await mapLimit(presets, concurrency, async (p) => {
-    if (!opts?.force) {
-      const existing = await getAssetMeta(p.id).catch(() => null);
-      if (existing) return;
+    try {
+      if (!opts?.force) {
+        const existing = await getAssetMeta(p.id).catch(() => null);
+        if (existing) return;
+      }
+
+      const jsonUrl = resolvePresetUrl(p.json);
+      const thumbUrl = p.thumb ? resolvePresetUrl(p.thumb) : null;
+
+      const [group, thumb] = await Promise.all([
+        fetchJson<GroupState>(jsonUrl, "force-cache", debug),
+        thumbUrl ? fetchBlob(thumbUrl, "force-cache", debug) : Promise.resolve(null),
+      ]);
+
+      await saveAsset({
+        id: p.id,
+        name: p.name,
+        group,
+        thumb,
+      });
+    } finally {
+      tick({ id: p.id, name: p.name });
     }
-
-    const jsonUrl = resolvePresetUrl(p.json);
-    const thumbUrl = p.thumb ? resolvePresetUrl(p.thumb) : null;
-
-    const [group, thumb] = await Promise.all([
-      fetchJson<GroupState>(jsonUrl, "force-cache", debug),
-      thumbUrl ? fetchBlob(thumbUrl, "force-cache", debug) : Promise.resolve(null),
-    ]);
-
-    await saveAsset({
-      id: p.id,
-      name: p.name,
-      group,
-      thumb,
-    });
   });
 
   await setKv(KV_PRESETS_VERSION, manifest.version).catch(() => {});
+
+  opts?.onProgress?.(1, { done: total, total });
 
   if (debug) {
     console.info("[presets] installed", {
