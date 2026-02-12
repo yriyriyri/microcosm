@@ -1302,7 +1302,6 @@ export default function VoxelWorldEditor(props: {
                 const ok = (w as any).rotateGroupLocals90?.(gid, axis, dir);
                 if (!ok) return;
               
-                click();
                 pendingGroupBoxesSyncRef.current = true;
                 requestAutosave({ reason: `rotate-group-${axis}` });
                 return;

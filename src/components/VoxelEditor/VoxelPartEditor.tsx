@@ -178,6 +178,8 @@ export default function VoxelPartEditor(props: {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const warmedRef = useRef(false);
 
+  const solidifyFocusRef = useRef<(() => void) | null>(null);
+
   const openRef = useRef(open);
   useEffect(() => void (openRef.current = open), [open]);
 
@@ -430,6 +432,22 @@ export default function VoxelPartEditor(props: {
 
     fw.addGroup(FOCUS_GROUP_ID, { x: 0, y: 0, z: 0 });
 
+    solidifyFocusRef.current = () => {
+      const fw2 = focusWorldRef.current;
+      if (!fw2) return;
+    
+      const snap = fw2.getGroupSnapshot(FOCUS_GROUP_ID);
+      const voxels = snap?.voxels ?? [];
+    
+      for (const v of voxels) fw2.setIsBlueprint(v.local, false);
+    
+      console.log(`[dev] solidified focus voxels: ${voxels.length}`);
+      pendingHoverRaycastRef.current = true;
+    };
+    
+    (window as any).voxSolidFocus = () => solidifyFocusRef.current?.();
+    console.log("[dev] window.voxSolidFocus() ready");
+
     const hoverMat = new THREE.MeshBasicMaterial({
       color: new THREE.Color("#7dd3fc"),
       transparent: true,
@@ -673,6 +691,10 @@ export default function VoxelPartEditor(props: {
       cameraRef.current = null;
       rendererRef.current = null;
       sceneRef.current = null;
+
+      try {
+        delete (window as any).voxSolidFocus;
+      } catch {}
 
       if (renderer.domElement.parentElement === mount) {
         mount.removeChild(renderer.domElement);
