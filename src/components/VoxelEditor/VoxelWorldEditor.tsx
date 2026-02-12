@@ -1272,7 +1272,7 @@ export default function VoxelWorldEditor(props: {
         <div
           style={{
             position: "absolute",
-            top: "30px",
+            top: "20px",
             left: 0,
             padding: 12,
             pointerEvents: "auto",
