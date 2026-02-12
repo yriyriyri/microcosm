@@ -183,6 +183,14 @@ export async function deleteAsset(id: string): Promise<void> {
   await txDone(tx);
 }
 
+export async function deleteAllAssets(): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction([STORE_META, STORE_DATA], "readwrite");
+  tx.objectStore(STORE_META).clear();
+  tx.objectStore(STORE_DATA).clear();
+  await txDone(tx);
+}
+
 export async function renameAsset(id: string, name: string): Promise<void> {
   const db = await openDb();
   const meta = await getAssetMeta(id);

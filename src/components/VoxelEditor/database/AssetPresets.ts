@@ -1,5 +1,5 @@
 import type { GroupState } from "../VoxelWorld";
-import { getAssetMeta, saveAsset, getKv, setKv } from "./AssetDb";
+import { getAssetMeta, saveAsset, getKv, setKv, listAssets } from "./AssetDb";
 
 type PresetManifest = {
   version: number;
@@ -89,10 +89,17 @@ export async function ensurePresetAssetsInstalled(opts?: {
 
   if (!opts?.force) {
     const installed = await getKv<number>(KV_PRESETS_VERSION).catch(() => null);
+  
     if (installed === manifest.version) {
-      if (debug) console.info("[presets] already installed version", installed);
-      opts?.onProgress?.(1, { done: 1, total: 1 });
-      return;
+      // NEW: verify DB actually contains presets
+      const rows = await listAssets().catch(() => []);
+      if (rows.length > 0) {
+        if (debug) console.info("[presets] already installed version", installed);
+        opts?.onProgress?.(1, { done: 1, total: 1 });
+        return;
+      } else {
+        if (debug) console.info("[presets] KV says installed but DB empty -> reinstalling");
+      }
     }
   }
 

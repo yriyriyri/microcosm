@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import type { AssetMeta } from "../database/AssetDb";
-import { deleteAsset, listAssets, loadAsset, renameAsset, exportAssetToFiles } from "../database/AssetDb";
+import { deleteAsset, deleteAllAssets, listAssets, loadAsset, renameAsset, exportAssetToFiles } from "../database/AssetDb";
 import JSZip from "jszip";
 
 export default function AdminAssetsPanel(props: {
@@ -150,6 +150,9 @@ export default function AdminAssetsPanel(props: {
             </label>
             <label style={{ cursor: "pointer" }} onClick={() => exportAllAsPresetZip().catch(console.error)}>
               Export all
+            </label>
+            <label style={{ cursor: "pointer", color: "#b00020" }} onClick={async () => {await deleteAllAssets();}}>
+              Delete all
             </label>
           </div>
         </div>
