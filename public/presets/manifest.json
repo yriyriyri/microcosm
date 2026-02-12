@@ -344,10 +344,10 @@
       "thumb": "/presets/thumbs/cage.png"
     },
     {
-      "id": "preset_birthbath",
-      "name": "Birthbath",
-      "json": "/presets/assets/birthbath.json",
-      "thumb": "/presets/thumbs/birthbath.png"
+      "id": "preset_birdbath",
+      "name": "Birdbath",
+      "json": "/presets/assets/birdbath.json",
+      "thumb": "/presets/thumbs/birdbath.png"
     },
     {
       "id": "preset_crop-field",
