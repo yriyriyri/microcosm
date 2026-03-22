@@ -1,4 +1,5 @@
 import type { GroupState } from "../VoxelWorld";
+import { assetRepository } from "../repositories";
 import { getAssetMeta, saveAsset, getKv, setKv, listAssets } from "./AssetDb";
 
 type PresetManifest = {
@@ -88,10 +89,10 @@ export async function ensurePresetAssetsInstalled(opts?: {
   }
 
   if (!opts?.force) {
-    const installed = await getKv<number>(KV_PRESETS_VERSION).catch(() => null);
+    const installed = await assetRepository.getKv<number>(KV_PRESETS_VERSION).catch(() => null);
   
     if (installed === manifest.version) {
-      const rows = await listAssets().catch(() => []);
+      const rows = await assetRepository.listAssets().catch(() => []);
       if (rows.length > 0) {
         if (debug) console.info("[presets] already installed version", installed);
         opts?.onProgress?.(1, { done: 1, total: 1 });
@@ -120,7 +121,7 @@ export async function ensurePresetAssetsInstalled(opts?: {
   await mapLimit(presets, concurrency, async (p) => {
     try {
       if (!opts?.force) {
-        const existing = await getAssetMeta(p.id).catch(() => null);
+        const existing = await assetRepository.getAssetMeta(p.id).catch(() => null);
         if (existing) return;
       }
 
@@ -132,7 +133,7 @@ export async function ensurePresetAssetsInstalled(opts?: {
         thumbUrl ? fetchBlob(thumbUrl, "force-cache", debug) : Promise.resolve(null),
       ]);
 
-      await saveAsset({
+      await assetRepository.saveAsset({
         id: p.id,
         name: p.name,
         group,
@@ -143,8 +144,8 @@ export async function ensurePresetAssetsInstalled(opts?: {
     }
   });
 
-  await setKv(KV_PRESETS_VERSION, manifest.version).catch(() => {});
-
+  await assetRepository.setKv(KV_PRESETS_VERSION, manifest.version).catch(() => {});
+  
   opts?.onProgress?.(1, { done: total, total });
 
   if (debug) {

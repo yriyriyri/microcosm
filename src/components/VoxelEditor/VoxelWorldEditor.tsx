@@ -13,13 +13,12 @@ import { VoxelWorld } from "./VoxelWorld";
 import type { GroupState } from "./VoxelWorld";
 import type { VoxelCoord } from "./Types";
 import LibraryPanel from "./ui/LibraryPanel";
-import { loadIsland, saveIsland } from "./database/LibraryDb";
 import AdminAssetsPanel from "./ui/AdminAssetsPanel";
 import AssetsPanel from "./ui/AssetsPanel";
-import { loadAsset, saveAsset } from "./database/AssetDb";
 import { parseVox } from "./vox/voxImport";
 import WorldToolPalette, { type WorldToolId } from "./ui/WorldToolPalette";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
+import { assetRepository, worldRepository } from "./repositories";
 
 function recenterCameraOnBounds(params: {
   minX: number;
@@ -395,7 +394,7 @@ export default function VoxelWorldEditor(props: {
       ? await captureSquareThumbnailFromCurrentCamera()
       : undefined;
   
-    const id = await saveIsland({
+    const id = await worldRepository.saveWorld({
       name: "Primary World",
       packed,
       thumb,
@@ -465,7 +464,7 @@ export default function VoxelWorldEditor(props: {
     const world = worldRef.current;
     if (!world) return;
 
-    const loaded = await loadIsland(id);
+    const loaded = await worldRepository.loadWorld(id);    
     if (!loaded) return;
 
     currentIslandIdRef.current = loaded.meta.id;
@@ -525,12 +524,12 @@ export default function VoxelWorldEditor(props: {
     const group = normalizeGroupToOrigin(snap);
     const thumb = await captureSquareThumbnailFromCurrentCamera();
 
-    await saveAsset({ name, group, thumb });
+    await assetRepository.saveAsset({ name, group, thumb });    
     setAssetsOpen(true);
   }
 
   async function beginPlaceAsset(assetId: string) {
-    const loaded = await loadAsset(assetId);
+    const loaded = await assetRepository.loadAsset(assetId);    
     if (!loaded) return;
 
     placingAssetRef.current = { metaName: loaded.meta.name, group: loaded.group };
@@ -785,7 +784,7 @@ export default function VoxelWorldEditor(props: {
       let id = getPrimaryWorldId();
 
       if (id) {
-        const loaded = await loadIsland(id);
+        const loaded = await worldRepository.loadWorld(id);
         if (cancelled) return;
 
         if (loaded) {
@@ -807,7 +806,7 @@ export default function VoxelWorldEditor(props: {
       const thumb = await captureSquareThumbnailFromCurrentCamera();
       if (cancelled) return;
 
-      const newId = await saveIsland({
+      const newId = await worldRepository.saveWorld({
         name: "Primary World",
         packed,
         thumb,

@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import type { AssetMeta } from "../database/AssetDb";
-import { deleteAsset, deleteAllAssets, listAssets, loadAsset, renameAsset, exportAssetToFiles } from "../database/AssetDb";
+import type { AssetMetaRecord } from "../domain/assetTypes";
+import { assetRepository } from "../repositories";
 import JSZip from "jszip";
 
 export default function AdminAssetsPanel(props: {
@@ -15,7 +15,7 @@ export default function AdminAssetsPanel(props: {
 }) {
   const { open, onClose, onRequestPlace, onRequestSaveSelected, selectedGroupId, placingLabel } = props;
 
-  const [assets, setAssets] = useState<AssetMeta[]>([]);
+  const [assets, setAssets] = useState<AssetMetaRecord[]>([]);
   const [name, setName] = useState("New Asset");
 
   function slugify(s: string) {
@@ -27,7 +27,7 @@ export default function AdminAssetsPanel(props: {
   }
   
   async function exportAllAsPresetZip() {
-    const metas = await listAssets();
+    const metas = await assetRepository.listAssets();
     if (!metas.length) {
       alert("No assets to export.");
       return;
@@ -52,7 +52,7 @@ export default function AdminAssetsPanel(props: {
     };
   
     for (const m of metas) {
-      const loaded = await loadAsset(m.id);
+      const loaded = await assetRepository.loadAsset(m.id);
       if (!loaded) continue;
   
       const slug = uniqueSlug(loaded.meta.name);
@@ -90,7 +90,7 @@ export default function AdminAssetsPanel(props: {
   }
 
   async function refresh() {
-    const rows = await listAssets();
+    const rows = await assetRepository.listAssets();
     setAssets(rows);
   }
 
@@ -151,7 +151,7 @@ export default function AdminAssetsPanel(props: {
             <label style={{ cursor: "pointer" }} onClick={() => exportAllAsPresetZip().catch(console.error)}>
               Export all
             </label>
-            <label style={{ cursor: "pointer", color: "#b00020" }} onClick={async () => {await deleteAllAssets();}}>
+            <label style={{ cursor: "pointer", color: "#b00020" }} onClick={async () => {await assetRepository.deleteAllAssets(); await refresh();}}>
               Delete all
             </label>
           </div>
@@ -222,7 +222,7 @@ export default function AdminAssetsPanel(props: {
                         onClick={async () => {
                           const next = prompt("Rename asset:", a.name);
                           if (!next) return;
-                          await renameAsset(a.id, next);
+                          await assetRepository.renameAsset(a.id, next);
                           await refresh();
                         }}
                         style={{ padding: "6px 10px", cursor: "pointer" }}
@@ -233,7 +233,7 @@ export default function AdminAssetsPanel(props: {
                       <button
                         onClick={async () => {
                           if (!confirm(`Delete "${a.name}"?`)) return;
-                          await deleteAsset(a.id);
+                          await assetRepository.deleteAsset(a.id);
                           await refresh();
                         }}
                         style={{ padding: "6px 10px", cursor: "pointer" }}
@@ -244,7 +244,7 @@ export default function AdminAssetsPanel(props: {
                       <button
                         onClick={async () => {
                           try {
-                            await exportAssetToFiles(a.id);
+                            await assetRepository.exportAssetToFiles(a.id);
                           } catch (e) {
                             console.error(e);
                             alert(e instanceof Error ? e.message : "Export failed");

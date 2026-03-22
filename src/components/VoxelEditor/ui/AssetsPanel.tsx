@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import type { AssetMeta } from "../database/AssetDb";
-import { listAssets } from "../database/AssetDb";
+import type { AssetMetaRecord } from "../domain/assetTypes";
+import { assetRepository } from "../repositories";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 
 
@@ -14,12 +14,12 @@ export default function AssetsPanel(props: {
   const { open, onClose, onRequestPlace } = props;
   const { click } = useSound();
 
-  const [assets, setAssets] = useState<AssetMeta[]>([]);
+  const [assets, setAssets] = useState<AssetMetaRecord[]>([]);
 
   const SHOW_THUMBS = false;
 
   async function refresh() {
-    const rows = await listAssets();
+    const rows = await assetRepository.listAssets();
     setAssets(rows);
   }
 

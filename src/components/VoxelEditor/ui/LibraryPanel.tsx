@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import type { IslandMeta } from "../database/LibraryDb";
-import { deleteIsland, listIslands, renameIsland } from "../database/LibraryDb";
+import type { WorldMetaRecord } from "../domain/worldTypes";
+import { worldRepository } from "../repositories";
 
 export default function LibraryPanel(props: {
   open: boolean;
@@ -11,7 +11,7 @@ export default function LibraryPanel(props: {
 }) {
   const { open, onClose, onOpenIsland } = props;
 
-  const [items, setItems] = useState<IslandMeta[]>([]);
+  const [items, setItems] = useState<WorldMetaRecord[]>([]);  
   const [loading, setLoading] = useState(false);
 
   const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({});
@@ -19,7 +19,7 @@ export default function LibraryPanel(props: {
   async function refresh() {
     setLoading(true);
     try {
-      setItems(await listIslands());
+      setItems(await worldRepository.listWorlds());
     } finally {
       setLoading(false);
     }
@@ -215,7 +215,7 @@ export default function LibraryPanel(props: {
                     onClick={async () => {
                       const name = prompt("Rename island:", it.name);
                       if (!name) return;
-                      await renameIsland(it.id, name);
+                      await worldRepository.renameWorld(it.id, name);
                       await refresh();
                     }}
                     style={{
@@ -230,7 +230,7 @@ export default function LibraryPanel(props: {
                   <label
                     onClick={async () => {
                       if (!confirm(`Delete "${it.name}"?`)) return;
-                      await deleteIsland(it.id);
+                      await worldRepository.deleteWorld(it.id);
                       await refresh();
                     }}
                     style={{
