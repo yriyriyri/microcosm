@@ -159,7 +159,7 @@ export default function MarketplacePanel(props: {
                 disabled={alreadyInLibrary}
                 onClick={async () => {
                   click();
-                  await assetRepository.addAssetToLibrary(a.id);
+                  await assetRepository.acquireMarketplaceAssetToLibrary(a.id);
                   await refresh();
                 }}
                 style={{

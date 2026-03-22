@@ -280,7 +280,7 @@ export async function overwritePrivateAssetContent(params: {
   if (meta.visibility !== "private" || meta.isImmutable) {
     throw new Error("Only mutable private assets can be overwritten");
   }
-  
+
   if (meta.sourceMarketplaceAssetId) {
     throw new Error("Marketplace-linked assets cannot be structurally overwritten");
   }
@@ -294,6 +294,7 @@ export async function overwritePrivateAssetContent(params: {
     inLibrary: meta.inLibrary ?? true,
     isPreset: meta.isPreset ?? false,
     sourceAssetId: meta.sourceAssetId ?? null,
+    sourceMarketplaceAssetId: meta.sourceMarketplaceAssetId ?? null,
     publishedFromAssetId: meta.publishedFromAssetId ?? null,
     isImmutable: false,
     forceNewId: false,
@@ -478,22 +479,12 @@ export async function acquireMarketplaceAssetToLibrary(
 
   const existing = (await listAssets()).find(
     (a) =>
-      a.sourceMarketplaceAssetId === sourceMeta.id &&
-      a.visibility === "private"
+      a.visibility === "private" &&
+      a.sourceMarketplaceAssetId === sourceMeta.id
   );
 
   if (existing) {
-    const next = normalizeAssetMeta({
-      ...existing,
-      inLibrary: true,
-      updatedAt: Date.now(),
-    });
-
-    const db = await openDb();
-    const tx = db.transaction([STORE_META], "readwrite");
-    tx.objectStore(STORE_META).put(next);
-    await txDone(tx);
-
+    await setAssetLibraryMembership(existing.id, true);
     return existing.id;
   }
 
@@ -503,7 +494,6 @@ export async function acquireMarketplaceAssetToLibrary(
     thumb: loaded.meta.thumb ?? null,
     visibility: "private",
     inLibrary: true,
-    isPreset: false,
     isImmutable: false,
     sourceAssetId: sourceMeta.id,
     sourceMarketplaceAssetId: sourceMeta.id,
