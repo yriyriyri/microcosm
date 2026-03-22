@@ -13,7 +13,14 @@ export default function AdminAssetsPanel(props: {
   selectedGroupId: string | null;
   placingLabel: string | null;
 }) {
-  const { open, onClose, onRequestPlace, onRequestSaveSelected, selectedGroupId, placingLabel } = props;
+  const {
+    open,
+    onClose,
+    onRequestPlace,
+    onRequestSaveSelected,
+    selectedGroupId,
+    placingLabel,
+  } = props;
 
   const [assets, setAssets] = useState<AssetMetaRecord[]>([]);
   const [name, setName] = useState("New Asset");
@@ -25,24 +32,24 @@ export default function AdminAssetsPanel(props: {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
   }
-  
+
   async function exportAllAsPresetZip() {
     const metas = await assetRepository.listAssets();
     if (!metas.length) {
       alert("No assets to export.");
       return;
     }
-  
+
     const zip = new JSZip();
-  
+
     const manifest: {
       version: number;
       presets: { id: string; name: string; json: string; thumb?: string }[];
     } = { version: 1, presets: [] };
-  
+
     const assetsFolder = zip.folder("presets/assets")!;
     const thumbsFolder = zip.folder("presets/thumbs")!;
-  
+
     const usedSlug = new Map<string, number>();
     const uniqueSlug = (name: string) => {
       const base0 = slugify(name) || "asset";
@@ -50,24 +57,24 @@ export default function AdminAssetsPanel(props: {
       usedSlug.set(base0, n + 1);
       return n === 0 ? base0 : `${base0}-${n + 1}`;
     };
-  
+
     for (const m of metas) {
       const loaded = await assetRepository.loadAsset(m.id);
       if (!loaded) continue;
-  
+
       const slug = uniqueSlug(loaded.meta.name);
       const id = `preset_${slug}`;
-  
+
       const jsonName = `${slug}.json`;
       const pngName = `${slug}.png`;
-  
+
       assetsFolder.file(jsonName, JSON.stringify(loaded.group, null, 2));
-  
+
       if (loaded.meta.thumb) {
         const buf = await loaded.meta.thumb.arrayBuffer();
         thumbsFolder.file(pngName, buf);
       }
-  
+
       manifest.presets.push({
         id,
         name: loaded.meta.name,
@@ -75,9 +82,9 @@ export default function AdminAssetsPanel(props: {
         ...(loaded.meta.thumb ? { thumb: `/presets/thumbs/${pngName}` } : {}),
       });
     }
-  
+
     zip.file("presets/manifest.json", JSON.stringify(manifest, null, 2));
-  
+
     const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -113,6 +120,45 @@ export default function AdminAssetsPanel(props: {
     };
   }, [thumbUrls]);
 
+  function badgeStyle(bg: string, color = "white"): React.CSSProperties {
+    return {
+      display: "inline-block",
+      padding: "2px 6px",
+      borderRadius: 999,
+      fontSize: 11,
+      lineHeight: 1.2,
+      background: bg,
+      color,
+      whiteSpace: "nowrap",
+    };
+  }
+
+  function renderAssetBadges(a: AssetMetaRecord) {
+    return (
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        <span
+          style={badgeStyle(
+            a.visibility === "private"
+              ? "#1d4ed8"
+              : a.visibility === "marketplace"
+              ? "#7c3aed"
+              : "#475569"
+          )}
+        >
+          {a.visibility}
+        </span>
+
+        {a.inLibrary ? (
+          <span style={badgeStyle("#065f46")}>in library</span>
+        ) : (
+          <span style={badgeStyle("#6b7280")}>not in library</span>
+        )}
+
+        {a.isPreset ? <span style={badgeStyle("#92400e")}>preset</span> : null}
+      </div>
+    );
+  }
+
   if (!open) return null;
 
   return (
@@ -130,7 +176,7 @@ export default function AdminAssetsPanel(props: {
           position: "absolute",
           top: 10,
           right: 10,
-          width: "min(520px, 95vw)",
+          width: "min(640px, 95vw)",
           maxHeight: "min(720px, 90vh)",
           overflow: "auto",
           background: "rgba(255,255,255,1)",
@@ -139,7 +185,14 @@ export default function AdminAssetsPanel(props: {
         }}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 10,
+          }}
+        >
           <div style={{ fontSize: 20 }}>Assets</div>
           <div style={{ display: "flex", gap: 10 }}>
             <label style={{ cursor: "pointer" }} onClick={() => refresh().catch(console.error)}>
@@ -151,7 +204,13 @@ export default function AdminAssetsPanel(props: {
             <label style={{ cursor: "pointer" }} onClick={() => exportAllAsPresetZip().catch(console.error)}>
               Export all
             </label>
-            <label style={{ cursor: "pointer", color: "#b00020" }} onClick={async () => {await assetRepository.deleteAllAssets(); await refresh();}}>
+            <label
+              style={{ cursor: "pointer", color: "#b00020" }}
+              onClick={async () => {
+                await assetRepository.deleteAllAssets();
+                await refresh();
+              }}
+            >
               Delete all
             </label>
           </div>
@@ -173,7 +232,7 @@ export default function AdminAssetsPanel(props: {
               onClick={() => onRequestSaveSelected(name.trim() || "Asset")}
               style={{ padding: "8px 10px", cursor: selectedGroupId ? "pointer" : "not-allowed" }}
             >
-              Save
+              Save private
             </button>
           </div>
           {placingLabel && (
@@ -186,6 +245,10 @@ export default function AdminAssetsPanel(props: {
         <div style={{ display: "grid", gap: 10 }}>
           {assets.map((a) => {
             const url = thumbUrls.get(a.id);
+            const isPrivate = a.visibility === "private";
+            const isMarketplace = a.visibility === "marketplace";
+            const isSystem = a.visibility === "system";
+
             return (
               <div key={a.id} style={{ border: "1px solid rgba(0,0,0,1)", padding: 10 }}>
                 <div style={{ display: "flex", gap: 10 }}>
@@ -202,33 +265,109 @@ export default function AdminAssetsPanel(props: {
                       flex: "0 0 auto",
                     }}
                   >
-                    {url ? <img src={url} style={{ width: "100%", height: "100%", imageRendering: "pixelated" }} /> : <div style={{ fontSize: 12 }}>no thumb</div>}
+                    {url ? (
+                      <img
+                        src={url}
+                        style={{ width: "100%", height: "100%", imageRendering: "pixelated" }}
+                      />
+                    ) : (
+                      <div style={{ fontSize: 12 }}>no thumb</div>
+                    )}
                   </div>
 
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 16, marginBottom: 4 }}>
                       <b>{a.name}</b>
                     </div>
+
+                    {renderAssetBadges(a)}
+
                     <div style={{ fontSize: 13, opacity: 0.8, marginBottom: 10 }}>
                       {a.voxelCount.toLocaleString()} voxels
                     </div>
 
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <button onClick={() => onRequestPlace(a.id)} style={{ padding: "6px 10px", cursor: "pointer" }}>
-                        Place (click-to-place)
-                      </button>
-
                       <button
-                        onClick={async () => {
-                          const next = prompt("Rename asset:", a.name);
-                          if (!next) return;
-                          await assetRepository.renameAsset(a.id, next);
-                          await refresh();
-                        }}
+                        onClick={() => onRequestPlace(a.id)}
                         style={{ padding: "6px 10px", cursor: "pointer" }}
                       >
-                        Rename
+                        Place
                       </button>
+
+                      {isPrivate && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await assetRepository.publishAssetToMarketplace(a.id);
+                              await refresh();
+                            } catch (e) {
+                              console.error(e);
+                              alert(e instanceof Error ? e.message : "Publish failed");
+                            }
+                          }}
+                          style={{ padding: "6px 10px", cursor: "pointer" }}
+                        >
+                          Publish
+                        </button>
+                      )}
+
+                      {(isMarketplace || isSystem) && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await assetRepository.forkAssetToPrivateDraft(a.id, {
+                                name: `${a.name} Copy`,
+                                addToLibrary: true,
+                              });
+                              await refresh();
+                            } catch (e) {
+                              console.error(e);
+                              alert(e instanceof Error ? e.message : "Fork failed");
+                            }
+                          }}
+                          style={{ padding: "6px 10px", cursor: "pointer" }}
+                        >
+                          Fork to private
+                        </button>
+                      )}
+
+                      {!a.inLibrary && (
+                        <button
+                          onClick={async () => {
+                            await assetRepository.addAssetToLibrary(a.id);
+                            await refresh();
+                          }}
+                          style={{ padding: "6px 10px", cursor: "pointer" }}
+                        >
+                          Add to library
+                        </button>
+                      )}
+
+                      {a.inLibrary && !isPrivate && (
+                        <button
+                          onClick={async () => {
+                            await assetRepository.removeAssetFromLibrary(a.id);
+                            await refresh();
+                          }}
+                          style={{ padding: "6px 10px", cursor: "pointer" }}
+                        >
+                          Remove from library
+                        </button>
+                      )}
+
+                      {isPrivate && (
+                        <button
+                          onClick={async () => {
+                            const next = prompt("Rename asset:", a.name);
+                            if (!next) return;
+                            await assetRepository.renameAsset(a.id, next);
+                            await refresh();
+                          }}
+                          style={{ padding: "6px 10px", cursor: "pointer" }}
+                        >
+                          Rename
+                        </button>
+                      )}
 
                       <button
                         onClick={async () => {
@@ -252,7 +391,7 @@ export default function AdminAssetsPanel(props: {
                         }}
                         style={{ padding: "6px 10px", cursor: "pointer" }}
                       >
-                        Export (json + png)
+                        Export
                       </button>
                     </div>
                   </div>

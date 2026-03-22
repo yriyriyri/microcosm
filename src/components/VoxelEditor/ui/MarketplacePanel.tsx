@@ -61,6 +61,7 @@ export default function MarketplacePanel(props: {
       >
         {assets.map((a) => {
           const url = thumbUrls.get(a.id);
+          const alreadyInLibrary = !!a.inLibrary;
 
           return (
             <div
@@ -141,22 +142,36 @@ export default function MarketplacePanel(props: {
                 >
                   {a.visibility} • {a.voxelCount.toLocaleString()} voxels
                 </div>
+
+                <div
+                  style={{
+                    color: "white",
+                    opacity: 0.8,
+                    fontSize: 11,
+                    marginTop: 6,
+                  }}
+                >
+                  {alreadyInLibrary ? "Already in your library" : "Available to add"}
+                </div>
               </div>
 
               <button
+                disabled={alreadyInLibrary}
                 onClick={async () => {
                   click();
                   await assetRepository.addAssetToLibrary(a.id);
+                  await refresh();
                 }}
                 style={{
                   appearance: "none",
                   border: "none",
-                  cursor: "pointer",
+                  cursor: alreadyInLibrary ? "default" : "pointer",
                   padding: "8px 10px",
                   borderRadius: 4,
+                  opacity: alreadyInLibrary ? 0.5 : 1,
                 }}
               >
-                Add
+                {alreadyInLibrary ? "Added" : "Add"}
               </button>
             </div>
           );

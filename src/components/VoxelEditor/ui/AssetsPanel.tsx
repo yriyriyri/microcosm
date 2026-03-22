@@ -5,7 +5,6 @@ import type { AssetMetaRecord } from "../domain/assetTypes";
 import { assetRepository } from "../repositories";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 
-
 export default function AssetsPanel(props: {
   open: boolean;
   onClose: () => void;
@@ -50,12 +49,9 @@ export default function AssetsPanel(props: {
         width: "min(420px, 92vw)",
         maxHeight: "min(640px, 88vh)",
         overflow: "auto",
-  
         background: "rgba(0, 68, 128, 0.30)",
-  
         borderRadius: 10,
         padding: 10,
-  
         pointerEvents: "auto",
       }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -69,7 +65,7 @@ export default function AssetsPanel(props: {
       >
         {assets.map((a) => {
           const url = SHOW_THUMBS ? thumbUrls.get(a.id) : undefined;
-  
+
           return (
             <button
               key={a.id}
@@ -93,6 +89,7 @@ export default function AssetsPanel(props: {
                   aspectRatio: "1 / 1",
                   overflow: "hidden",
                   borderRadius: 6,
+                  position: "relative",
                 }}
               >
                 {url ? (
@@ -128,14 +125,39 @@ export default function AssetsPanel(props: {
                     {a.name}
                   </div>
                 )}
+
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 6,
+                    bottom: 6,
+                    fontSize: 10,
+                    lineHeight: 1,
+                    padding: "3px 5px",
+                    borderRadius: 999,
+                    background: a.visibility === "private" ? "rgba(29,78,216,0.9)" : "rgba(124,58,237,0.9)",
+                    color: "white",
+                  }}
+                >
+                  {a.visibility}
+                </div>
               </div>
             </button>
           );
         })}
-  
+
         {!assets.length && (
-          <div style={{ color: "white", opacity: 0.7, fontSize: 14 }}>
-            No assets.
+          <div
+            style={{
+              color: "white",
+              opacity: 0.8,
+              fontSize: 14,
+              lineHeight: 1.5,
+              gridColumn: "1 / -1",
+              padding: 8,
+            }}
+          >
+            Your asset library is empty. Add assets from the marketplace.
           </div>
         )}
       </div>
