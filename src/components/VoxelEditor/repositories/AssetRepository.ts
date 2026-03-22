@@ -4,6 +4,7 @@ import type {
   AssetRecord,
   SaveAssetInput,
 } from "../domain/assetTypes";
+import type { GroupState } from "../VoxelWorld";
 
 export type AssetKvValue = unknown;
 
@@ -26,6 +27,25 @@ export interface AssetRepository {
     id: AssetId,
     opts?: { name?: string; addToLibrary?: boolean }
   ): Promise<AssetId>;
+
+  acquireMarketplaceAssetToLibrary(
+    id: AssetId,
+    opts?: { name?: string }
+  ): Promise<AssetId>;
+
+  overwritePrivateAssetContent(params: {
+    assetId: AssetId;
+    group: GroupState;
+    thumb?: Blob | null;
+  }): Promise<AssetId>;
+
+  remixAssetFromSource(params: {
+    sourceAssetId: AssetId | null;
+    sourceMarketplaceAssetId?: AssetId | null;
+    name: string;
+    group: GroupState;
+    thumb?: Blob | null;
+  }): Promise<AssetId>;
 
   renameAsset(id: AssetId, name: string): Promise<void>;
   deleteAsset(id: AssetId): Promise<void>;

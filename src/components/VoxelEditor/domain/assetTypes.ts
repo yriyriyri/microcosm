@@ -14,11 +14,11 @@ export type AssetMetaRecord = {
   visibility: AssetVisibility;
   inLibrary?: boolean;
   isPreset?: boolean;
-};
 
-export type AssetRecord = {
-  meta: AssetMetaRecord;
-  group: GroupState;
+  sourceAssetId?: string | null;
+  sourceMarketplaceAssetId?: string | null;
+  publishedFromAssetId?: string | null;
+  isImmutable?: boolean;
 };
 
 export type SaveAssetInput = {
@@ -30,6 +30,18 @@ export type SaveAssetInput = {
   visibility?: AssetVisibility;
   inLibrary?: boolean;
   isPreset?: boolean;
+
+  sourceAssetId?: string | null;
+  sourceMarketplaceAssetId?: string | null;
+  publishedFromAssetId?: string | null;
+  isImmutable?: boolean;
+
+  forceNewId?: boolean;
+};
+
+export type AssetRecord = {
+  meta: AssetMetaRecord;
+  group: GroupState;
 };
 
 export type AssetExportPayload = {

@@ -11,6 +11,7 @@ export type AssetMeta = {
   inLibrary?: boolean;
   isPreset?: boolean;
   sourceAssetId?: string | null;
+  sourceMarketplaceAssetId?: string | null;
   publishedFromAssetId?: string | null;
   isImmutable?: boolean;
 };
@@ -84,6 +85,7 @@ function normalizeAssetMeta(meta: AssetMeta): AssetMeta {
     inLibrary,
     isPreset: meta.isPreset ?? false,
     sourceAssetId: meta.sourceAssetId ?? null,
+    sourceMarketplaceAssetId: meta.sourceMarketplaceAssetId ?? null,
     publishedFromAssetId: meta.publishedFromAssetId ?? null,
     isImmutable,
   };
@@ -154,6 +156,7 @@ export async function saveAsset(params: {
   isPreset?: boolean;
 
   sourceAssetId?: string | null;
+  sourceMarketplaceAssetId?: string | null;
   publishedFromAssetId?: string | null;
   isImmutable?: boolean;
 
@@ -195,6 +198,8 @@ export async function saveAsset(params: {
     inLibrary: nextInLibrary,
     isPreset: params.isPreset ?? existingMeta?.isPreset ?? false,
     sourceAssetId: params.sourceAssetId ?? existingMeta?.sourceAssetId ?? null,
+    sourceMarketplaceAssetId:
+      params.sourceMarketplaceAssetId ?? existingMeta?.sourceMarketplaceAssetId ?? null,
     publishedFromAssetId:
       params.publishedFromAssetId ?? existingMeta?.publishedFromAssetId ?? null,
     isImmutable: nextImmutable,
@@ -260,6 +265,61 @@ export async function renameAsset(id: string, name: string): Promise<void> {
   const tx = db.transaction([STORE_META], "readwrite");
   tx.objectStore(STORE_META).put(meta);
   await txDone(tx);
+}
+
+export async function overwritePrivateAssetContent(params: {
+  assetId: string;
+  group: GroupState;
+  thumb?: Blob | null;
+}): Promise<string> {
+  const loaded = await loadAsset(params.assetId);
+  if (!loaded) throw new Error("Asset not found");
+
+  const meta = normalizeAssetMeta(loaded.meta);
+
+  if (meta.visibility !== "private" || meta.isImmutable) {
+    throw new Error("Only mutable private assets can be overwritten");
+  }
+  
+  if (meta.sourceMarketplaceAssetId) {
+    throw new Error("Marketplace-linked assets cannot be structurally overwritten");
+  }
+
+  return await saveAsset({
+    id: meta.id,
+    name: meta.name,
+    group: params.group,
+    thumb: params.thumb ?? meta.thumb ?? null,
+    visibility: meta.visibility,
+    inLibrary: meta.inLibrary ?? true,
+    isPreset: meta.isPreset ?? false,
+    sourceAssetId: meta.sourceAssetId ?? null,
+    publishedFromAssetId: meta.publishedFromAssetId ?? null,
+    isImmutable: false,
+    forceNewId: false,
+  });
+}
+
+export async function remixAssetFromSource(params: {
+  sourceAssetId: string | null;
+  sourceMarketplaceAssetId?: string | null;
+  name: string;
+  group: GroupState;
+  thumb?: Blob | null;
+}): Promise<string> {
+  return await saveAsset({
+    name: params.name,
+    group: params.group,
+    thumb: params.thumb ?? null,
+    visibility: "private",
+    inLibrary: true,
+    isPreset: false,
+    isImmutable: false,
+    sourceAssetId: params.sourceAssetId ?? null,
+    sourceMarketplaceAssetId: params.sourceMarketplaceAssetId ?? null,
+    publishedFromAssetId: null,
+    forceNewId: true,
+  });
 }
 
 function safeSlug(name: string): string {
@@ -343,6 +403,7 @@ export async function createPrivateAsset(params: {
   group: GroupState;
   thumb?: Blob | null;
   sourceAssetId?: string | null;
+  sourceMarketplaceAssetId?: string | null;
 }): Promise<string> {
   return await saveAsset({
     name: params.name,
@@ -352,6 +413,7 @@ export async function createPrivateAsset(params: {
     inLibrary: true,
     isImmutable: false,
     sourceAssetId: params.sourceAssetId ?? null,
+    sourceMarketplaceAssetId: params.sourceMarketplaceAssetId ?? null,
     forceNewId: true,
   });
 }
@@ -370,6 +432,8 @@ export async function publishAssetToMarketplace(assetId: string): Promise<string
     inLibrary: false,
     isImmutable: true,
     isPreset: false,
+    sourceMarketplaceAssetId:
+      sourceMeta.sourceMarketplaceAssetId ?? sourceMeta.id,
     publishedFromAssetId: sourceMeta.id,
     forceNewId: true,
   });
@@ -392,6 +456,58 @@ export async function forkAssetToPrivateDraft(
     inLibrary: opts?.addToLibrary ?? true,
     isImmutable: false,
     sourceAssetId: sourceMeta.id,
+    sourceMarketplaceAssetId:
+      sourceMeta.sourceMarketplaceAssetId ??
+      (sourceMeta.visibility === "marketplace" ? sourceMeta.id : null),
+    forceNewId: true,
+  });
+}
+
+export async function acquireMarketplaceAssetToLibrary(
+  assetId: string,
+  opts?: { name?: string }
+): Promise<string> {
+  const loaded = await loadAsset(assetId);
+  if (!loaded) throw new Error("Asset not found");
+
+  const sourceMeta = normalizeAssetMeta(loaded.meta);
+
+  if (sourceMeta.visibility !== "marketplace" && sourceMeta.visibility !== "system") {
+    throw new Error("Only marketplace/system assets can be acquired");
+  }
+
+  const existing = (await listAssets()).find(
+    (a) =>
+      a.sourceMarketplaceAssetId === sourceMeta.id &&
+      a.visibility === "private"
+  );
+
+  if (existing) {
+    const next = normalizeAssetMeta({
+      ...existing,
+      inLibrary: true,
+      updatedAt: Date.now(),
+    });
+
+    const db = await openDb();
+    const tx = db.transaction([STORE_META], "readwrite");
+    tx.objectStore(STORE_META).put(next);
+    await txDone(tx);
+
+    return existing.id;
+  }
+
+  return await saveAsset({
+    name: opts?.name ?? loaded.meta.name,
+    group: loaded.group,
+    thumb: loaded.meta.thumb ?? null,
+    visibility: "private",
+    inLibrary: true,
+    isPreset: false,
+    isImmutable: false,
+    sourceAssetId: sourceMeta.id,
+    sourceMarketplaceAssetId: sourceMeta.id,
+    publishedFromAssetId: null,
     forceNewId: true,
   });
 }

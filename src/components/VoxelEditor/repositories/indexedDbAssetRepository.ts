@@ -1,4 +1,5 @@
 import type { AssetRepository } from "./AssetRepository";
+import type { GroupState } from "../VoxelWorld";
 import type {
   AssetId,
   AssetMetaRecord,
@@ -9,6 +10,7 @@ import type {
 import type { AssetMeta } from "../database/AssetDb";
 
 import {
+  acquireMarketplaceAssetToLibrary,
   createPrivateAsset,
   deleteAllAssets,
   deleteAsset,
@@ -24,7 +26,9 @@ import {
   listPrivateAssets,
   listPublishedMarketplaceAssets,
   loadAsset,
+  overwritePrivateAssetContent,
   publishAssetToMarketplace,
+  remixAssetFromSource,
   renameAsset,
   saveAsset,
   setAssetLibraryMembership,
@@ -37,6 +41,10 @@ function toAssetMetaRecord(meta: AssetMeta): AssetMetaRecord {
     visibility: meta.visibility ?? "private",
     inLibrary: meta.inLibrary ?? true,
     isPreset: meta.isPreset ?? false,
+    sourceAssetId: meta.sourceAssetId ?? null,
+    sourceMarketplaceAssetId: meta.sourceMarketplaceAssetId ?? null,
+    publishedFromAssetId: meta.publishedFromAssetId ?? null,
+    isImmutable: meta.isImmutable ?? false,
   };
 }
 
@@ -93,7 +101,8 @@ export class IndexedDbAssetRepository implements AssetRepository {
       name: input.name,
       group: input.group,
       thumb: input.thumb ?? null,
-      sourceAssetId: null,
+      sourceAssetId: input.sourceAssetId ?? null,
+      sourceMarketplaceAssetId: input.sourceMarketplaceAssetId ?? null,
     });
   }
 
@@ -106,6 +115,31 @@ export class IndexedDbAssetRepository implements AssetRepository {
     opts?: { name?: string; addToLibrary?: boolean }
   ): Promise<AssetId> {
     return await forkAssetToPrivateDraft(id, opts);
+  }
+
+  async overwritePrivateAssetContent(params: {
+    assetId: AssetId;
+    group: GroupState;
+    thumb?: Blob | null;
+  }): Promise<AssetId> {
+    return await overwritePrivateAssetContent(params);
+  }
+
+  async remixAssetFromSource(params: {
+    sourceAssetId: AssetId | null;
+    sourceMarketplaceAssetId?: AssetId | null;
+    name: string;
+    group: GroupState;
+    thumb?: Blob | null;
+  }): Promise<AssetId> {
+    return await remixAssetFromSource(params);
+  }
+
+  async acquireMarketplaceAssetToLibrary(
+    id: AssetId,
+    opts?: { name?: string }
+  ): Promise<AssetId> {
+    return await acquireMarketplaceAssetToLibrary(id, opts);
   }
 
   async renameAsset(id: AssetId, name: string): Promise<void> {
