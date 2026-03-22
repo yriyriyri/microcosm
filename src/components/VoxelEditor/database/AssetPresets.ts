@@ -138,6 +138,9 @@ export async function ensurePresetAssetsInstalled(opts?: {
         name: p.name,
         group,
         thumb,
+        visibility: "system",
+        inLibrary: false,
+        isPreset: true,
       });
     } finally {
       tick({ id: p.id, name: p.name });
@@ -145,7 +148,7 @@ export async function ensurePresetAssetsInstalled(opts?: {
   });
 
   await assetRepository.setKv(KV_PRESETS_VERSION, manifest.version).catch(() => {});
-  
+
   opts?.onProgress?.(1, { done: total, total });
 
   if (debug) {

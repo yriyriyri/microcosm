@@ -15,6 +15,7 @@ import type { VoxelCoord } from "./Types";
 import LibraryPanel from "./ui/LibraryPanel";
 import AdminAssetsPanel from "./ui/AdminAssetsPanel";
 import AssetsPanel from "./ui/AssetsPanel";
+import MarketplacePanel from "./ui/MarketplacePanel";
 import { parseVox } from "./vox/voxImport";
 import WorldToolPalette, { type WorldToolId } from "./ui/WorldToolPalette";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
@@ -95,6 +96,8 @@ export default function VoxelWorldEditor(props: {
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [placingLabel, setPlacingLabel] = useState<string | null>(null);
   const placingAssetRef = useRef<{ metaName: string; group: GroupState } | null>(null);
+
+  const [marketplaceOpen, setMarketplaceOpen] = useState(false);
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
@@ -545,6 +548,11 @@ export default function VoxelWorldEditor(props: {
   function toggleAssets() {
     click();
     setAssetsOpen((v) => !v);
+  }
+
+  function toggleMarketplace() {
+    click();
+    setMarketplaceOpen((v) => !v);
   }
 
   useEffect(() => {
@@ -1323,47 +1331,96 @@ export default function VoxelWorldEditor(props: {
             pointerEvents: "auto",
           }}
         >
-          {assetsOpen && (
-            <div style={{ pointerEvents: "auto" }}>
-              {ADMIN ? (
-                <AdminAssetsPanel
-                  open={true}
-                  onClose={() => setAssetsOpen(false)}
-                  onRequestPlace={beginPlaceAsset}
-                  onRequestSaveSelected={onSaveSelectedAsAsset}
-                  selectedGroupId={selectedGroupId}
-                  placingLabel={placingLabel}
-                />
-              ) : (
-                <AssetsPanel
-                  open={true}
-                  onClose={() => setAssetsOpen(false)}
-                  onRequestPlace={beginPlaceAsset}
-                />
+          {(assetsOpen || marketplaceOpen) && (
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                alignItems: "flex-start",
+                pointerEvents: "auto",
+              }}
+            >
+              {assetsOpen && (
+                <div style={{ pointerEvents: "auto" }}>
+                  {ADMIN ? (
+                    <AdminAssetsPanel
+                      open={true}
+                      onClose={() => setAssetsOpen(false)}
+                      onRequestPlace={beginPlaceAsset}
+                      onRequestSaveSelected={onSaveSelectedAsAsset}
+                      selectedGroupId={selectedGroupId}
+                      placingLabel={placingLabel}
+                    />
+                  ) : (
+                    <AssetsPanel
+                      open={true}
+                      onClose={() => setAssetsOpen(false)}
+                      onRequestPlace={beginPlaceAsset}
+                    />
+                  )}
+                </div>
+              )}
+
+              {marketplaceOpen && (
+                <div style={{ pointerEvents: "auto" }}>
+                  <MarketplacePanel
+                    open={true}
+                    onClose={() => setMarketplaceOpen(false)}
+                  />
+                </div>
               )}
             </div>
           )}
 
-          <img
-            className="pix-icon"
-            src="/icons/assets.png"
-            alt="Assets"
-            onClick={toggleAssets}
+          <div
             style={{
-              height: "10vh",
-              width: "auto",
-              objectFit: "contain",
-              imageRendering: "pixelated",
-              cursor: "pointer",
-              pointerEvents: "auto",
-              flex: "0 0 auto",
-              opacity: assetsOpen ? 1 : 0.7,
-              transition: "opacity 120ms ease-out",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              alignItems: "center",
             }}
-          />
+          >
+            <img
+              className="pix-icon"
+              src="/icons/assets.png"
+              alt="Assets"
+              onClick={toggleAssets}
+              style={{
+                height: "10vh",
+                width: "auto",
+                objectFit: "contain",
+                imageRendering: "pixelated",
+                cursor: "pointer",
+                pointerEvents: "auto",
+                flex: "0 0 auto",
+                opacity: assetsOpen ? 1 : 0.7,
+                transition: "opacity 120ms ease-out",
+              }}
+            />
+
+            <div
+              className="pix-icon"
+              onClick={toggleMarketplace}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 6,
+                background: "rgba(0, 50, 110, 0.5)",
+                color: "white",
+                fontSize: 16,
+                cursor: "pointer",
+                opacity: marketplaceOpen ? 1 : 0.7,
+                transition: "opacity 120ms ease-out",
+                userSelect: "none",
+                textAlign: "center",
+                minWidth: 90,
+              }}
+            >
+              market
+            </div>
+          </div>
         </div>
       )}
-  
+        
       {showUI && (
         <div
           style={{

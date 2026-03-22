@@ -6,6 +6,8 @@ import type {
   SaveAssetInput,
 } from "../domain/assetTypes";
 
+import type { AssetMeta } from "../database/AssetDb";
+
 import {
   deleteAllAssets,
   deleteAsset,
@@ -13,16 +15,52 @@ import {
   findAssetIdByName,
   getAssetMeta,
   getKv,
+  isAssetInLibrary,
   listAssets,
+  listLibraryAssets,
+  listMarketplaceAssets,
+  listPrivateAssets,
   loadAsset,
   renameAsset,
   saveAsset,
+  setAssetLibraryMembership,
   setKv,
 } from "../database/AssetDb";
 
+function toAssetMetaRecord(meta: AssetMeta): AssetMetaRecord {
+  return {
+    ...meta,
+    visibility: meta.visibility ?? "private",
+    inLibrary: meta.inLibrary ?? true,
+    isPreset: meta.isPreset ?? false,
+  };
+}
+
+function toAssetRecord(
+  loaded: Awaited<ReturnType<typeof loadAsset>>
+): AssetRecord | null {
+  if (!loaded) return null;
+  return {
+    meta: toAssetMetaRecord(loaded.meta),
+    group: loaded.group,
+  };
+}
+
 export class IndexedDbAssetRepository implements AssetRepository {
   async listAssets(): Promise<AssetMetaRecord[]> {
-    return await listAssets();
+    return (await listAssets()).map(toAssetMetaRecord);
+  }
+
+  async listLibraryAssets(): Promise<AssetMetaRecord[]> {
+    return (await listLibraryAssets()).map(toAssetMetaRecord);
+  }
+
+  async listMarketplaceAssets(): Promise<AssetMetaRecord[]> {
+    return (await listMarketplaceAssets()).map(toAssetMetaRecord);
+  }
+
+  async listPrivateAssets(): Promise<AssetMetaRecord[]> {
+    return (await listPrivateAssets()).map(toAssetMetaRecord);
   }
 
   async findAssetIdByName(name: string): Promise<AssetId | null> {
@@ -30,11 +68,12 @@ export class IndexedDbAssetRepository implements AssetRepository {
   }
 
   async getAssetMeta(id: AssetId): Promise<AssetMetaRecord | null> {
-    return await getAssetMeta(id);
+    const meta = await getAssetMeta(id);
+    return meta ? toAssetMetaRecord(meta) : null;
   }
 
   async loadAsset(id: AssetId): Promise<AssetRecord | null> {
-    return await loadAsset(id);
+    return toAssetRecord(await loadAsset(id));
   }
 
   async saveAsset(input: SaveAssetInput): Promise<AssetId> {
@@ -51,6 +90,18 @@ export class IndexedDbAssetRepository implements AssetRepository {
 
   async deleteAllAssets(): Promise<void> {
     await deleteAllAssets();
+  }
+
+  async addAssetToLibrary(id: AssetId): Promise<void> {
+    await setAssetLibraryMembership(id, true);
+  }
+
+  async removeAssetFromLibrary(id: AssetId): Promise<void> {
+    await setAssetLibraryMembership(id, false);
+  }
+
+  async isAssetInLibrary(id: AssetId): Promise<boolean> {
+    return await isAssetInLibrary(id);
   }
 
   async exportAssetToFiles(id: AssetId): Promise<void> {

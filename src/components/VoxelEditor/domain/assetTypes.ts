@@ -1,6 +1,7 @@
 import type { GroupState } from "../VoxelWorld";
 
 export type AssetId = string;
+export type AssetVisibility = "private" | "marketplace" | "system";
 
 export type AssetMetaRecord = {
   id: AssetId;
@@ -9,6 +10,10 @@ export type AssetMetaRecord = {
   updatedAt: number;
   voxelCount: number;
   thumb?: Blob | null;
+
+  visibility: AssetVisibility;
+  inLibrary?: boolean;
+  isPreset?: boolean;
 };
 
 export type AssetRecord = {
@@ -21,6 +26,10 @@ export type SaveAssetInput = {
   name: string;
   group: GroupState;
   thumb?: Blob | null;
+
+  visibility?: AssetVisibility;
+  inLibrary?: boolean;
+  isPreset?: boolean;
 };
 
 export type AssetExportPayload = {

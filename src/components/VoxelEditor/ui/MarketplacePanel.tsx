@@ -5,21 +5,17 @@ import type { AssetMetaRecord } from "../domain/assetTypes";
 import { assetRepository } from "../repositories";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 
-
-export default function AssetsPanel(props: {
+export default function MarketplacePanel(props: {
   open: boolean;
   onClose: () => void;
-  onRequestPlace: (assetId: string) => void;
 }) {
-  const { open, onClose, onRequestPlace } = props;
+  const { open, onClose } = props;
   const { click } = useSound();
 
   const [assets, setAssets] = useState<AssetMetaRecord[]>([]);
 
-  const SHOW_THUMBS = false;
-
   async function refresh() {
-    const rows = await assetRepository.listLibraryAssets();
+    const rows = await assetRepository.listMarketplaceAssets();
     setAssets(rows);
   }
 
@@ -50,12 +46,9 @@ export default function AssetsPanel(props: {
         width: "min(420px, 92vw)",
         maxHeight: "min(640px, 88vh)",
         overflow: "auto",
-  
         background: "rgba(0, 68, 128, 0.30)",
-  
         borderRadius: 10,
         padding: 10,
-  
         pointerEvents: "auto",
       }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -63,36 +56,38 @@ export default function AssetsPanel(props: {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
           gap: 10,
         }}
       >
         {assets.map((a) => {
-          const url = SHOW_THUMBS ? thumbUrls.get(a.id) : undefined;
-  
+          const url = thumbUrls.get(a.id);
+
           return (
-            <button
+            <div
               key={a.id}
-              onClick={() => {
-                click();
-                onRequestPlace(a.id);
-              }}
-              title={a.name}
+              className="pix-icon"
               style={{
-                appearance: "none",
-                border: "none",
-                background: "none",
-                padding: 0,
-                cursor: "pointer",
+                width: "100%",
+                minHeight: 84,
+                borderRadius: 6,
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: 10,
               }}
             >
               <div
-                className="pix-icon"
                 style={{
-                  width: "100%",
-                  aspectRatio: "1 / 1",
+                  width: 64,
+                  height: 64,
+                  flex: "0 0 auto",
                   overflow: "hidden",
-                  borderRadius: 6,
+                  borderRadius: 4,
+                  background: "rgba(255,255,255,0.08)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 {url ? (
@@ -110,32 +105,66 @@ export default function AssetsPanel(props: {
                 ) : (
                   <div
                     style={{
-                      width: "100%",
-                      height: "100%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      textAlign: "center",
-                      padding: 10,
                       color: "white",
-                      fontSize: 20,
-                      lineHeight: 1.1,
-                      userSelect: "none",
-                      overflow: "hidden",
-                      wordBreak: "break-word",
+                      fontSize: 11,
+                      textAlign: "center",
+                      padding: 6,
                     }}
                   >
-                    {a.name}
+                    no thumb
                   </div>
                 )}
               </div>
-            </button>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    color: "white",
+                    fontSize: 16,
+                    lineHeight: 1.1,
+                    marginBottom: 4,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {a.name}
+                </div>
+
+                <div
+                  style={{
+                    color: "white",
+                    opacity: 0.7,
+                    fontSize: 12,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {a.visibility} • {a.voxelCount.toLocaleString()} voxels
+                </div>
+              </div>
+
+              <button
+                onClick={async () => {
+                  click();
+                  await assetRepository.addAssetToLibrary(a.id);
+                }}
+                style={{
+                  appearance: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "8px 10px",
+                  borderRadius: 4,
+                }}
+              >
+                Add
+              </button>
+            </div>
           );
         })}
-  
+
         {!assets.length && (
           <div style={{ color: "white", opacity: 0.7, fontSize: 14 }}>
-            No assets.
+            No marketplace assets.
           </div>
         )}
       </div>

@@ -7,6 +7,9 @@ export type AssetMeta = {
   updatedAt: number;
   voxelCount: number;
   thumb?: Blob | null;
+  visibility?: "private" | "marketplace" | "system";
+  inLibrary?: boolean;
+  isPreset?: boolean;
 };
 
 type AssetData = {
@@ -122,6 +125,9 @@ export async function saveAsset(params: {
   group: GroupState;
   id?: string;
   thumb?: Blob | null;
+  visibility?: "private" | "marketplace" | "system";
+  inLibrary?: boolean;
+  isPreset?: boolean;
 }): Promise<string> {
   const db = await openDb();
 
@@ -139,7 +145,10 @@ export async function saveAsset(params: {
     createdAt: existingMeta?.createdAt ?? now,
     updatedAt: now,
     voxelCount,
-    thumb: params.thumb ?? null,
+    thumb: params.thumb ?? existingMeta?.thumb ?? null,
+    visibility: params.visibility ?? existingMeta?.visibility ?? "private",
+    inLibrary: params.inLibrary ?? existingMeta?.inLibrary ?? true,
+    isPreset: params.isPreset ?? existingMeta?.isPreset ?? false,
   };
 
   const data: AssetData = {
@@ -225,6 +234,39 @@ function downloadBlob(blob: Blob, filename: string) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export async function listLibraryAssets(): Promise<AssetMeta[]> {
+  const all = await listAssets();
+  return all.filter((a) => !!a.inLibrary);
+}
+
+export async function listMarketplaceAssets(): Promise<AssetMeta[]> {
+  const all = await listAssets();
+  return all.filter((a) => a.visibility === "marketplace" || a.visibility === "system");
+}
+
+export async function listPrivateAssets(): Promise<AssetMeta[]> {
+  const all = await listAssets();
+  return all.filter((a) => a.visibility === "private");
+}
+
+export async function setAssetLibraryMembership(id: string, inLibrary: boolean): Promise<void> {
+  const db = await openDb();
+  const meta = await getAssetMeta(id);
+  if (!meta) return;
+
+  meta.inLibrary = inLibrary;
+  meta.updatedAt = Date.now();
+
+  const tx = db.transaction([STORE_META], "readwrite");
+  tx.objectStore(STORE_META).put(meta);
+  await txDone(tx);
+}
+
+export async function isAssetInLibrary(id: string): Promise<boolean> {
+  const meta = await getAssetMeta(id);
+  return !!meta?.inLibrary;
 }
 
 export async function exportAssetToFiles(id: string): Promise<void> {
