@@ -10,6 +10,9 @@ export type AssetMeta = {
   visibility?: "private" | "marketplace" | "system";
   inLibrary?: boolean;
   isPreset?: boolean;
+  sourceAssetId?: string | null;
+  publishedFromAssetId?: string | null;
+  isImmutable?: boolean;
 };
 
 type AssetData = {
@@ -68,6 +71,24 @@ function txDone(tx: IDBTransaction): Promise<void> {
   });
 }
 
+function normalizeAssetMeta(meta: AssetMeta): AssetMeta {
+  const visibility = meta.visibility ?? "private";
+  const isImmutable =
+    meta.isImmutable ?? (visibility === "marketplace" || visibility === "system");
+  const inLibrary =
+    meta.inLibrary ?? (visibility === "private");
+
+  return {
+    ...meta,
+    visibility,
+    inLibrary,
+    isPreset: meta.isPreset ?? false,
+    sourceAssetId: meta.sourceAssetId ?? null,
+    publishedFromAssetId: meta.publishedFromAssetId ?? null,
+    isImmutable,
+  };
+}
+
 export async function getKv<T = any>(key: string): Promise<T | null> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
@@ -93,7 +114,7 @@ export async function listAssets(): Promise<AssetMeta[]> {
     const req = store.getAll();
 
     req.onsuccess = () => {
-      const rows = (req.result as AssetMeta[]) ?? [];
+      const rows = ((req.result as AssetMeta[]) ?? []).map(normalizeAssetMeta);
       rows.sort((a, b) => b.updatedAt - a.updatedAt);
       resolve(rows);
     };
@@ -115,7 +136,10 @@ export async function getAssetMeta(id: string): Promise<AssetMeta | null> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction([STORE_META], "readonly");
     const req = tx.objectStore(STORE_META).get(id);
-    req.onsuccess = () => resolve((req.result as AssetMeta) ?? null);
+    req.onsuccess = () => {
+      const row = (req.result as AssetMeta) ?? null;
+      resolve(row ? normalizeAssetMeta(row) : null);
+    };
     req.onerror = () => reject(req.error ?? new Error("Failed to read asset meta"));
   });
 }
@@ -128,28 +152,53 @@ export async function saveAsset(params: {
   visibility?: "private" | "marketplace" | "system";
   inLibrary?: boolean;
   isPreset?: boolean;
+
+  sourceAssetId?: string | null;
+  publishedFromAssetId?: string | null;
+  isImmutable?: boolean;
+
+  forceNewId?: boolean;
 }): Promise<string> {
   const db = await openDb();
 
   const now = Date.now();
   const voxelCount = params.group.voxels.length | 0;
 
-  const existingIdByName = params.id ? null : await findAssetIdByName(params.name).catch(() => null);
+  const existingIdByName =
+    params.id || params.forceNewId
+      ? null
+      : await findAssetIdByName(params.name).catch(() => null);
+
   const id = params.id ?? existingIdByName ?? makeId();
 
   const existingMeta = await getAssetMeta(id).catch(() => null);
 
-  const meta: AssetMeta = {
+  const nextVisibility = params.visibility ?? existingMeta?.visibility ?? "private";
+  const nextImmutable =
+    params.isImmutable ??
+    existingMeta?.isImmutable ??
+    (nextVisibility === "marketplace" || nextVisibility === "system");
+
+  const nextInLibrary =
+    params.inLibrary ??
+    existingMeta?.inLibrary ??
+    (nextVisibility === "private");
+
+  const meta: AssetMeta = normalizeAssetMeta({
     id,
     name: params.name,
     createdAt: existingMeta?.createdAt ?? now,
     updatedAt: now,
     voxelCount,
     thumb: params.thumb ?? existingMeta?.thumb ?? null,
-    visibility: params.visibility ?? existingMeta?.visibility ?? "private",
-    inLibrary: params.inLibrary ?? existingMeta?.inLibrary ?? true,
+    visibility: nextVisibility,
+    inLibrary: nextInLibrary,
     isPreset: params.isPreset ?? existingMeta?.isPreset ?? false,
-  };
+    sourceAssetId: params.sourceAssetId ?? existingMeta?.sourceAssetId ?? null,
+    publishedFromAssetId:
+      params.publishedFromAssetId ?? existingMeta?.publishedFromAssetId ?? null,
+    isImmutable: nextImmutable,
+  });
 
   const data: AssetData = {
     id,
@@ -181,7 +230,7 @@ export async function loadAsset(
 
   if (!data) return null;
 
-  return { meta, group: data.group };
+  return { meta: normalizeAssetMeta(meta), group: data.group };
 }
 
 export async function deleteAsset(id: string): Promise<void> {
@@ -238,17 +287,34 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export async function listLibraryAssets(): Promise<AssetMeta[]> {
   const all = await listAssets();
-  return all.filter((a) => !!a.inLibrary);
+  return all.filter((a) => {
+    const meta = normalizeAssetMeta(a);
+    return !!meta.inLibrary;
+  });
 }
 
 export async function listMarketplaceAssets(): Promise<AssetMeta[]> {
   const all = await listAssets();
-  return all.filter((a) => a.visibility === "marketplace" || a.visibility === "system");
+  return all.filter((a) => {
+    const meta = normalizeAssetMeta(a);
+    return meta.visibility === "marketplace" || meta.visibility === "system";
+  });
 }
 
 export async function listPrivateAssets(): Promise<AssetMeta[]> {
   const all = await listAssets();
-  return all.filter((a) => a.visibility === "private");
+  return all.filter((a) => {
+    const meta = normalizeAssetMeta(a);
+    return meta.visibility === "private";
+  });
+}
+
+export async function listPublishedMarketplaceAssets(): Promise<AssetMeta[]> {
+  const all = await listAssets();
+  return all.filter((a) => {
+    const meta = normalizeAssetMeta(a);
+    return meta.visibility === "marketplace";
+  });
 }
 
 export async function setAssetLibraryMembership(id: string, inLibrary: boolean): Promise<void> {
@@ -256,17 +322,78 @@ export async function setAssetLibraryMembership(id: string, inLibrary: boolean):
   const meta = await getAssetMeta(id);
   if (!meta) return;
 
-  meta.inLibrary = inLibrary;
-  meta.updatedAt = Date.now();
+  const next = normalizeAssetMeta({
+    ...meta,
+    inLibrary,
+    updatedAt: Date.now(),
+  });
 
   const tx = db.transaction([STORE_META], "readwrite");
-  tx.objectStore(STORE_META).put(meta);
+  tx.objectStore(STORE_META).put(next);
   await txDone(tx);
 }
 
 export async function isAssetInLibrary(id: string): Promise<boolean> {
   const meta = await getAssetMeta(id);
   return !!meta?.inLibrary;
+}
+
+export async function createPrivateAsset(params: {
+  name: string;
+  group: GroupState;
+  thumb?: Blob | null;
+  sourceAssetId?: string | null;
+}): Promise<string> {
+  return await saveAsset({
+    name: params.name,
+    group: params.group,
+    thumb: params.thumb ?? null,
+    visibility: "private",
+    inLibrary: true,
+    isImmutable: false,
+    sourceAssetId: params.sourceAssetId ?? null,
+    forceNewId: true,
+  });
+}
+
+export async function publishAssetToMarketplace(assetId: string): Promise<string> {
+  const loaded = await loadAsset(assetId);
+  if (!loaded) throw new Error("Asset not found");
+
+  const sourceMeta = normalizeAssetMeta(loaded.meta);
+
+  return await saveAsset({
+    name: loaded.meta.name,
+    group: loaded.group,
+    thumb: loaded.meta.thumb ?? null,
+    visibility: "marketplace",
+    inLibrary: false,
+    isImmutable: true,
+    isPreset: false,
+    publishedFromAssetId: sourceMeta.id,
+    forceNewId: true,
+  });
+}
+
+export async function forkAssetToPrivateDraft(
+  assetId: string,
+  opts?: { name?: string; addToLibrary?: boolean }
+): Promise<string> {
+  const loaded = await loadAsset(assetId);
+  if (!loaded) throw new Error("Asset not found");
+
+  const sourceMeta = normalizeAssetMeta(loaded.meta);
+
+  return await saveAsset({
+    name: opts?.name ?? loaded.meta.name,
+    group: loaded.group,
+    thumb: loaded.meta.thumb ?? null,
+    visibility: "private",
+    inLibrary: opts?.addToLibrary ?? true,
+    isImmutable: false,
+    sourceAssetId: sourceMeta.id,
+    forceNewId: true,
+  });
 }
 
 export async function exportAssetToFiles(id: string): Promise<void> {
