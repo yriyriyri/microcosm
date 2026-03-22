@@ -95,7 +95,12 @@ export default function VoxelWorldEditor(props: {
 
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [placingLabel, setPlacingLabel] = useState<string | null>(null);
-  const placingAssetRef = useRef<{ metaName: string; group: GroupState } | null>(null);
+  const placingAssetRef = useRef<{
+    metaId: string;
+    metaName: string;
+    metaVisibility: "private" | "marketplace" | "system";
+    group: GroupState;
+  } | null>(null);
 
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
 
@@ -532,10 +537,16 @@ export default function VoxelWorldEditor(props: {
   }
 
   async function beginPlaceAsset(assetId: string) {
-    const loaded = await assetRepository.loadAsset(assetId);    
+    const loaded = await assetRepository.loadAsset(assetId);
     if (!loaded) return;
-
-    placingAssetRef.current = { metaName: loaded.meta.name, group: loaded.group };
+  
+    placingAssetRef.current = {
+      metaId: loaded.meta.id,
+      metaName: loaded.meta.name,
+      metaVisibility: loaded.meta.visibility,
+      group: loaded.group,
+    };
+  
     setPlacingLabel(loaded.meta.name);
     setAssetsOpen(false);
   }
@@ -858,6 +869,8 @@ export default function VoxelWorldEditor(props: {
         w.instantiateGroupState(placingAssetRef.current.group, {
           at: pos,
           baseId: placingAssetRef.current.metaName,
+          sourceAssetId: placingAssetRef.current.metaId,
+          sourceAssetVisibility: placingAssetRef.current.metaVisibility,
         });
     
         play("placePart");

@@ -180,6 +180,9 @@ export default function VoxelPartEditor(props: {
 
   const solidifyFocusRef = useRef<(() => void) | null>(null);
 
+  const initialCoordSetRef = useRef<Set<string>>(new Set());
+  const [hasStructuralChanges, setHasStructuralChanges] = useState(false);
+
   const openRef = useRef(open);
   useEffect(() => void (openRef.current = open), [open]);
 
@@ -291,6 +294,43 @@ export default function VoxelPartEditor(props: {
     };
   
     tick();
+  }
+
+  //helpers
+
+  function keyOfCoord(c: VoxelCoord): string {
+    return `${c.x},${c.y},${c.z}`;
+  }
+  
+  function rebuildStructuralChangeState() {
+    const fw = focusWorldRef.current;
+    if (!fw) {
+      setHasStructuralChanges(false);
+      return;
+    }
+  
+    const snap = fw.getGroupSnapshot(FOCUS_GROUP_ID);
+    const current = new Set<string>();
+  
+    for (const v of snap?.voxels ?? []) {
+      current.add(keyOfCoord(v.local));
+    }
+  
+    const initial = initialCoordSetRef.current;
+  
+    if (current.size !== initial.size) {
+      setHasStructuralChanges(true);
+      return;
+    }
+  
+    for (const k of current) {
+      if (!initial.has(k)) {
+        setHasStructuralChanges(true);
+        return;
+      }
+    }
+  
+    setHasStructuralChanges(false);
   }
 
   // commit changes back to live world passed 
@@ -593,6 +633,7 @@ export default function VoxelPartEditor(props: {
         }
 
         fillBox(marqueeStartRef.current, placeAt, w, colorRef.current);
+        rebuildStructuralChangeState();
         marqueeStartRef.current = null;
         hideMarqueePreview();
         stopLoop("VoxelPartEditor:extrude", 80);
@@ -605,6 +646,7 @@ export default function VoxelPartEditor(props: {
       if (e.button === 2) {
         if (hit) {
           w.removeVoxel(hit.coord);
+          rebuildStructuralChangeState();
           play("deleteVoxel", { detune: Math.random() * 80 - 40 });
         }
         pendingHoverRaycastRef.current = true;
@@ -613,29 +655,32 @@ export default function VoxelPartEditor(props: {
 
       if (e.button === 0) {
         if (!hit) return;
-
+      
         const rec = w.get(hit.coord);
-
+      
         if (rec?.isBlueprint) {
           w.setColor(hit.coord, colorRef.current);
           w.setIsBlueprint(hit.coord, false);
+          rebuildStructuralChangeState();
           play("placeVoxel");
         } else {
           const n = hit.normal;
           if (n.x !== 0 || n.y !== 0 || n.z !== 0) {
             const placeAt = add(hit.coord, n);
-
+      
             const target = w.get(placeAt);
             if (target?.isBlueprint) {
               w.setColor(placeAt, colorRef.current);
               w.setIsBlueprint(placeAt, false);
+              rebuildStructuralChangeState();
             } else if (!target) {
               w.addVoxel(placeAt, colorRef.current, { groupId: FOCUS_GROUP_ID });
+              rebuildStructuralChangeState();
               play("placeVoxel");
             }
           }
         }
-
+      
         pendingHoverRaycastRef.current = true;
       }
     }
@@ -734,6 +779,14 @@ export default function VoxelPartEditor(props: {
 
     // overwrite focus voxels in LOCAL coords
     fw.setGroupVoxelsLocal(FOCUS_GROUP_ID, localVoxels, { keepPosition: false });
+
+    //check structure
+    const initial = new Set<string>();
+    for (const v of localVoxels) {
+      initial.add(keyOfCoord(v.local));
+    }
+    initialCoordSetRef.current = initial;
+    setHasStructuralChanges(false);
 
     // recenter camera
     const b = computeLocalBounds(localVoxels);
@@ -875,6 +928,33 @@ export default function VoxelPartEditor(props: {
           </div>
         </div>
       </div>
+
+      {hasStructuralChanges && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: 110,
+            transform: "translateX(-50%)",
+            zIndex: 2,
+            pointerEvents: "auto",
+          }}
+        >
+          <div
+            className="pix-icon"
+            style={{
+              padding: "10px 14px",
+              borderRadius: 5,
+              background: "rgba(180, 90, 0, 0.65)",
+              color: "white",
+              fontSize: 18,
+              userSelect: "none",
+            }}
+          >
+            structural changes detected
+          </div>
+        </div>
+      )}
   
       <div
         style={{

@@ -3,6 +3,7 @@ import type { VoxelCoord } from "./Types";
 import { keyOf } from "./Types";
 
 export type GroupId = string;
+export type AssetVisibility = "private" | "marketplace" | "system";
 
 //coordinates relative to group origin
 
@@ -14,15 +15,23 @@ export type LocalVoxel = {
   groupId: GroupId;
 };
 
-//group three data + mesh + pos 
+//marketplace source
+
+export type GroupSource = {
+  assetId: string | null;
+  assetVisibility: AssetVisibility | null;
+};
+
+//group three data + mesh + pos
 
 type GroupRecord = {
   position: VoxelCoord;
   root: THREE.Group;
   voxels: Map<string, LocalVoxel>;
+  source: GroupSource;
 };
 
-//group logical voxel ,, no three etc 
+//group logical voxel ,, no three etc
 
 export type GroupVoxel = {
   local: VoxelCoord;
@@ -49,7 +58,7 @@ export type WorldPacked = {
   groupPositions?: Int32Array;
 };
 
-//render config 
+//render config
 
 export type VoxelWorldRenderConfig = {
   blueprintOpacity?: number;
@@ -119,13 +128,20 @@ function hsvToRgb(h: number, s: number, v: number) {
   const t = v * (1 - (1 - f) * s);
 
   switch (i % 6) {
-    case 0: return { r: v, g: t, b: p };
-    case 1: return { r: q, g: v, b: p };
-    case 2: return { r: p, g: v, b: t };
-    case 3: return { r: p, g: q, b: v };
-    case 4: return { r: t, g: p, b: v };
-    case 5: return { r: v, g: p, b: q };
-    default: return { r: v, g: t, b: p };
+    case 0:
+      return { r: v, g: t, b: p };
+    case 1:
+      return { r: q, g: v, b: p };
+    case 2:
+      return { r: p, g: v, b: t };
+    case 3:
+      return { r: p, g: q, b: v };
+    case 4:
+      return { r: t, g: p, b: v };
+    case 5:
+      return { r: v, g: p, b: q };
+    default:
+      return { r: v, g: t, b: p };
   }
 }
 
@@ -180,7 +196,7 @@ export class VoxelWorld {
     this.scene = scene;
     this.geometry = new THREE.BoxGeometry(1, 1, 1);
     this.renderCfg = {
-      blueprintOpacity: cfg?.blueprintOpacity ?? 0.7, 
+      blueprintOpacity: cfg?.blueprintOpacity ?? 0.7,
       blueprintDepthWrite: cfg?.blueprintDepthWrite ?? false,
       blueprintTint: cfg?.blueprintTint ?? false,
     };
@@ -259,13 +275,46 @@ export class VoxelWorld {
     return this.groups.get(groupId)?.position ?? { x: 0, y: 0, z: 0 };
   }
 
+  getGroupSource(groupId: GroupId): GroupSource | null {
+    const g = this.groups.get(groupId);
+    if (!g) return null;
+    return { ...g.source };
+  }
+
+  setGroupSource(groupId: GroupId, source: Partial<GroupSource>): boolean {
+    const g = this.groups.get(groupId);
+    if (!g) return false;
+
+    g.source = {
+      assetId: source.assetId ?? g.source.assetId ?? null,
+      assetVisibility: source.assetVisibility ?? g.source.assetVisibility ?? null,
+    };
+
+    g.root.userData.sourceAssetId = g.source.assetId;
+    g.root.userData.sourceAssetVisibility = g.source.assetVisibility;
+
+    for (const v of g.voxels.values()) {
+      v.mesh.userData.sourceAssetId = g.source.assetId;
+      v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
+    }
+
+    return true;
+  }
+
+  clearGroupSource(groupId: GroupId): boolean {
+    return this.setGroupSource(groupId, {
+      assetId: null,
+      assetVisibility: null,
+    });
+  }
+
   setGroupPosition(groupId: GroupId, position: VoxelCoord): boolean {
     const g = this.groups.get(groupId);
     if (!g) return false;
-  
+
     const oldPos = g.position;
     if (oldPos.x === position.x && oldPos.y === position.y && oldPos.z === position.z) return true;
-  
+
     for (const v of g.voxels.values()) {
       const world = {
         x: oldPos.x + v.local.x,
@@ -274,10 +323,10 @@ export class VoxelWorld {
       };
       this.worldIndex.delete(keyOf(world));
     }
-  
+
     g.position = { ...position };
     g.root.position.set(position.x, position.y, position.z);
-  
+
     for (const v of g.voxels.values()) {
       const world = {
         x: position.x + v.local.x,
@@ -285,20 +334,34 @@ export class VoxelWorld {
         z: position.z + v.local.z,
       };
       this.worldIndex.set(keyOf(world), v);
-  
+
       v.mesh.userData.coord = { ...world };
       v.mesh.userData.groupId = groupId;
       v.mesh.userData.local = { ...v.local };
+      v.mesh.userData.sourceAssetId = g.source.assetId;
+      v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
     }
-  
+
     return true;
   }
 
-  instantiateGroupState(state: GroupState, opts: { at: VoxelCoord; baseId?: string }): GroupId {
+  instantiateGroupState(
+    state: GroupState,
+    opts: {
+      at: VoxelCoord;
+      baseId?: string;
+      sourceAssetId?: string | null;
+      sourceAssetVisibility?: AssetVisibility | null;
+    }
+  ): GroupId {
     const base = opts.baseId ?? state.groupId ?? "asset";
     const gid = this.makeUniqueGroupId(base);
 
     this.addGroup(gid, { ...opts.at });
+    this.setGroupSource(gid, {
+      assetId: opts.sourceAssetId ?? null,
+      assetVisibility: opts.sourceAssetVisibility ?? null,
+    });
 
     for (const v of state.voxels) {
       this.addVoxelLocal(gid, v.local, v.color, { isBlueprint: v.isBlueprint });
@@ -361,6 +424,8 @@ export class VoxelWorld {
     v.mesh.position.set(nextLocal.x + 0.5, nextLocal.y + 0.5, nextLocal.z + 0.5);
     v.mesh.userData.groupId = nextGroupId;
     v.mesh.userData.local = { ...nextLocal };
+    v.mesh.userData.sourceAssetId = to.source.assetId;
+    v.mesh.userData.sourceAssetVisibility = to.source.assetVisibility;
 
     to.root.add(v.mesh);
     to.voxels.set(nextLocalKey, v);
@@ -406,7 +471,7 @@ export class VoxelWorld {
 
     return out;
   }
-  
+
   listMeshes(): THREE.Mesh[] {
     const out: THREE.Mesh[] = [];
     for (const g of this.groups.values()) {
@@ -434,10 +499,11 @@ export class VoxelWorld {
       groupId: v.groupId,
       local: { ...v.local },
       groupPosition: { ...gp },
+      sourceAssetId: g?.source.assetId ?? null,
+      sourceAssetVisibility: g?.source.assetVisibility ?? null,
     };
   }
 
-  //worldspace voxel add 
   addVoxel(coord: VoxelCoord, color: string, opts?: { isBlueprint?: boolean; groupId?: GroupId }): boolean {
     const groupId = opts?.groupId ?? DEFAULT_GROUP;
     const g = this.ensureGroup(groupId, { x: 0, y: 0, z: 0 });
@@ -451,7 +517,6 @@ export class VoxelWorld {
     return this.addVoxelLocal(groupId, local, color, { isBlueprint: opts?.isBlueprint });
   }
 
-  //localspace voxel add
   addVoxelLocal(groupId: GroupId, local: VoxelCoord, color: string, opts?: { isBlueprint?: boolean }): boolean {
     const g = this.ensureGroup(groupId, { x: 0, y: 0, z: 0 });
 
@@ -475,6 +540,8 @@ export class VoxelWorld {
     mesh.userData.isBlueprint = isBlueprint;
     mesh.userData.groupId = groupId;
     mesh.userData.local = { ...local };
+    mesh.userData.sourceAssetId = g.source.assetId;
+    mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
 
     g.root.add(mesh);
 
@@ -528,8 +595,6 @@ export class VoxelWorld {
     v.mesh.material = this.getMaterial(v.color, v.isBlueprint);
   }
 
-  //part scale modification
-
   rotateGroupLocals90(groupId: GroupId, axis: "x" | "y" | "z", dir: 1 | -1): boolean {
     const g = this.groups.get(groupId);
     if (!g) return false;
@@ -537,23 +602,19 @@ export class VoxelWorld {
     const gp = g.position;
 
     const rot = (p: VoxelCoord): VoxelCoord => {
-      const x = p.x | 0, y = p.y | 0, z = p.z | 0;
+      const x = p.x | 0,
+        y = p.y | 0,
+        z = p.z | 0;
 
       if (axis === "y") {
-        return dir === 1
-          ? { x: z,  y, z: -x }
-          : { x: -z, y, z: x };
+        return dir === 1 ? { x: z, y, z: -x } : { x: -z, y, z: x };
       }
 
       if (axis === "x") {
-        return dir === 1
-          ? { x, y: z,  z: -y }
-          : { x, y: -z, z: y };
+        return dir === 1 ? { x, y: z, z: -y } : { x, y: -z, z: y };
       }
 
-      return dir === 1
-        ? { x: y,  y: -x, z }
-        : { x: -y, y: x,  z };
+      return dir === 1 ? { x: y, y: -x, z } : { x: -y, y: x, z };
     };
 
     for (const v of g.voxels.values()) {
@@ -583,6 +644,8 @@ export class VoxelWorld {
       v.mesh.userData.local = { ...nextLocal };
       v.mesh.userData.coord = { ...worldNew };
       v.mesh.userData.groupId = groupId;
+      v.mesh.userData.sourceAssetId = g.source.assetId;
+      v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
 
       nextVoxels.set(nextLocalKey, v);
       this.worldIndex.set(keyOf(worldNew), v);
@@ -592,8 +655,6 @@ export class VoxelWorld {
     return true;
   }
 
-  //return a pure-data snapshot of a group with local coordinates for assets / focus of parts
-  //no three meshes/objects are exposed
   getGroupSnapshot(groupId: GroupId): GroupState | null {
     const g = this.groups.get(groupId);
     if (!g) return null;
@@ -614,7 +675,6 @@ export class VoxelWorld {
     };
   }
 
-  //overwrite a group's voxels using local coords ,, to place in focus viewer "world"
   setGroupVoxelsLocal(groupId: GroupId, voxels: GroupVoxel[], opts?: { keepPosition?: boolean }): boolean {
     const keepPosition = opts?.keepPosition ?? true;
 
@@ -641,12 +701,11 @@ export class VoxelWorld {
     return true;
   }
 
-  //serialise a world to be saved to the library db 
   exportPacked(): WorldPacked {
     let n = 0;
     for (const g of this.groups.values()) n += g.voxels.size;
 
-    const localPositions = new Int32Array(n * 3); 
+    const localPositions = new Int32Array(n * 3);
     const colors = new Uint32Array(n);
     const blueprints = new Uint8Array(n);
 
@@ -699,7 +758,6 @@ export class VoxelWorld {
     return { localPositions, colors, blueprints, groupIds, groupTable, groupPositions };
   }
 
-  //parse serialised world
   importPacked(packed: WorldPacked) {
     this.clear();
 
@@ -749,6 +807,8 @@ export class VoxelWorld {
     root.name = `voxel-group:${groupId}`;
     root.position.set(position.x, position.y, position.z);
     root.userData.groupId = groupId;
+    root.userData.sourceAssetId = null;
+    root.userData.sourceAssetVisibility = null;
 
     this.scene.add(root);
 
@@ -756,6 +816,10 @@ export class VoxelWorld {
       position: { ...position },
       root,
       voxels: new Map(),
+      source: {
+        assetId: null,
+        assetVisibility: null,
+      },
     };
 
     this.groups.set(groupId, g);
