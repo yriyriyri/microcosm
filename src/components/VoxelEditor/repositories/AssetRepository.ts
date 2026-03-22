@@ -39,9 +39,15 @@ export interface AssetRepository {
     thumb?: Blob | null;
   }): Promise<AssetId>;
 
+  saveNonStructuralAssetProgress(params: {
+    assetId: AssetId;
+    group: GroupState;
+    thumb?: Blob | null;
+  }): Promise<AssetId>;
+
   remixAssetFromSource(params: {
     sourceAssetId: AssetId | null;
-    sourceMarketplaceAssetId?: AssetId | null;
+    lineageAssetIds?: AssetId[];
     name: string;
     group: GroupState;
     thumb?: Blob | null;

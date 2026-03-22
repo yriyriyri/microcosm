@@ -12,6 +12,9 @@ import { VoxelWorld } from "./VoxelWorld";
 import type { VoxelCoord } from "./Types";
 import { add } from "./Types";
 
+import { assetRepository } from "./repositories";
+import type { AssetMetaRecord } from "./domain/assetTypes";
+
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 
 const FOCUS_GROUP_ID = "__focus__";
@@ -142,12 +145,12 @@ function recenterCameraOnBounds(params: {
 export default function VoxelPartEditor(props: {
   open: boolean;
   groupId: string | null;
-
+  sourceAssetId: string | null;
+  sourceAssetVisibility: "private" | "marketplace" | "system" | null;
   world: VoxelWorld | null;
-  
   onExit: () => void;
 }) {
-  const { open, groupId, world, onExit } = props;
+  const { open, groupId, sourceAssetId, sourceAssetVisibility, world, onExit } = props;
 
   const { play, startLoop, stopLoop, click } = useSound();
 
@@ -182,6 +185,9 @@ export default function VoxelPartEditor(props: {
 
   const initialCoordSetRef = useRef<Set<string>>(new Set());
   const [hasStructuralChanges, setHasStructuralChanges] = useState(false);
+
+  const [sourceAssetMeta, setSourceAssetMeta] = useState<AssetMetaRecord | null>(null);
+  const [isSavingAsset, setIsSavingAsset] = useState(false);
 
   const openRef = useRef(open);
   useEffect(() => void (openRef.current = open), [open]);
@@ -333,17 +339,130 @@ export default function VoxelPartEditor(props: {
     setHasStructuralChanges(false);
   }
 
+  function getFocusedSnapshot() {
+    return focusWorldRef.current?.getGroupSnapshot(FOCUS_GROUP_ID) ?? null;
+  }
+  
+  function commitSnapshotToWorldInstance(snapshot: ReturnType<typeof getFocusedSnapshot>) {
+    if (!world || !groupId) return;
+    world.setGroupVoxelsLocal(groupId, snapshot?.voxels ?? [], { keepPosition: true });
+  }
+
+  const isLinkedMarketplaceCopy =
+    !!sourceAssetMeta?.linkedMarketplaceAssetId;
+
+  const isPlainPrivateAsset =
+    !!sourceAssetMeta &&
+    sourceAssetMeta.visibility === "private" &&
+    !sourceAssetMeta.linkedMarketplaceAssetId &&
+    !sourceAssetMeta.isImmutable;
+
+  const canAutoSaveNonStructuralProgress =
+    !!sourceAssetMeta &&
+    sourceAssetMeta.visibility === "private" &&
+    !sourceAssetMeta.isImmutable;
+
+  const showRemixButton =
+    hasStructuralChanges &&
+    (!!sourceAssetMeta || true);
+
+  const showOverwriteButton =
+    hasStructuralChanges && isPlainPrivateAsset;
+
   // commit changes back to live world passed 
-  function commitAndExit() {
+  async function commitAndExit() {
     play("whoosh");
-
-    if (!world || !groupId) return onExit();
-
-    const fw = focusWorldRef.current;
-    const snap = fw?.getGroupSnapshot(FOCUS_GROUP_ID);
-
-    world.setGroupVoxelsLocal(groupId, snap?.voxels ?? [], { keepPosition: true });
+  
+    const snapshot = getFocusedSnapshot();
+    commitSnapshotToWorldInstance(snapshot);
+  
+    if (!snapshot) {
+      onExit();
+      return;
+    }
+  
+    if (!hasStructuralChanges && canAutoSaveNonStructuralProgress && sourceAssetMeta) {
+      try {
+        setIsSavingAsset(true);
+        await assetRepository.saveNonStructuralAssetProgress({
+          assetId: sourceAssetMeta.id,
+          group: snapshot,
+        });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSavingAsset(false);
+      }
+    }
+  
     onExit();
+  }
+
+  // overwrite
+
+  async function handleOverwriteAsset() {
+    const snapshot = getFocusedSnapshot();
+    if (!snapshot || !sourceAssetMeta) return;
+  
+    try {
+      setIsSavingAsset(true);
+  
+      const nextId = await assetRepository.overwritePrivateAssetContent({
+        assetId: sourceAssetMeta.id,
+        group: snapshot,
+      });
+  
+      commitSnapshotToWorldInstance(snapshot);
+      world?.setGroupSource(groupId!, {
+        assetId: nextId,
+        assetVisibility: "private",
+      });
+  
+      onExit();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Overwrite failed");
+    } finally {
+      setIsSavingAsset(false);
+    }
+  }
+
+  //handleremix
+  
+  async function handleRemixAsset() {
+    const snapshot = getFocusedSnapshot();
+    if (!snapshot) return;
+  
+    const baseName = sourceAssetMeta?.name ?? "Remixed Asset";
+  
+    const lineageAssetIds = [
+      ...(sourceAssetMeta?.lineageAssetIds ?? []),
+      ...(sourceAssetMeta?.id ? [sourceAssetMeta.id] : []),
+    ].filter((v, i, arr) => !!v && arr.indexOf(v) === i);
+  
+    try {
+      setIsSavingAsset(true);
+  
+      const nextId = await assetRepository.remixAssetFromSource({
+        sourceAssetId: sourceAssetMeta?.id ?? null,
+        lineageAssetIds,
+        name: `${baseName} Remix`,
+        group: snapshot,
+      });
+  
+      commitSnapshotToWorldInstance(snapshot);
+      world?.setGroupSource(groupId!, {
+        assetId: nextId,
+        assetVisibility: "private",
+      });
+  
+      onExit();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Remix failed");
+    } finally {
+      setIsSavingAsset(false);
+    }
   }
 
   // esc to commit
@@ -819,6 +938,31 @@ export default function VoxelPartEditor(props: {
     pendingHoverRaycastRef.current = true;
   }, [open, groupId, world]);
 
+  // load source asset meta
+
+  useEffect(() => {
+    let cancelled = false;
+  
+    if (!open || !sourceAssetId) {
+      setSourceAssetMeta(null);
+      return;
+    }
+  
+    (async () => {
+      try {
+        const meta = await assetRepository.getAssetMeta(sourceAssetId);
+        if (!cancelled) setSourceAssetMeta(meta);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setSourceAssetMeta(null);
+      }
+    })();
+  
+    return () => {
+      cancelled = true;
+    };
+  }, [open, sourceAssetId]);
+
   // render loop ,, start/stop RAF on open
   useEffect(() => {
     if (!open) {
@@ -938,6 +1082,9 @@ export default function VoxelPartEditor(props: {
             transform: "translateX(-50%)",
             zIndex: 2,
             pointerEvents: "auto",
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
           }}
         >
           <div
@@ -953,6 +1100,44 @@ export default function VoxelPartEditor(props: {
           >
             structural changes detected
           </div>
+
+          {showOverwriteButton && (
+            <div
+              className="pix-icon"
+              onClick={isSavingAsset ? undefined : handleOverwriteAsset}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 5,
+                background: "rgba(0, 120, 80, 0.7)",
+                color: "white",
+                fontSize: 18,
+                userSelect: "none",
+                cursor: isSavingAsset ? "default" : "pointer",
+                opacity: isSavingAsset ? 0.6 : 1,
+              }}
+            >
+              overwrite
+            </div>
+          )}
+
+          {showRemixButton && (
+            <div
+              className="pix-icon"
+              onClick={isSavingAsset ? undefined : handleRemixAsset}
+              style={{
+                padding: "10px 14px",
+                borderRadius: 5,
+                background: "rgba(80, 60, 180, 0.75)",
+                color: "white",
+                fontSize: 18,
+                userSelect: "none",
+                cursor: isSavingAsset ? "default" : "pointer",
+                opacity: isSavingAsset ? 0.6 : 1,
+              }}
+            >
+              remix
+            </div>
+          )}
         </div>
       )}
   

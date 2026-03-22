@@ -27,6 +27,7 @@ import {
   listPublishedMarketplaceAssets,
   loadAsset,
   overwritePrivateAssetContent,
+  saveNonStructuralAssetProgress,
   publishAssetToMarketplace,
   remixAssetFromSource,
   renameAsset,
@@ -42,7 +43,8 @@ function toAssetMetaRecord(meta: AssetMeta): AssetMetaRecord {
     inLibrary: meta.inLibrary ?? true,
     isPreset: meta.isPreset ?? false,
     sourceAssetId: meta.sourceAssetId ?? null,
-    sourceMarketplaceAssetId: meta.sourceMarketplaceAssetId ?? null,
+    linkedMarketplaceAssetId: meta.linkedMarketplaceAssetId ?? null,
+    lineageAssetIds: meta.lineageAssetIds ?? [],
     publishedFromAssetId: meta.publishedFromAssetId ?? null,
     isImmutable: meta.isImmutable ?? false,
   };
@@ -102,7 +104,8 @@ export class IndexedDbAssetRepository implements AssetRepository {
       group: input.group,
       thumb: input.thumb ?? null,
       sourceAssetId: input.sourceAssetId ?? null,
-      sourceMarketplaceAssetId: input.sourceMarketplaceAssetId ?? null,
+      linkedMarketplaceAssetId: input.linkedMarketplaceAssetId ?? null,
+      lineageAssetIds: input.lineageAssetIds ?? [],
     });
   }
 
@@ -125,9 +128,17 @@ export class IndexedDbAssetRepository implements AssetRepository {
     return await overwritePrivateAssetContent(params);
   }
 
+  async saveNonStructuralAssetProgress(params: {
+    assetId: AssetId;
+    group: GroupState;
+    thumb?: Blob | null;
+  }): Promise<AssetId> {
+    return await saveNonStructuralAssetProgress(params);
+  }
+
   async remixAssetFromSource(params: {
     sourceAssetId: AssetId | null;
-    sourceMarketplaceAssetId?: AssetId | null;
+    lineageAssetIds?: AssetId[];
     name: string;
     group: GroupState;
     thumb?: Blob | null;

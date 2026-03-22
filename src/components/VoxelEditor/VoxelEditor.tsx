@@ -40,6 +40,11 @@ export default function VoxelEditor() {
   (presetsReady ? 0.33 : 0.33 * Math.max(0, Math.min(1, presetProgress))) +
   (audioReady ? 0.33 : 0.33 * Math.max(0, Math.min(1, audioProgress)));
 
+  const [focusedSourceAssetId, setFocusedSourceAssetId] = useState<string | null>(null);
+  const [focusedSourceAssetVisibility, setFocusedSourceAssetVisibility] = useState<
+    "private" | "marketplace" | "system" | null
+  >(null);
+
   const introPlayedRef = useRef(false);
   useEffect(() => {
     if (introPlayedRef.current) return;
@@ -128,8 +133,12 @@ export default function VoxelEditor() {
       window.clearTimeout(exitTimeoutRef.current);
       exitTimeoutRef.current = null;
     }
-
+  
+    const src = worldRef.current?.getGroupSource(groupId) ?? null;
+  
     setFocusedGroupId(groupId);
+    setFocusedSourceAssetId(src?.assetId ?? null);
+    setFocusedSourceAssetVisibility(src?.assetVisibility ?? null);
     setFocusOpen(true);
   }, []);
 
@@ -142,6 +151,8 @@ export default function VoxelEditor() {
 
     exitTimeoutRef.current = window.setTimeout(() => {
       setFocusedGroupId(null);
+      setFocusedSourceAssetId(null);
+      setFocusedSourceAssetVisibility(null);
       requestAutosaveRef.current?.({ immediate: true, reason: "focus-exit" });
       exitTimeoutRef.current = null;
     }, FADE_MS);
@@ -173,6 +184,8 @@ export default function VoxelEditor() {
         <VoxelPartEditor
           open={focusOpen}
           groupId={focusedGroupId}
+          sourceAssetId={focusedSourceAssetId}
+          sourceAssetVisibility={focusedSourceAssetVisibility}
           world={worldRef.current}
           onExit={onExitFocus}
         />

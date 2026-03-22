@@ -16,7 +16,8 @@ export type AssetMetaRecord = {
   isPreset?: boolean;
 
   sourceAssetId?: string | null;
-  sourceMarketplaceAssetId?: string | null;
+  linkedMarketplaceAssetId?: string | null;
+  lineageAssetIds?: string[];
   publishedFromAssetId?: string | null;
   isImmutable?: boolean;
 };
@@ -32,7 +33,8 @@ export type SaveAssetInput = {
   isPreset?: boolean;
 
   sourceAssetId?: string | null;
-  sourceMarketplaceAssetId?: string | null;
+  linkedMarketplaceAssetId?: string | null;
+  lineageAssetIds?: string[];
   publishedFromAssetId?: string | null;
   isImmutable?: boolean;
 

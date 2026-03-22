@@ -11,7 +11,8 @@ export type AssetMeta = {
   inLibrary?: boolean;
   isPreset?: boolean;
   sourceAssetId?: string | null;
-  sourceMarketplaceAssetId?: string | null;
+  linkedMarketplaceAssetId?: string | null;
+  lineageAssetIds?: string[];
   publishedFromAssetId?: string | null;
   isImmutable?: boolean;
 };
@@ -85,7 +86,8 @@ function normalizeAssetMeta(meta: AssetMeta): AssetMeta {
     inLibrary,
     isPreset: meta.isPreset ?? false,
     sourceAssetId: meta.sourceAssetId ?? null,
-    sourceMarketplaceAssetId: meta.sourceMarketplaceAssetId ?? null,
+    linkedMarketplaceAssetId: meta.linkedMarketplaceAssetId ?? null,
+    lineageAssetIds: Array.isArray(meta.lineageAssetIds) ? meta.lineageAssetIds : [],
     publishedFromAssetId: meta.publishedFromAssetId ?? null,
     isImmutable,
   };
@@ -156,7 +158,8 @@ export async function saveAsset(params: {
   isPreset?: boolean;
 
   sourceAssetId?: string | null;
-  sourceMarketplaceAssetId?: string | null;
+  linkedMarketplaceAssetId?: string | null;
+  lineageAssetIds?: string[];
   publishedFromAssetId?: string | null;
   isImmutable?: boolean;
 
@@ -187,23 +190,25 @@ export async function saveAsset(params: {
     existingMeta?.inLibrary ??
     (nextVisibility === "private");
 
-  const meta: AssetMeta = normalizeAssetMeta({
-    id,
-    name: params.name,
-    createdAt: existingMeta?.createdAt ?? now,
-    updatedAt: now,
-    voxelCount,
-    thumb: params.thumb ?? existingMeta?.thumb ?? null,
-    visibility: nextVisibility,
-    inLibrary: nextInLibrary,
-    isPreset: params.isPreset ?? existingMeta?.isPreset ?? false,
-    sourceAssetId: params.sourceAssetId ?? existingMeta?.sourceAssetId ?? null,
-    sourceMarketplaceAssetId:
-      params.sourceMarketplaceAssetId ?? existingMeta?.sourceMarketplaceAssetId ?? null,
-    publishedFromAssetId:
-      params.publishedFromAssetId ?? existingMeta?.publishedFromAssetId ?? null,
-    isImmutable: nextImmutable,
-  });
+    const meta: AssetMeta = normalizeAssetMeta({
+      id,
+      name: params.name,
+      createdAt: existingMeta?.createdAt ?? now,
+      updatedAt: now,
+      voxelCount,
+      thumb: params.thumb ?? existingMeta?.thumb ?? null,
+      visibility: nextVisibility,
+      inLibrary: nextInLibrary,
+      isPreset: params.isPreset ?? existingMeta?.isPreset ?? false,
+      sourceAssetId: params.sourceAssetId ?? existingMeta?.sourceAssetId ?? null,
+      linkedMarketplaceAssetId:
+        params.linkedMarketplaceAssetId ?? existingMeta?.linkedMarketplaceAssetId ?? null,
+      lineageAssetIds:
+        params.lineageAssetIds ?? existingMeta?.lineageAssetIds ?? [],
+      publishedFromAssetId:
+        params.publishedFromAssetId ?? existingMeta?.publishedFromAssetId ?? null,
+      isImmutable: nextImmutable,
+    });
 
   const data: AssetData = {
     id,
@@ -280,8 +285,8 @@ export async function overwritePrivateAssetContent(params: {
   if (meta.visibility !== "private" || meta.isImmutable) {
     throw new Error("Only mutable private assets can be overwritten");
   }
-
-  if (meta.sourceMarketplaceAssetId) {
+  
+  if (meta.linkedMarketplaceAssetId) {
     throw new Error("Marketplace-linked assets cannot be structurally overwritten");
   }
 
@@ -294,7 +299,39 @@ export async function overwritePrivateAssetContent(params: {
     inLibrary: meta.inLibrary ?? true,
     isPreset: meta.isPreset ?? false,
     sourceAssetId: meta.sourceAssetId ?? null,
-    sourceMarketplaceAssetId: meta.sourceMarketplaceAssetId ?? null,
+    linkedMarketplaceAssetId: meta.linkedMarketplaceAssetId ?? null,
+    lineageAssetIds: meta.lineageAssetIds ?? [],
+    publishedFromAssetId: meta.publishedFromAssetId ?? null,
+    isImmutable: false,
+    forceNewId: false,
+  });
+}
+
+export async function saveNonStructuralAssetProgress(params: {
+  assetId: string;
+  group: GroupState;
+  thumb?: Blob | null;
+}): Promise<string> {
+  const loaded = await loadAsset(params.assetId);
+  if (!loaded) throw new Error("Asset not found");
+
+  const meta = normalizeAssetMeta(loaded.meta);
+
+  if (meta.visibility !== "private" || meta.isImmutable) {
+    throw new Error("Only mutable private assets can save local progress");
+  }
+
+  return await saveAsset({
+    id: meta.id,
+    name: meta.name,
+    group: params.group,
+    thumb: params.thumb ?? meta.thumb ?? null,
+    visibility: meta.visibility,
+    inLibrary: meta.inLibrary ?? true,
+    isPreset: meta.isPreset ?? false,
+    sourceAssetId: meta.sourceAssetId ?? null,
+    linkedMarketplaceAssetId: meta.linkedMarketplaceAssetId ?? null,
+    lineageAssetIds: meta.lineageAssetIds ?? [],
     publishedFromAssetId: meta.publishedFromAssetId ?? null,
     isImmutable: false,
     forceNewId: false,
@@ -303,7 +340,7 @@ export async function overwritePrivateAssetContent(params: {
 
 export async function remixAssetFromSource(params: {
   sourceAssetId: string | null;
-  sourceMarketplaceAssetId?: string | null;
+  lineageAssetIds?: string[];
   name: string;
   group: GroupState;
   thumb?: Blob | null;
@@ -317,7 +354,8 @@ export async function remixAssetFromSource(params: {
     isPreset: false,
     isImmutable: false,
     sourceAssetId: params.sourceAssetId ?? null,
-    sourceMarketplaceAssetId: params.sourceMarketplaceAssetId ?? null,
+    linkedMarketplaceAssetId: null,
+    lineageAssetIds: params.lineageAssetIds ?? [],
     publishedFromAssetId: null,
     forceNewId: true,
   });
@@ -404,7 +442,8 @@ export async function createPrivateAsset(params: {
   group: GroupState;
   thumb?: Blob | null;
   sourceAssetId?: string | null;
-  sourceMarketplaceAssetId?: string | null;
+  linkedMarketplaceAssetId?: string | null;
+  lineageAssetIds?: string[];
 }): Promise<string> {
   return await saveAsset({
     name: params.name,
@@ -414,7 +453,8 @@ export async function createPrivateAsset(params: {
     inLibrary: true,
     isImmutable: false,
     sourceAssetId: params.sourceAssetId ?? null,
-    sourceMarketplaceAssetId: params.sourceMarketplaceAssetId ?? null,
+    linkedMarketplaceAssetId: params.linkedMarketplaceAssetId ?? null,
+    lineageAssetIds: params.lineageAssetIds ?? [],
     forceNewId: true,
   });
 }
@@ -433,8 +473,9 @@ export async function publishAssetToMarketplace(assetId: string): Promise<string
     inLibrary: false,
     isImmutable: true,
     isPreset: false,
-    sourceMarketplaceAssetId:
-      sourceMeta.sourceMarketplaceAssetId ?? sourceMeta.id,
+    sourceAssetId: sourceMeta.id,
+    linkedMarketplaceAssetId: null,
+    lineageAssetIds: sourceMeta.lineageAssetIds ?? [],
     publishedFromAssetId: sourceMeta.id,
     forceNewId: true,
   });
@@ -449,6 +490,11 @@ export async function forkAssetToPrivateDraft(
 
   const sourceMeta = normalizeAssetMeta(loaded.meta);
 
+  const lineageAssetIds = [
+    ...(sourceMeta.lineageAssetIds ?? []),
+    sourceMeta.id,
+  ].filter((v, i, arr) => !!v && arr.indexOf(v) === i);
+
   return await saveAsset({
     name: opts?.name ?? loaded.meta.name,
     group: loaded.group,
@@ -457,9 +503,8 @@ export async function forkAssetToPrivateDraft(
     inLibrary: opts?.addToLibrary ?? true,
     isImmutable: false,
     sourceAssetId: sourceMeta.id,
-    sourceMarketplaceAssetId:
-      sourceMeta.sourceMarketplaceAssetId ??
-      (sourceMeta.visibility === "marketplace" ? sourceMeta.id : null),
+    linkedMarketplaceAssetId: null,
+    lineageAssetIds,
     forceNewId: true,
   });
 }
@@ -480,7 +525,7 @@ export async function acquireMarketplaceAssetToLibrary(
   const existing = (await listAssets()).find(
     (a) =>
       a.visibility === "private" &&
-      a.sourceMarketplaceAssetId === sourceMeta.id
+      a.linkedMarketplaceAssetId === sourceMeta.id
   );
 
   if (existing) {
@@ -496,7 +541,9 @@ export async function acquireMarketplaceAssetToLibrary(
     inLibrary: true,
     isImmutable: false,
     sourceAssetId: sourceMeta.id,
-    sourceMarketplaceAssetId: sourceMeta.id,
+    linkedMarketplaceAssetId: sourceMeta.id,
+    lineageAssetIds: [...(sourceMeta.lineageAssetIds ?? []), sourceMeta.id]
+      .filter((v, i, arr) => !!v && arr.indexOf(v) === i),
     publishedFromAssetId: null,
     forceNewId: true,
   });
