@@ -1,5 +1,4 @@
 import type {
-  AssetExportPayload,
   AssetId,
   AssetMetaRecord,
   AssetRecord,
@@ -13,12 +12,21 @@ export interface AssetRepository {
 
   listLibraryAssets(): Promise<AssetMetaRecord[]>;
   listMarketplaceAssets(): Promise<AssetMetaRecord[]>;
+  listPublishedMarketplaceAssets(): Promise<AssetMetaRecord[]>;
   listPrivateAssets(): Promise<AssetMetaRecord[]>;
 
   findAssetIdByName(name: string): Promise<AssetId | null>;
   getAssetMeta(id: AssetId): Promise<AssetMetaRecord | null>;
   loadAsset(id: AssetId): Promise<AssetRecord | null>;
+
   saveAsset(input: SaveAssetInput): Promise<AssetId>;
+  createPrivateAsset(input: SaveAssetInput): Promise<AssetId>;
+  publishAssetToMarketplace(id: AssetId): Promise<AssetId>;
+  forkAssetToPrivateDraft(
+    id: AssetId,
+    opts?: { name?: string; addToLibrary?: boolean }
+  ): Promise<AssetId>;
+
   renameAsset(id: AssetId, name: string): Promise<void>;
   deleteAsset(id: AssetId): Promise<void>;
   deleteAllAssets(): Promise<void>;

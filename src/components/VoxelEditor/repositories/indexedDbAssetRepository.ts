@@ -9,10 +9,12 @@ import type {
 import type { AssetMeta } from "../database/AssetDb";
 
 import {
+  createPrivateAsset,
   deleteAllAssets,
   deleteAsset,
   exportAssetToFiles,
   findAssetIdByName,
+  forkAssetToPrivateDraft,
   getAssetMeta,
   getKv,
   isAssetInLibrary,
@@ -20,7 +22,9 @@ import {
   listLibraryAssets,
   listMarketplaceAssets,
   listPrivateAssets,
+  listPublishedMarketplaceAssets,
   loadAsset,
+  publishAssetToMarketplace,
   renameAsset,
   saveAsset,
   setAssetLibraryMembership,
@@ -59,6 +63,10 @@ export class IndexedDbAssetRepository implements AssetRepository {
     return (await listMarketplaceAssets()).map(toAssetMetaRecord);
   }
 
+  async listPublishedMarketplaceAssets(): Promise<AssetMetaRecord[]> {
+    return (await listPublishedMarketplaceAssets()).map(toAssetMetaRecord);
+  }
+
   async listPrivateAssets(): Promise<AssetMetaRecord[]> {
     return (await listPrivateAssets()).map(toAssetMetaRecord);
   }
@@ -78,6 +86,26 @@ export class IndexedDbAssetRepository implements AssetRepository {
 
   async saveAsset(input: SaveAssetInput): Promise<AssetId> {
     return await saveAsset(input);
+  }
+
+  async createPrivateAsset(input: SaveAssetInput): Promise<AssetId> {
+    return await createPrivateAsset({
+      name: input.name,
+      group: input.group,
+      thumb: input.thumb ?? null,
+      sourceAssetId: null,
+    });
+  }
+
+  async publishAssetToMarketplace(id: AssetId): Promise<AssetId> {
+    return await publishAssetToMarketplace(id);
+  }
+
+  async forkAssetToPrivateDraft(
+    id: AssetId,
+    opts?: { name?: string; addToLibrary?: boolean }
+  ): Promise<AssetId> {
+    return await forkAssetToPrivateDraft(id, opts);
   }
 
   async renameAsset(id: AssetId, name: string): Promise<void> {
