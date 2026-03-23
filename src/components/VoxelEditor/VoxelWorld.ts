@@ -297,12 +297,30 @@ export class VoxelWorld {
     if (!g) return false;
   
     g.source = {
-      instanceId: source.instanceId ?? g.source.instanceId,
-      assetId: source.assetId ?? g.source.assetId ?? null,
-      assetVisibility: source.assetVisibility ?? g.source.assetVisibility ?? null,
-      overrideAssetId: source.overrideAssetId ?? g.source.overrideAssetId ?? null,
+      instanceId:
+        source.instanceId !== undefined
+          ? source.instanceId
+          : g.source.instanceId,
+  
+      assetId:
+        source.assetId !== undefined
+          ? source.assetId
+          : g.source.assetId,
+  
+      assetVisibility:
+        source.assetVisibility !== undefined
+          ? source.assetVisibility
+          : g.source.assetVisibility,
+  
+      overrideAssetId:
+        source.overrideAssetId !== undefined
+          ? source.overrideAssetId
+          : g.source.overrideAssetId,
+  
       overrideAssetVisibility:
-        source.overrideAssetVisibility ?? g.source.overrideAssetVisibility ?? null,
+        source.overrideAssetVisibility !== undefined
+          ? source.overrideAssetVisibility
+          : g.source.overrideAssetVisibility,
     };
   
     g.root.userData.instanceId = g.source.instanceId;

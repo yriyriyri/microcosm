@@ -147,10 +147,21 @@ export default function VoxelPartEditor(props: {
   groupId: string | null;
   sourceAssetId: string | null;
   sourceAssetVisibility: "private" | "marketplace" | "system" | null;
+  overrideAssetId: string | null;
+  overrideAssetVisibility: "private" | "marketplace" | "system" | null;
   world: VoxelWorld | null;
   onExit: () => void;
 }) {
-  const { open, groupId, sourceAssetId, sourceAssetVisibility, world, onExit } = props;
+  const {
+    open,
+    groupId,
+    sourceAssetId,
+    sourceAssetVisibility,
+    overrideAssetId,
+    overrideAssetVisibility,
+    world,
+    onExit,
+  } = props;
 
   const { play, startLoop, stopLoop, click } = useSound();
 
@@ -187,6 +198,8 @@ export default function VoxelPartEditor(props: {
   const [hasStructuralChanges, setHasStructuralChanges] = useState(false);
 
   const [sourceAssetMeta, setSourceAssetMeta] = useState<AssetMetaRecord | null>(null);
+  const [effectiveAssetMeta, setEffectiveAssetMeta] = useState<AssetMetaRecord | null>(null);
+
   const [isSavingAsset, setIsSavingAsset] = useState(false);
 
   const openRef = useRef(open);
@@ -349,34 +362,48 @@ export default function VoxelPartEditor(props: {
   }
 
   //dervied values
+  const currentGroupSource =
+    world && groupId ? world.getGroupSource(groupId) : null;
 
-  const isLinkedMarketplaceCopy =
-    !!sourceAssetMeta?.linkedMarketplaceAssetId;
+  const currentOverrideAssetId =
+    currentGroupSource?.overrideAssetId ?? overrideAssetId ?? null;
 
-  const isPlainPrivateAsset =
+  const currentOverrideAssetVisibility =
+    currentGroupSource?.overrideAssetVisibility ?? overrideAssetVisibility ?? null;
+
+  const isEditingOverride = 
+    !!currentOverrideAssetId;
+
+  const effectiveAssetId = 
+    currentOverrideAssetId ?? sourceAssetId ?? null;
+
+  const effectiveAssetVisibility =
+    currentOverrideAssetVisibility ?? sourceAssetVisibility ?? null;
+
+  const sourceAssetIsPlainPrivate =
     !!sourceAssetMeta &&
     sourceAssetMeta.visibility === "private" &&
     !sourceAssetMeta.linkedMarketplaceAssetId &&
     !sourceAssetMeta.isImmutable;
 
-  const canAutoSaveNonStructuralProgress =
-    !!sourceAssetMeta &&
-    sourceAssetMeta.visibility === "private" &&
-    !sourceAssetMeta.isImmutable;
+  const effectiveAssetIsMutablePrivate =
+    !!effectiveAssetMeta &&
+    effectiveAssetMeta.visibility === "private" &&
+    !effectiveAssetMeta.isImmutable;
 
   const showRemixButton =
-    hasStructuralChanges &&
-    (!!sourceAssetMeta || true);
+    hasStructuralChanges && !!effectiveAssetMeta;
 
   const showOverwriteButton =
-    hasStructuralChanges && isPlainPrivateAsset;
-  
-  const currentGroupSource =
-    world && groupId ? world.getGroupSource(groupId) : null;
-  
-  const currentOverrideAssetId = currentGroupSource?.overrideAssetId ?? null;
-  const currentOverrideAssetVisibility =
-    currentGroupSource?.overrideAssetVisibility ?? null;
+    hasStructuralChanges && sourceAssetIsPlainPrivate;
+
+  const canonicalRemixBaseMeta =
+    sourceAssetMeta ?? effectiveAssetMeta ?? null;
+
+  const displayAssetName =
+    effectiveAssetMeta?.name ??
+    sourceAssetMeta?.name ??
+    (effectiveAssetId ? "Unknown Asset" : "Untitled Asset");
 
   // commit changes back to live world passed 
   async function commitAndExit() {
@@ -393,15 +420,24 @@ export default function VoxelPartEditor(props: {
     try {
       setIsSavingAsset(true);
   
-      if (!hasStructuralChanges) {
-        if (canAutoSaveNonStructuralProgress && sourceAssetMeta) {
-          await assetRepository.saveNonStructuralAssetProgress({
-            assetId: sourceAssetMeta.id,
+      if (isEditingOverride) {
+        if (effectiveAssetMeta && effectiveAssetIsMutablePrivate) {
+          await assetRepository.overwritePrivateAssetContent({
+            assetId: effectiveAssetMeta.id,
             group: snapshot,
           });
         }
       } else {
-        await saveInstanceOnlyStructuralOverride(snapshot);
+        if (!hasStructuralChanges) {
+          if (sourceAssetMeta && sourceAssetIsPlainPrivate) {
+            await assetRepository.saveNonStructuralAssetProgress({
+              assetId: sourceAssetMeta.id,
+              group: snapshot,
+            });
+          }
+        } else {
+          await saveInstanceOnlyStructuralOverride(snapshot);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -416,7 +452,10 @@ export default function VoxelPartEditor(props: {
 
   async function handleOverwriteAsset() {
     const snapshot = getFocusedSnapshot();
-    if (!snapshot || !sourceAssetMeta || !world || !groupId) return;
+    if (!snapshot || !world || !groupId || !sourceAssetMeta) return;
+    if (!sourceAssetIsPlainPrivate) return;
+  
+    const overrideIdToDelete = currentOverrideAssetId;
   
     try {
       setIsSavingAsset(true);
@@ -435,6 +474,10 @@ export default function VoxelPartEditor(props: {
         overrideAssetVisibility: null,
       });
   
+      if (overrideIdToDelete) {
+        await assetRepository.deleteAsset(overrideIdToDelete);
+      }
+  
       onExit();
     } catch (err) {
       console.error(err);
@@ -450,18 +493,19 @@ export default function VoxelPartEditor(props: {
     const snapshot = getFocusedSnapshot();
     if (!snapshot || !world || !groupId) return;
   
-    const baseName = sourceAssetMeta?.name ?? "Remixed Asset";
+    const remixBaseMeta = canonicalRemixBaseMeta;
+    const baseName = remixBaseMeta?.name ?? "Remixed Asset";
   
     const lineageAssetIds = [
-      ...(sourceAssetMeta?.lineageAssetIds ?? []),
-      ...(sourceAssetMeta?.id ? [sourceAssetMeta.id] : []),
+      ...(remixBaseMeta?.lineageAssetIds ?? []),
+      ...(remixBaseMeta?.id ? [remixBaseMeta.id] : []),
     ].filter((v, i, arr) => !!v && arr.indexOf(v) === i);
   
     try {
       setIsSavingAsset(true);
   
       const nextId = await assetRepository.remixAssetFromSource({
-        sourceAssetId: sourceAssetMeta?.id ?? sourceAssetId ?? null,
+        sourceAssetId: remixBaseMeta?.id ?? null,
         lineageAssetIds,
         name: `${baseName} Remix`,
         group: snapshot,
@@ -487,7 +531,9 @@ export default function VoxelPartEditor(props: {
 
   //instance only change
 
-  async function saveInstanceOnlyStructuralOverride(snapshot: NonNullable<ReturnType<typeof getFocusedSnapshot>>) {
+  async function saveInstanceOnlyStructuralOverride(
+    snapshot: NonNullable<ReturnType<typeof getFocusedSnapshot>>
+  ) {
     if (!world || !groupId) return;
   
     const existingOverrideId = currentOverrideAssetId;
@@ -495,27 +541,28 @@ export default function VoxelPartEditor(props: {
     let nextOverrideId: string;
   
     if (existingOverrideId) {
-      nextOverrideId = await assetRepository.saveAsset({
-        id: existingOverrideId,
-        name: sourceAssetMeta?.name
-          ? `${sourceAssetMeta.name} Instance Override`
-          : "Instance Override",
+      nextOverrideId = await assetRepository.overwritePrivateAssetContent({
+        assetId: existingOverrideId,
         group: snapshot,
+      });
+    } else {
+      nextOverrideId = await assetRepository.saveAsset({
+        name: effectiveAssetMeta?.name
+          ? `${effectiveAssetMeta.name} Instance Override`
+          : sourceAssetMeta?.name
+            ? `${sourceAssetMeta.name} Instance Override`
+            : "Instance Override",
+        group: snapshot,
+        thumb: null,
         visibility: "private",
         inLibrary: false,
         isImmutable: false,
-        forceNewId: false,
-      });
-    } else {
-      nextOverrideId = await assetRepository.createPrivateAsset({
-        name: sourceAssetMeta?.name
-          ? `${sourceAssetMeta.name} Instance Override`
-          : "Instance Override",
-        group: snapshot,
-        thumb: null,
         sourceAssetId: sourceAssetMeta?.id ?? sourceAssetId ?? null,
         linkedMarketplaceAssetId: null,
-        lineageAssetIds: sourceAssetMeta?.lineageAssetIds ?? [],
+        lineageAssetIds: effectiveAssetMeta?.lineageAssetIds
+          ?? sourceAssetMeta?.lineageAssetIds
+          ?? [],
+        forceNewId: true,
       });
     }
   
@@ -1003,25 +1050,36 @@ export default function VoxelPartEditor(props: {
   useEffect(() => {
     let cancelled = false;
   
-    if (!open || !sourceAssetId) {
+    if (!open) {
       setSourceAssetMeta(null);
+      setEffectiveAssetMeta(null);
       return;
     }
   
     (async () => {
       try {
-        const meta = await assetRepository.getAssetMeta(sourceAssetId);
-        if (!cancelled) setSourceAssetMeta(meta);
+        const [sourceMeta, effectiveMeta] = await Promise.all([
+          sourceAssetId ? assetRepository.getAssetMeta(sourceAssetId) : Promise.resolve(null),
+          effectiveAssetId ? assetRepository.getAssetMeta(effectiveAssetId) : Promise.resolve(null),
+        ]);
+  
+        if (cancelled) return;
+  
+        setSourceAssetMeta(sourceMeta);
+        setEffectiveAssetMeta(effectiveMeta);
       } catch (err) {
         console.error(err);
-        if (!cancelled) setSourceAssetMeta(null);
+        if (!cancelled) {
+          setSourceAssetMeta(null);
+          setEffectiveAssetMeta(null);
+        }
       }
     })();
   
     return () => {
       cancelled = true;
     };
-  }, [open, sourceAssetId]);
+  }, [open, sourceAssetId, effectiveAssetId]);
 
   // render loop ,, start/stop RAF on open
   useEffect(() => {
@@ -1130,6 +1188,38 @@ export default function VoxelPartEditor(props: {
 
             <ToolPalette value={tool} onChange={setTool} />
           </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          top: 28,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 2,
+          pointerEvents: "none",
+          maxWidth: "70vw",
+        }}
+      >
+        <div
+          className="pix-icon"
+          style={{
+            padding: "10px 16px",
+            borderRadius: 6,
+            background: "rgba(0, 50, 110, 0.5)",
+            color: "white",
+            fontSize: 20,
+            lineHeight: 1,
+            textAlign: "center",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            userSelect: "none",
+          }}
+          title={displayAssetName}
+        >
+          {displayAssetName}
         </div>
       </div>
 

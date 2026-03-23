@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import VoxelWorldEditor from "./VoxelWorldEditor";
 import VoxelPartEditor from "./VoxelPartEditor";
-import type { VoxelWorld } from "./VoxelWorld";
+import type { VoxelWorld, AssetVisibility } from "./VoxelWorld";
 import { ensurePresetAssetsInstalled } from "./database/AssetPresets";
 import { useSound, useSoundLoading } from "@/components/VoxelEditor/audio/SoundProvider";
 import LoadingOverlay from "./ui/LoadingOverlay";
@@ -15,6 +15,20 @@ const AMBIENCE_FOCUS_VOL = 0.4;
 const AMBIENCE_GRASS_VOL = 0.5;
 const AMBIENCE_WIND_VOL = 1;
 const AMBIENCE_FADE_MS = 220;
+
+type FocusedSourceContext = {
+  assetId: string | null;
+  assetVisibility: AssetVisibility | null;
+  overrideAssetId: string | null;
+  overrideAssetVisibility: AssetVisibility | null;
+};
+
+const EMPTY_FOCUSED_SOURCE: FocusedSourceContext = {
+  assetId: null,
+  assetVisibility: null,
+  overrideAssetId: null,
+  overrideAssetVisibility: null,
+};
 
 export default function VoxelEditor() {
   const { unlock, play, startLoopAt, setLoopVolume, getTime, startLoop } = useSound();
@@ -29,35 +43,33 @@ export default function VoxelEditor() {
 
   const [worldReady, setWorldReady] = useState(false);
   const [presetsReady, setPresetsReady] = useState(false);
-  const [presetProgress, setPresetProgress] = useState(0); 
+  const [presetProgress, setPresetProgress] = useState(0);
   const [loadingText, setLoadingText] = useState("booting…");
   const audio = useSoundLoading();
   const [audioReady, audioProgress] = [audio.ready, audio.progress];
   const fullyReady = worldReady && presetsReady && audioReady;
 
   const progress =
-  (worldReady ? 0.34 : 0) +
-  (presetsReady ? 0.33 : 0.33 * Math.max(0, Math.min(1, presetProgress))) +
-  (audioReady ? 0.33 : 0.33 * Math.max(0, Math.min(1, audioProgress)));
+    (worldReady ? 0.34 : 0) +
+    (presetsReady ? 0.33 : 0.33 * Math.max(0, Math.min(1, presetProgress))) +
+    (audioReady ? 0.33 : 0.33 * Math.max(0, Math.min(1, audioProgress)));
 
-  const [focusedSourceAssetId, setFocusedSourceAssetId] = useState<string | null>(null);
-  const [focusedSourceAssetVisibility, setFocusedSourceAssetVisibility] = useState<
-    "private" | "marketplace" | "system" | null
-  >(null);
+  const [focusedSource, setFocusedSource] =
+    useState<FocusedSourceContext>(EMPTY_FOCUSED_SOURCE);
 
   const introPlayedRef = useRef(false);
   useEffect(() => {
     if (introPlayedRef.current) return;
     if (!audioReady) return;
-  
+
     const run = async () => {
       await unlock();
       if (introPlayedRef.current) return;
-  
+
       introPlayedRef.current = true;
       play("introNewWorld");
     };
-  
+
     void run();
   }, [audioReady, play, unlock]);
 
@@ -65,21 +77,21 @@ export default function VoxelEditor() {
   useEffect(() => {
     if (ambienceStartedRef.current) return;
     if (!audioReady) return;
-  
+
     const startAmbience = async () => {
       await unlock();
       if (ambienceStartedRef.current) return;
-  
+
       const t0 = getTime() + 0.06;
-  
+
       startLoopAt("amb:world", "ambientWorld", { volume: AMBIENCE_WORLD_VOL }, t0);
-      startLoopAt("amb:focus", "ambientFocus", { volume: 0.0 }, t0);      
+      startLoopAt("amb:focus", "ambientFocus", { volume: 0.0 }, t0);
       startLoop("amb:grass", "ambientGrass", { volume: AMBIENCE_GRASS_VOL });
       startLoop("amb:wind", "ambientWindIdle", { volume: AMBIENCE_WIND_VOL });
-  
+
       ambienceStartedRef.current = true;
     };
-  
+
     void startAmbience();
   }, [audioReady, unlock, startLoopAt, getTime, startLoop]);
 
@@ -133,12 +145,16 @@ export default function VoxelEditor() {
       window.clearTimeout(exitTimeoutRef.current);
       exitTimeoutRef.current = null;
     }
-  
+
     const src = worldRef.current?.getGroupSource(groupId) ?? null;
-  
+
     setFocusedGroupId(groupId);
-    setFocusedSourceAssetId(src?.assetId ?? null);
-    setFocusedSourceAssetVisibility(src?.assetVisibility ?? null);
+    setFocusedSource({
+      assetId: src?.assetId ?? null,
+      assetVisibility: src?.assetVisibility ?? null,
+      overrideAssetId: src?.overrideAssetId ?? null,
+      overrideAssetVisibility: src?.overrideAssetVisibility ?? null,
+    });
     setFocusOpen(true);
   }, []);
 
@@ -151,15 +167,14 @@ export default function VoxelEditor() {
 
     exitTimeoutRef.current = window.setTimeout(() => {
       setFocusedGroupId(null);
-      setFocusedSourceAssetId(null);
-      setFocusedSourceAssetVisibility(null);
+      setFocusedSource(EMPTY_FOCUSED_SOURCE);
       requestAutosaveRef.current?.({ immediate: true, reason: "focus-exit" });
       exitTimeoutRef.current = null;
     }, FADE_MS);
   }, []);
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%", backgroundColor: "#368fe4", }}>
+    <div style={{ position: "relative", width: "100%", height: "100%", backgroundColor: "#368fe4" }}>
       <div
         style={{
           position: "absolute",
@@ -180,17 +195,19 @@ export default function VoxelEditor() {
             requestAutosaveRef.current = fn;
           }}
         />
-  
+
         <VoxelPartEditor
           open={focusOpen}
           groupId={focusedGroupId}
-          sourceAssetId={focusedSourceAssetId}
-          sourceAssetVisibility={focusedSourceAssetVisibility}
+          sourceAssetId={focusedSource.assetId}
+          sourceAssetVisibility={focusedSource.assetVisibility}
+          overrideAssetId={focusedSource.overrideAssetId}
+          overrideAssetVisibility={focusedSource.overrideAssetVisibility}
           world={worldRef.current}
           onExit={onExitFocus}
         />
       </div>
-  
+
       <LoadingOverlay
         show={!fullyReady}
         progress={progress}
