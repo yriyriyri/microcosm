@@ -23,6 +23,8 @@ export type GroupSource = {
   instanceId: string;
   assetId: string | null;
   assetVisibility: AssetVisibility | null;
+  overrideAssetId: string | null;
+  overrideAssetVisibility: AssetVisibility | null;
 };
 
 //group three data + mesh + pos
@@ -298,16 +300,23 @@ export class VoxelWorld {
       instanceId: source.instanceId ?? g.source.instanceId,
       assetId: source.assetId ?? g.source.assetId ?? null,
       assetVisibility: source.assetVisibility ?? g.source.assetVisibility ?? null,
+      overrideAssetId: source.overrideAssetId ?? g.source.overrideAssetId ?? null,
+      overrideAssetVisibility:
+        source.overrideAssetVisibility ?? g.source.overrideAssetVisibility ?? null,
     };
   
     g.root.userData.instanceId = g.source.instanceId;
     g.root.userData.sourceAssetId = g.source.assetId;
     g.root.userData.sourceAssetVisibility = g.source.assetVisibility;
+    g.root.userData.overrideAssetId = g.source.overrideAssetId;
+    g.root.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
   
     for (const v of g.voxels.values()) {
       v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
       v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
+      v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
+      v.mesh.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
     }
   
     return true;
@@ -352,6 +361,8 @@ export class VoxelWorld {
       v.mesh.userData.local = { ...v.local };
       v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
+      v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
+      v.mesh.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
       v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
     }
 
@@ -441,6 +452,8 @@ export class VoxelWorld {
     v.mesh.userData.local = { ...nextLocal };
     v.mesh.userData.instanceId = to.source.instanceId;
     v.mesh.userData.sourceAssetId = to.source.assetId;
+    v.mesh.userData.overrideAssetId = to.source.overrideAssetId;
+    v.mesh.userData.overrideAssetVisibility = to.source.overrideAssetVisibility;
     v.mesh.userData.sourceAssetVisibility = to.source.assetVisibility;
 
     to.root.add(v.mesh);
@@ -558,6 +571,8 @@ export class VoxelWorld {
     mesh.userData.local = { ...local };
     mesh.userData.instanceId = g.source.instanceId;
     mesh.userData.sourceAssetId = g.source.assetId;
+    mesh.userData.overrideAssetId = g.source.overrideAssetId;
+    mesh.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
     mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
 
     g.root.add(mesh);
@@ -664,6 +679,8 @@ export class VoxelWorld {
       v.mesh.userData.groupId = groupId;
       v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
+      v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
+      v.mesh.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
       v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
       
       nextVoxels.set(nextLocalKey, v);
@@ -830,6 +847,8 @@ export class VoxelWorld {
         instanceId: g.source.instanceId,
         assetId: g.source.assetId,
         assetVisibility: g.source.assetVisibility,
+        overrideAssetId: g.source.overrideAssetId ?? null,
+        overrideAssetVisibility: g.source.overrideAssetVisibility ?? null,
         position: { ...g.position },
       });
     }
@@ -843,9 +862,11 @@ export class VoxelWorld {
     for (const inst of data.instances) {
       if (!inst.assetId || !inst.assetVisibility) continue;
   
-      const loaded = await assetRepository.loadAsset(inst.assetId);
+      const renderAssetId = inst.overrideAssetId ?? inst.assetId;
+      const loaded = await assetRepository.loadAsset(renderAssetId);
+  
       if (!loaded) {
-        console.warn("Missing asset while importing world:", inst.assetId);
+        console.warn("Missing asset while importing world:", renderAssetId);
         continue;
       }
   
@@ -853,8 +874,19 @@ export class VoxelWorld {
         at: inst.position,
         baseId: loaded.meta.name,
         instanceId: inst.instanceId,
-        sourceAssetId: loaded.meta.id,
-        sourceAssetVisibility: loaded.meta.visibility,
+        sourceAssetId: inst.assetId,
+        sourceAssetVisibility: inst.assetVisibility,
+      });
+  
+      const gid = this.listGroupIds().at(-1);
+      if (!gid) continue;
+  
+      this.setGroupSource(gid, {
+        instanceId: inst.instanceId,
+        assetId: inst.assetId,
+        assetVisibility: inst.assetVisibility,
+        overrideAssetId: inst.overrideAssetId ?? null,
+        overrideAssetVisibility: inst.overrideAssetVisibility ?? null,
       });
     }
   }
@@ -872,6 +904,8 @@ export class VoxelWorld {
     root.userData.instanceId = instanceId;
     root.userData.sourceAssetId = null;
     root.userData.sourceAssetVisibility = null;
+    root.userData.overrideAssetId = null;
+    root.userData.overrideAssetVisibility = null;
   
     this.scene.add(root);
   
@@ -883,6 +917,8 @@ export class VoxelWorld {
         instanceId,
         assetId: null,
         assetVisibility: null,
+        overrideAssetId: null,
+        overrideAssetVisibility: null,
       },
     };
   

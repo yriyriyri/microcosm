@@ -7,6 +7,8 @@ export type WorldInstanceRecord = {
   instanceId: string;
   assetId: string | null;
   assetVisibility: AssetVisibility | null;
+  overrideAssetId?: string | null;
+  overrideAssetVisibility?: AssetVisibility | null;
   position: VoxelCoord;
 };
 

@@ -348,6 +348,8 @@ export default function VoxelPartEditor(props: {
     world.setGroupVoxelsLocal(groupId, snapshot?.voxels ?? [], { keepPosition: true });
   }
 
+  //dervied values
+
   const isLinkedMarketplaceCopy =
     !!sourceAssetMeta?.linkedMarketplaceAssetId;
 
@@ -368,6 +370,13 @@ export default function VoxelPartEditor(props: {
 
   const showOverwriteButton =
     hasStructuralChanges && isPlainPrivateAsset;
+  
+  const currentGroupSource =
+    world && groupId ? world.getGroupSource(groupId) : null;
+  
+  const currentOverrideAssetId = currentGroupSource?.overrideAssetId ?? null;
+  const currentOverrideAssetVisibility =
+    currentGroupSource?.overrideAssetVisibility ?? null;
 
   // commit changes back to live world passed 
   async function commitAndExit() {
@@ -381,18 +390,23 @@ export default function VoxelPartEditor(props: {
       return;
     }
   
-    if (!hasStructuralChanges && canAutoSaveNonStructuralProgress && sourceAssetMeta) {
-      try {
-        setIsSavingAsset(true);
-        await assetRepository.saveNonStructuralAssetProgress({
-          assetId: sourceAssetMeta.id,
-          group: snapshot,
-        });
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsSavingAsset(false);
+    try {
+      setIsSavingAsset(true);
+  
+      if (!hasStructuralChanges) {
+        if (canAutoSaveNonStructuralProgress && sourceAssetMeta) {
+          await assetRepository.saveNonStructuralAssetProgress({
+            assetId: sourceAssetMeta.id,
+            group: snapshot,
+          });
+        }
+      } else {
+        await saveInstanceOnlyStructuralOverride(snapshot);
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingAsset(false);
     }
   
     onExit();
@@ -402,7 +416,7 @@ export default function VoxelPartEditor(props: {
 
   async function handleOverwriteAsset() {
     const snapshot = getFocusedSnapshot();
-    if (!snapshot || !sourceAssetMeta) return;
+    if (!snapshot || !sourceAssetMeta || !world || !groupId) return;
   
     try {
       setIsSavingAsset(true);
@@ -413,9 +427,12 @@ export default function VoxelPartEditor(props: {
       });
   
       commitSnapshotToWorldInstance(snapshot);
-      world?.setGroupSource(groupId!, {
+  
+      world.setGroupSource(groupId, {
         assetId: nextId,
         assetVisibility: "private",
+        overrideAssetId: null,
+        overrideAssetVisibility: null,
       });
   
       onExit();
@@ -431,7 +448,7 @@ export default function VoxelPartEditor(props: {
   
   async function handleRemixAsset() {
     const snapshot = getFocusedSnapshot();
-    if (!snapshot) return;
+    if (!snapshot || !world || !groupId) return;
   
     const baseName = sourceAssetMeta?.name ?? "Remixed Asset";
   
@@ -444,16 +461,19 @@ export default function VoxelPartEditor(props: {
       setIsSavingAsset(true);
   
       const nextId = await assetRepository.remixAssetFromSource({
-        sourceAssetId: sourceAssetMeta?.id ?? null,
+        sourceAssetId: sourceAssetMeta?.id ?? sourceAssetId ?? null,
         lineageAssetIds,
         name: `${baseName} Remix`,
         group: snapshot,
       });
   
       commitSnapshotToWorldInstance(snapshot);
-      world?.setGroupSource(groupId!, {
+  
+      world.setGroupSource(groupId, {
         assetId: nextId,
         assetVisibility: "private",
+        overrideAssetId: null,
+        overrideAssetVisibility: null,
       });
   
       onExit();
@@ -463,6 +483,46 @@ export default function VoxelPartEditor(props: {
     } finally {
       setIsSavingAsset(false);
     }
+  }
+
+  //instance only change
+
+  async function saveInstanceOnlyStructuralOverride(snapshot: NonNullable<ReturnType<typeof getFocusedSnapshot>>) {
+    if (!world || !groupId) return;
+  
+    const existingOverrideId = currentOverrideAssetId;
+  
+    let nextOverrideId: string;
+  
+    if (existingOverrideId) {
+      nextOverrideId = await assetRepository.saveAsset({
+        id: existingOverrideId,
+        name: sourceAssetMeta?.name
+          ? `${sourceAssetMeta.name} Instance Override`
+          : "Instance Override",
+        group: snapshot,
+        visibility: "private",
+        inLibrary: false,
+        isImmutable: false,
+        forceNewId: false,
+      });
+    } else {
+      nextOverrideId = await assetRepository.createPrivateAsset({
+        name: sourceAssetMeta?.name
+          ? `${sourceAssetMeta.name} Instance Override`
+          : "Instance Override",
+        group: snapshot,
+        thumb: null,
+        sourceAssetId: sourceAssetMeta?.id ?? sourceAssetId ?? null,
+        linkedMarketplaceAssetId: null,
+        lineageAssetIds: sourceAssetMeta?.lineageAssetIds ?? [],
+      });
+    }
+  
+    world.setGroupSource(groupId, {
+      overrideAssetId: nextOverrideId,
+      overrideAssetVisibility: "private",
+    });
   }
 
   // esc to commit

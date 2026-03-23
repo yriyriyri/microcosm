@@ -277,51 +277,79 @@ export default function VoxelWorldEditor(props: {
     return Number.isFinite(d) && d > 0 ? d : 0.02;
   }
 
-  function onNew() {
+  async function onNew() {
     const w = worldRef.current;
-
+    if (!w) return;
+  
     setLibraryOpen(false);
     setImportModal(null);
-
+  
     setIslandName("My Voxbox");
     currentIslandIdRef.current = null;
-
+  
     setSelectedGroupId(null);
     setHoveredGroupId(null);
     hoveredGroupIdLiveRef.current = null;
-
-    w?.clear();
-
+  
+    w.clear();
+  
     if (controlsRef.current && cameraRef.current) {
       cameraRef.current.position.set(172.557, 77.391, 184.354);
-      controlsRef.current?.target.set(0, 0, 0);
-      controlsRef.current?.update();
-      cameraRef.current.lookAt(controlsRef.current!.target);
+      controlsRef.current.target.set(0, 0, 0);
+      controlsRef.current.update();
+      cameraRef.current.lookAt(controlsRef.current.target);
     }
-
+  
+    const id = await worldRepository.saveWorld({
+      name: "Primary World",
+      data: w.exportWorldData(),
+      thumb: null,
+    });
+  
+    currentIslandIdRef.current = id;
+    setPrimaryWorldId(id);
+  
     pendingGroupBoxesSyncRef.current = true;
   }
 
-  function applyImport(opts: { asBlueprint: boolean }) {
+  async function applyImport(opts: { asBlueprint: boolean }) {
     const world = worldRef.current;
     const pending = importModal;
     if (!world || !pending) return;
-
+  
     world.clear();
     currentIslandIdRef.current = null;
     setSelectedGroupId(null);
     setHoveredGroupId(null);
     hoveredGroupIdLiveRef.current = null;
-
+  
     for (const g of pending.groups) {
-      world.addGroup(g.groupId, g.position);
-      for (const v of g.voxels) {
-        world.addVoxelLocal(g.groupId, { x: v.x, y: v.y, z: v.z }, v.color, {
+      const rawState: GroupState = {
+        groupId: g.groupId,
+        position: { x: 0, y: 0, z: 0 },
+        voxels: g.voxels.map((v) => ({
+          local: { x: v.x, y: v.y, z: v.z },
+          color: v.color,
           isBlueprint: opts.asBlueprint,
-        });
-      }
+        })),
+      };
+  
+      const normalized = normalizeGroupToOrigin(rawState);
+  
+      const assetId = await assetRepository.createPrivateAsset({
+        name: g.groupId || "Imported Asset",
+        group: normalized,
+        thumb: null,
+      });
+  
+      world.instantiateGroupState(normalized, {
+        at: g.position,
+        baseId: g.groupId,
+        sourceAssetId: assetId,
+        sourceAssetVisibility: "private",
+      });
     }
-
+  
     pendingGroupBoxesSyncRef.current = true;
     setImportModal(null);
     requestAutosave({ immediate: true, reason: "import-vox" });
@@ -390,6 +418,34 @@ export default function VoxelWorldEditor(props: {
     }));
 
     return { groupId: g.groupId, position: { x: 0, y: 0, z: 0 }, voxels };
+  }
+
+  async function saveLiveGroupAsPrivateAsset(params: {
+    groupId: string;
+    preferredName?: string;
+    withThumb?: boolean;
+  }): Promise<string | null> {
+    const w = worldRef.current;
+    if (!w) return null;
+  
+    const snap = w.getGroupSnapshot(params.groupId);
+    if (!snap) return null;
+  
+    const normalized = normalizeGroupToOrigin(snap);
+    const thumb = params.withThumb ? await captureSquareThumbnailFromCurrentCamera() : null;
+  
+    const assetId = await assetRepository.createPrivateAsset({
+      name: (params.preferredName?.trim() || snap.groupId || "Asset").trim(),
+      group: normalized,
+      thumb,
+    });
+  
+    w.setGroupSource(params.groupId, {
+      assetId,
+      assetVisibility: "private",
+    });
+  
+    return assetId;
   }
 
   async function autosave(opts?: { withThumb?: boolean }) {
@@ -518,14 +574,16 @@ export default function VoxelWorldEditor(props: {
     const w = worldRef.current;
     const gid = selectedGroupIdLiveRef.current ?? selectedGroupId;
     if (!w || !gid) return;
-
-    const snap = w.getGroupSnapshot(gid);
-    if (!snap) return;
-
-    const group = normalizeGroupToOrigin(snap);
-    const thumb = await captureSquareThumbnailFromCurrentCamera();
-
-    await assetRepository.saveAsset({ name, group, thumb });    
+  
+    const assetId = await saveLiveGroupAsPrivateAsset({
+      groupId: gid,
+      preferredName: name,
+      withThumb: true,
+    });
+  
+    if (!assetId) return;
+  
+    requestAutosave({ immediate: true, reason: "save-selected-as-asset" });
     setAssetsOpen(true);
   }
 
