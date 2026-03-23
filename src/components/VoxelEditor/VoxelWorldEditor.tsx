@@ -397,14 +397,14 @@ export default function VoxelWorldEditor(props: {
     if (!world) return;
     if (!currentIslandIdRef.current) return; 
   
-    const packed = world.exportPacked();
+    const data = world.exportWorldData();
     const thumb = opts?.withThumb
       ? await captureSquareThumbnailFromCurrentCamera()
       : undefined;
   
     const id = await worldRepository.saveWorld({
       name: "Primary World",
-      packed,
+      data,
       thumb,
       id: currentIslandIdRef.current,
     });
@@ -471,41 +471,34 @@ export default function VoxelWorldEditor(props: {
   async function onOpenFromLibrary(id: string) {
     const world = worldRef.current;
     if (!world) return;
-
-    const loaded = await worldRepository.loadWorld(id);    
+  
+    const loaded = await worldRepository.loadWorld(id);
     if (!loaded) return;
-
+  
     currentIslandIdRef.current = loaded.meta.id;
     setIslandName(loaded.meta.name);
-
-    world.importPacked(loaded.packed);
+  
+    await world.importWorldData(loaded.data);
+  
     setSelectedGroupId(null);
     setHoveredGroupId(null);
     hoveredGroupIdLiveRef.current = null;
     pendingGroupBoxesSyncRef.current = true;
-
-    const pos = loaded.packed.localPositions;
-    const n = Math.floor(pos.length / 3);
-    if (n > 0) {
-      let minX = Infinity,
-        minY = Infinity,
-        minZ = Infinity;
-      let maxX = -Infinity,
-        maxY = -Infinity,
-        maxZ = -Infinity;
-
-      for (let i = 0; i < n; i++) {
-        const x = pos[i * 3 + 0];
-        const y = pos[i * 3 + 1];
-        const z = pos[i * 3 + 2];
-        minX = Math.min(minX, x);
-        maxX = Math.max(maxX, x);
-        minY = Math.min(minY, y);
-        maxY = Math.max(maxY, y);
-        minZ = Math.min(minZ, z);
-        maxZ = Math.max(maxZ, z);
+  
+    const bounds = world.getAllGroupBounds();
+    if (bounds.size > 0) {
+      let minX = Infinity, minY = Infinity, minZ = Infinity;
+      let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  
+      for (const b of bounds.values()) {
+        minX = Math.min(minX, b.min.x);
+        minY = Math.min(minY, b.min.y);
+        minZ = Math.min(minZ, b.min.z);
+        maxX = Math.max(maxX, b.max.x);
+        maxY = Math.max(maxY, b.max.y);
+        maxZ = Math.max(maxZ, b.max.z);
       }
-
+  
       recenterCameraOnBounds({
         minX,
         minY,
@@ -517,7 +510,7 @@ export default function VoxelWorldEditor(props: {
         camera: cameraRef.current,
       });
     }
-
+  
     setLibraryOpen(false);
   }
 
@@ -808,26 +801,26 @@ export default function VoxelWorldEditor(props: {
 
         if (loaded) {
           currentIslandIdRef.current = loaded.meta.id;
-          world.importPacked(loaded.packed);
-
+          await world.importWorldData(loaded.data);
+        
           setSelectedGroupId(null);
           setHoveredGroupId(null);
           hoveredGroupIdLiveRef.current = null;
           pendingGroupBoxesSyncRef.current = true;
-
+        
           return;
         }
 
         id = null;
       }
 
-      const packed = world.exportPacked();
+      const data = world.exportWorldData();
       const thumb = await captureSquareThumbnailFromCurrentCamera();
       if (cancelled) return;
-
+      
       const newId = await worldRepository.saveWorld({
         name: "Primary World",
-        packed,
+        data,
         thumb,
       });
       if (cancelled) return;

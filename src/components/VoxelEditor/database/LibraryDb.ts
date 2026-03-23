@@ -1,22 +1,17 @@
-import type { WorldPacked } from "../VoxelWorld";
+import type { WorldData } from "../domain/worldTypes";
 
 export type IslandMeta = {
   id: string;
   name: string;
   createdAt: number;
   updatedAt: number;
-  voxelCount: number;
-  thumb?: Blob | null; 
+  instanceCount: number;
+  thumb?: Blob | null;
 };
 
 type IslandData = {
   id: string;
-  positions: Int32Array;
-  colors: Uint32Array;
-  blueprints?: Uint8Array;
-  groupIds?: Uint32Array;
-  groupTable?: string[];
-  groupPositions?: Int32Array;
+  data: WorldData;
 };
 
 const DB_NAME = "voxel_editor_db";
@@ -90,17 +85,13 @@ export async function listIslands(): Promise<IslandMeta[]> {
 
 export async function saveIsland(params: {
   name: string;
-  packed: WorldPacked;
+  data: WorldData;
   id?: string;
   thumb?: Blob | null; 
 }): Promise<string> {
   const db = await openDb();
 
   const now = Date.now();
-  const voxelCount = Math.min(
-    params.packed.colors.length,
-    Math.floor(params.packed.localPositions.length / 3)
-  );
 
   const existingIdByName = params.id ? null : await findIslandIdByName(params.name).catch(() => null);
   const id = params.id ?? existingIdByName ?? makeId();
@@ -112,18 +103,13 @@ export async function saveIsland(params: {
     name: params.name,
     createdAt: existingMeta?.createdAt ?? now,
     updatedAt: now,
-    voxelCount,
-    thumb: params.thumb ?? null,
+    instanceCount: params.data.instances.length,
+    thumb: params.thumb ?? existingMeta?.thumb ?? null,
   };
-
+  
   const data: IslandData = {
     id,
-    positions: params.packed.localPositions,
-    colors: params.packed.colors,
-    blueprints: params.packed.blueprints,
-    groupIds: params.packed.groupIds,
-    groupTable: params.packed.groupTable,
-    groupPositions: params.packed.groupPositions,
+    data: params.data,
   };
 
   const tx = db.transaction([STORE_META, STORE_DATA], "readwrite");
@@ -144,31 +130,26 @@ export async function getIslandMeta(id: string): Promise<IslandMeta | null> {
   });
 }
 
-export async function loadIsland(id: string): Promise<{ meta: IslandMeta; packed: WorldPacked } | null> {
+export async function loadIsland(
+  id: string
+): Promise<{ meta: IslandMeta; data: WorldData } | null> {
   const db = await openDb();
 
   const meta = await getIslandMeta(id);
   if (!meta) return null;
 
-  const data = await new Promise<IslandData | null>((resolve, reject) => {
+  const dataRow = await new Promise<IslandData | null>((resolve, reject) => {
     const tx = db.transaction([STORE_DATA], "readonly");
     const req = tx.objectStore(STORE_DATA).get(id);
     req.onsuccess = () => resolve((req.result as IslandData) ?? null);
     req.onerror = () => reject(req.error ?? new Error("Failed to read island data"));
   });
 
-  if (!data) return null;
+  if (!dataRow) return null;
 
   return {
     meta,
-    packed: {
-      localPositions: data.positions,
-      colors: data.colors,
-      blueprints: data.blueprints,
-      groupIds: data.groupIds,
-      groupTable: data.groupTable,
-      groupPositions: data.groupPositions,
-    },
+    data: dataRow.data,
   };
 }
 

@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { VoxelCoord } from "./Types";
 import { keyOf } from "./Types";
+import type { WorldData, WorldInstanceRecord } from "./domain/worldTypes";
+import { assetRepository } from "./repositories";
 
 export type GroupId = string;
 export type AssetVisibility = "private" | "marketplace" | "system";
@@ -18,6 +20,7 @@ export type LocalVoxel = {
 //marketplace source
 
 export type GroupSource = {
+  instanceId: string;
   assetId: string | null;
   assetVisibility: AssetVisibility | null;
 };
@@ -67,6 +70,12 @@ export type VoxelWorldRenderConfig = {
 };
 
 const DEFAULT_GROUP: GroupId = "default";
+
+function makeRuntimeId(): string {
+  const c: any = globalThis.crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  return `instance_${Math.random().toString(16).slice(2)}_${Date.now()}`;
+}
 
 function hexToRgb24(hex: string): number {
   const h = hex.startsWith("#") ? hex.slice(1) : hex;
@@ -284,20 +293,23 @@ export class VoxelWorld {
   setGroupSource(groupId: GroupId, source: Partial<GroupSource>): boolean {
     const g = this.groups.get(groupId);
     if (!g) return false;
-
+  
     g.source = {
+      instanceId: source.instanceId ?? g.source.instanceId,
       assetId: source.assetId ?? g.source.assetId ?? null,
       assetVisibility: source.assetVisibility ?? g.source.assetVisibility ?? null,
     };
-
+  
+    g.root.userData.instanceId = g.source.instanceId;
     g.root.userData.sourceAssetId = g.source.assetId;
     g.root.userData.sourceAssetVisibility = g.source.assetVisibility;
-
+  
     for (const v of g.voxels.values()) {
+      v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
       v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
     }
-
+  
     return true;
   }
 
@@ -338,6 +350,7 @@ export class VoxelWorld {
       v.mesh.userData.coord = { ...world };
       v.mesh.userData.groupId = groupId;
       v.mesh.userData.local = { ...v.local };
+      v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
       v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
     }
@@ -350,23 +363,25 @@ export class VoxelWorld {
     opts: {
       at: VoxelCoord;
       baseId?: string;
+      instanceId?: string;
       sourceAssetId?: string | null;
       sourceAssetVisibility?: AssetVisibility | null;
     }
   ): GroupId {
     const base = opts.baseId ?? state.groupId ?? "asset";
     const gid = this.makeUniqueGroupId(base);
-
+    
     this.addGroup(gid, { ...opts.at });
     this.setGroupSource(gid, {
+      instanceId: opts.instanceId ?? makeRuntimeId(),
       assetId: opts.sourceAssetId ?? null,
       assetVisibility: opts.sourceAssetVisibility ?? null,
     });
-
+    
     for (const v of state.voxels) {
       this.addVoxelLocal(gid, v.local, v.color, { isBlueprint: v.isBlueprint });
     }
-
+    
     return gid;
   }
 
@@ -424,6 +439,7 @@ export class VoxelWorld {
     v.mesh.position.set(nextLocal.x + 0.5, nextLocal.y + 0.5, nextLocal.z + 0.5);
     v.mesh.userData.groupId = nextGroupId;
     v.mesh.userData.local = { ...nextLocal };
+    v.mesh.userData.instanceId = to.source.instanceId;
     v.mesh.userData.sourceAssetId = to.source.assetId;
     v.mesh.userData.sourceAssetVisibility = to.source.assetVisibility;
 
@@ -540,6 +556,7 @@ export class VoxelWorld {
     mesh.userData.isBlueprint = isBlueprint;
     mesh.userData.groupId = groupId;
     mesh.userData.local = { ...local };
+    mesh.userData.instanceId = g.source.instanceId;
     mesh.userData.sourceAssetId = g.source.assetId;
     mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
 
@@ -641,12 +658,14 @@ export class VoxelWorld {
       v.mesh.position.set(nextLocal.x + 0.5, nextLocal.y + 0.5, nextLocal.z + 0.5);
 
       const worldNew = this.worldFrom(gp, nextLocal);
+
       v.mesh.userData.local = { ...nextLocal };
       v.mesh.userData.coord = { ...worldNew };
       v.mesh.userData.groupId = groupId;
+      v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
       v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
-
+      
       nextVoxels.set(nextLocalKey, v);
       this.worldIndex.set(keyOf(worldNew), v);
     }
@@ -799,29 +818,74 @@ export class VoxelWorld {
     }
   }
 
+  exportWorldData(): WorldData {
+    const instances: WorldInstanceRecord[] = [];
+  
+    for (const [groupId, g] of this.groups.entries()) {
+      if (groupId === DEFAULT_GROUP) continue;
+      if (!g.voxels.size) continue;
+      if (!g.source.assetId || !g.source.assetVisibility) continue;
+  
+      instances.push({
+        instanceId: g.source.instanceId,
+        assetId: g.source.assetId,
+        assetVisibility: g.source.assetVisibility,
+        position: { ...g.position },
+      });
+    }
+  
+    return { instances };
+  }
+
+  async importWorldData(data: WorldData): Promise<void> {
+    this.clear();
+  
+    for (const inst of data.instances) {
+      if (!inst.assetId || !inst.assetVisibility) continue;
+  
+      const loaded = await assetRepository.loadAsset(inst.assetId);
+      if (!loaded) {
+        console.warn("Missing asset while importing world:", inst.assetId);
+        continue;
+      }
+  
+      this.instantiateGroupState(loaded.group, {
+        at: inst.position,
+        baseId: loaded.meta.name,
+        instanceId: inst.instanceId,
+        sourceAssetId: loaded.meta.id,
+        sourceAssetVisibility: loaded.meta.visibility,
+      });
+    }
+  }
+
   private ensureGroup(groupId: GroupId, position: VoxelCoord): GroupRecord {
     let g = this.groups.get(groupId);
     if (g) return g;
-
+  
+    const instanceId = makeRuntimeId();
+  
     const root = new THREE.Group();
     root.name = `voxel-group:${groupId}`;
     root.position.set(position.x, position.y, position.z);
     root.userData.groupId = groupId;
+    root.userData.instanceId = instanceId;
     root.userData.sourceAssetId = null;
     root.userData.sourceAssetVisibility = null;
-
+  
     this.scene.add(root);
-
+  
     g = {
       position: { ...position },
       root,
       voxels: new Map(),
       source: {
+        instanceId,
         assetId: null,
         assetVisibility: null,
       },
     };
-
+  
     this.groups.set(groupId, g);
     return g;
   }
