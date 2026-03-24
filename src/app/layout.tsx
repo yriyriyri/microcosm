@@ -1,7 +1,7 @@
 import "./globals.css";
 import localFont from "next/font/local";
 import type { Metadata } from "next";
-
+import { Provider as AuthProvider } from "@/components/Auth/state";
 
 const eagle = localFont({
   src: [
@@ -18,11 +18,12 @@ export const metadata: Metadata = {
   },
 };
 
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={eagle.variable}>
-      <body className={eagle.className}>{children}</body>
+      <body className={eagle.className}>
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }
