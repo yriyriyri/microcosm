@@ -909,6 +909,56 @@ export class VoxelWorld {
     }
   }
 
+  async refreshInstancesFromSourceAsset(params: {
+    sourceAssetId: string;
+    nextAssetId?: string;
+    nextAssetVisibility?: AssetVisibility | null;
+    skipGroupId?: string | null;
+    includeOverridden?: boolean;
+  }): Promise<string[]> {
+    const {
+      sourceAssetId,
+      nextAssetId,
+      nextAssetVisibility,
+      skipGroupId = null,
+      includeOverridden = false,
+    } = params;
+
+    const resolvedAssetId = nextAssetId ?? sourceAssetId;
+    const loaded = await assetRepository.loadAsset(resolvedAssetId);
+    if (!loaded) {
+      console.warn("Missing asset while refreshing instances:", resolvedAssetId);
+      return [];
+    }
+
+    const touched: string[] = [];
+
+    for (const [groupId, g] of this.groups.entries()) {
+      if (groupId === DEFAULT_GROUP) continue;
+      if (skipGroupId && groupId === skipGroupId) continue;
+      if (g.source.assetId !== sourceAssetId) continue;
+
+      const hasOverride = !!g.source.overrideAssetId;
+      if (hasOverride && !includeOverridden) continue;
+
+      this.setGroupVoxelsLocal(groupId, loaded.group.voxels, { keepPosition: true });
+
+      if (nextAssetId !== undefined || nextAssetVisibility !== undefined) {
+        this.setGroupSource(groupId, {
+          assetId: nextAssetId !== undefined ? nextAssetId : g.source.assetId,
+          assetVisibility:
+            nextAssetVisibility !== undefined
+              ? nextAssetVisibility
+              : g.source.assetVisibility,
+        });
+      }
+
+      touched.push(groupId);
+    }
+
+    return touched;
+  }
+
   private ensureGroup(groupId: GroupId, position: VoxelCoord): GroupRecord {
     let g = this.groups.get(groupId);
     if (g) return g;

@@ -417,6 +417,12 @@ export default function VoxelPartEditor(props: {
       return;
     }
   
+    const liveWorld = world;
+    if (!liveWorld) {
+      onExit();
+      return;
+    }
+  
     try {
       setIsSavingAsset(true);
   
@@ -430,9 +436,18 @@ export default function VoxelPartEditor(props: {
       } else {
         if (!hasStructuralChanges) {
           if (sourceAssetMeta && sourceAssetIsPlainPrivate) {
+            const sourceId = sourceAssetMeta.id;
+  
             await assetRepository.saveNonStructuralAssetProgress({
-              assetId: sourceAssetMeta.id,
+              assetId: sourceId,
               group: snapshot,
+            });
+  
+            await liveWorld.refreshInstancesFromSourceAsset({
+              sourceAssetId: sourceId,
+              nextAssetId: sourceId,
+              nextAssetVisibility: "private",
+              includeOverridden: false,
             });
           }
         } else {
@@ -454,30 +469,36 @@ export default function VoxelPartEditor(props: {
     const snapshot = getFocusedSnapshot();
     if (!snapshot || !world || !groupId || !sourceAssetMeta) return;
     if (!sourceAssetIsPlainPrivate) return;
-  
+
     const overrideIdToDelete = currentOverrideAssetId;
-  
+    const originalSourceAssetId = sourceAssetMeta.id;
+
     try {
       setIsSavingAsset(true);
-  
+
       const nextId = await assetRepository.overwritePrivateAssetContent({
-        assetId: sourceAssetMeta.id,
+        assetId: originalSourceAssetId,
         group: snapshot,
       });
-  
-      commitSnapshotToWorldInstance(snapshot);
-  
+
       world.setGroupSource(groupId, {
         assetId: nextId,
         assetVisibility: "private",
         overrideAssetId: null,
         overrideAssetVisibility: null,
       });
-  
+
+      await world.refreshInstancesFromSourceAsset({
+        sourceAssetId: originalSourceAssetId,
+        nextAssetId: nextId,
+        nextAssetVisibility: "private",
+        includeOverridden: false,
+      });
+
       if (overrideIdToDelete) {
         await assetRepository.deleteAsset(overrideIdToDelete);
       }
-  
+
       onExit();
     } catch (err) {
       console.error(err);

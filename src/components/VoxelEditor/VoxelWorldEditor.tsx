@@ -631,7 +631,7 @@ export default function VoxelWorldEditor(props: {
   }, [placingLabel]);
 
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
+    const onKeyDown = async (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return;
       if (focusOpenRef.current) return;
       if (importModal) return;
@@ -645,21 +645,32 @@ export default function VoxelWorldEditor(props: {
       const gid = selectedGroupIdLiveRef.current;
       if (!w || !gid) return;
 
+      const src = w.getGroupSource?.(gid) ?? null;
+      const overrideIdToDelete = src?.overrideAssetId ?? null;
+      
       const ok = w.removeGroup?.(gid);
       if (!ok) return;
 
       play("deletePart");
-
+      
+      try {
+        if (overrideIdToDelete) {
+          await assetRepository.deleteAsset(overrideIdToDelete);
+        }
+      } catch (err) {
+        console.error("failed to delete override asset for removed group", err);
+      }
+            
       selectedGroupIdLiveRef.current = null;
       setSelectedGroupId(null);
-
+      
       if (hoveredGroupIdLiveRef.current === gid) {
         hoveredGroupIdLiveRef.current = null;
         setHoveredGroupId(null);
       }
-
+      
       pendingGroupBoxesSyncRef.current = true;
-
+      
       requestAutosave({ immediate: true, reason: "delete-group" });
       e.preventDefault();
     };
