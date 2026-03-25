@@ -4,6 +4,10 @@ import type {
   AssetRecord,
   SaveAssetInput,
 } from "../domain/assetTypes";
+import type {
+  DraftAssetDocument,
+  MarketplaceAssetDocument,
+} from "../domain/cloudAssetTypes";
 import type { GroupState } from "../VoxelWorld";
 
 export type AssetKvValue = unknown;
@@ -52,6 +56,16 @@ export interface AssetRepository {
     group: GroupState;
     thumb?: Blob | null;
   }): Promise<AssetId>;
+
+  loadDraftAssetDocument(
+    id: AssetId,
+    ownerAccountId?: string | null
+  ): Promise<DraftAssetDocument | null>;
+
+  loadMarketplaceAssetDocument(
+    id: AssetId,
+    creatorAccountId?: string | null
+  ): Promise<MarketplaceAssetDocument | null>;
 
   renameAsset(id: AssetId, name: string): Promise<void>;
   deleteAsset(id: AssetId): Promise<void>;

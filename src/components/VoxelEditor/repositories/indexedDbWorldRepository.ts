@@ -6,6 +6,9 @@ import type {
   WorldRecord,
 } from "../domain/worldTypes";
 
+import { worldRecordToWorldDocument } from "../domain/cloudMappers";
+import type { WorldDocument } from "../domain/cloudWorldTypes";
+
 import {
   deleteIsland,
   findIslandIdByName,
@@ -43,5 +46,14 @@ export class IndexedDbWorldRepository implements WorldRepository {
 
   async deleteWorld(id: WorldId): Promise<void> {
     await deleteIsland(id);
+  }
+
+  async loadWorldDocument(
+    id: WorldId,
+    ownerAccountId: string | null = null
+  ): Promise<WorldDocument | null> {
+    const record = await this.loadWorld(id);
+    if (!record) return null;
+    return worldRecordToWorldDocument(record, ownerAccountId);
   }
 }
