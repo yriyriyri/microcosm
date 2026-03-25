@@ -1,6 +1,14 @@
 //internal data structure ,, metadata referenced in voxelWorld
 export type VoxelCoord = { x: number; y: number; z: number };
 
+export type QuarterTurn = 0 | 1 | 2 | 3;
+
+export type GroupRotation = {
+  x: QuarterTurn;
+  y: QuarterTurn;
+  z: QuarterTurn;
+};
+
 export function keyOf(c: VoxelCoord): string {
   return `${c.x},${c.y},${c.z}`;
 }

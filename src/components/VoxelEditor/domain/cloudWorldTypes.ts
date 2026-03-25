@@ -1,15 +1,9 @@
-import type { VoxelCoord } from "../Types";
+import type { GroupRotation, VoxelCoord } from "../Types";
 
 export type CloudWorldId = string;
 export type AccountId = string;
 
 export type WorldAssetKind = "draft" | "marketplace";
-
-export type WorldInstanceRotation = {
-  x: 0 | 1 | 2 | 3;
-  y: 0 | 1 | 2 | 3;
-  z: 0 | 1 | 2 | 3;
-};
 
 export type WorldInstanceDocument = {
   instanceId: string;
@@ -20,7 +14,7 @@ export type WorldInstanceDocument = {
   overrideAssetId?: string | null;
 
   position: VoxelCoord;
-  rotation?: WorldInstanceRotation;
+  rotation?: GroupRotation;
 };
 
 export type WorldDocument = {

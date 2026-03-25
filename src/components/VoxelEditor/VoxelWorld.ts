@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { VoxelCoord } from "./Types";
+import type { VoxelCoord, GroupRotation } from "./Types";
 import { keyOf } from "./Types";
 import type {
   WorldAssetKind,
@@ -7,6 +7,7 @@ import type {
   WorldInstanceRecord,
 } from "./domain/worldTypes";
 import { assetRepository } from "./repositories";
+
 
 export type GroupId = string;
 export type AssetKind = WorldAssetKind;
@@ -34,6 +35,7 @@ export type GroupSource = {
 
 type GroupRecord = {
   position: VoxelCoord;
+  rotation: GroupRotation;
   root: THREE.Group;
   voxels: Map<string, LocalVoxel>;
   source: GroupSource;
@@ -75,6 +77,8 @@ export type VoxelWorldRenderConfig = {
 };
 
 const DEFAULT_GROUP: GroupId = "default";
+
+//helpers
 
 function makeRuntimeId(): string {
   const c: any = globalThis.crypto;
@@ -193,6 +197,30 @@ function blueprintTint(hex: string): string {
   b2 *= lift;
 
   return rgb01ToHex(clamp01(r2), clamp01(g2), clamp01(b2));
+}
+
+function normalizeQuarterTurn(v?: number): 0 | 1 | 2 | 3 {
+  const n = ((v ?? 0) % 4 + 4) % 4;
+  return n as 0 | 1 | 2 | 3;
+}
+
+function normalizeRotation(
+  r?: Partial<GroupRotation> | null
+): GroupRotation {
+  return {
+    x: normalizeQuarterTurn(r?.x),
+    y: normalizeQuarterTurn(r?.y),
+    z: normalizeQuarterTurn(r?.z),
+  };
+}
+
+function rotationToEuler(r: GroupRotation): THREE.Euler {
+  return new THREE.Euler(
+    r.x * (Math.PI / 2),
+    r.y * (Math.PI / 2),
+    r.z * (Math.PI / 2),
+    "XYZ"
+  );
 }
 
 export class VoxelWorld {
@@ -395,12 +423,14 @@ export class VoxelWorld {
       instanceId?: string;
       sourceAssetId?: string | null;
       sourceAssetKind?: AssetKind | null;
+      rotation?: GroupRotation | null;
     }
   ): GroupId {
     const base = opts.baseId ?? state.groupId ?? "asset";
     const gid = this.makeUniqueGroupId(base);
 
     this.addGroup(gid, { ...opts.at });
+    this.setGroupRotation(gid, opts.rotation ?? { x: 0, y: 0, z: 0 });
     this.setGroupSource(gid, {
       instanceId: opts.instanceId ?? makeRuntimeId(),
       assetId: opts.sourceAssetId ?? null,
@@ -482,23 +512,43 @@ export class VoxelWorld {
     const g = this.groups.get(groupId);
     if (!g || g.voxels.size === 0) return null;
 
+    g.root.updateMatrixWorld(true);
+
     let minX = Infinity, minY = Infinity, minZ = Infinity;
     let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
-    for (const v of g.voxels.values()) {
-      const world = this.worldFrom(g.position, v.local);
+    const p = new THREE.Vector3();
 
-      minX = Math.min(minX, world.x);
-      maxX = Math.max(maxX, world.x);
-      minY = Math.min(minY, world.y);
-      maxY = Math.max(maxY, world.y);
-      minZ = Math.min(minZ, world.z);
-      maxZ = Math.max(maxZ, world.z);
+    for (const v of g.voxels.values()) {
+      p.set(v.local.x + 0.5, v.local.y + 0.5, v.local.z + 0.5);
+      p.applyMatrix4(g.root.matrixWorld);
+
+      const vxMin = p.x - 0.5;
+      const vyMin = p.y - 0.5;
+      const vzMin = p.z - 0.5;
+      const vxMax = p.x + 0.5;
+      const vyMax = p.y + 0.5;
+      const vzMax = p.z + 0.5;
+
+      minX = Math.min(minX, vxMin);
+      minY = Math.min(minY, vyMin);
+      minZ = Math.min(minZ, vzMin);
+      maxX = Math.max(maxX, vxMax);
+      maxY = Math.max(maxY, vyMax);
+      maxZ = Math.max(maxZ, vzMax);
     }
 
     return {
-      min: { x: minX, y: minY, z: minZ },
-      max: { x: maxX, y: maxY, z: maxZ },
+      min: {
+        x: Math.floor(minX),
+        y: Math.floor(minY),
+        z: Math.floor(minZ),
+      },
+      max: {
+        x: Math.ceil(maxX) - 1,
+        y: Math.ceil(maxY) - 1,
+        z: Math.ceil(maxZ) - 1,
+      },
     };
   }
 
@@ -699,6 +749,38 @@ export class VoxelWorld {
     return true;
   }
 
+  getGroupRotation(groupId: GroupId): GroupRotation {
+    const g = this.groups.get(groupId);
+    return g ? { ...g.rotation } : { x: 0, y: 0, z: 0 };
+  }
+
+  setGroupRotation(
+    groupId: GroupId,
+    rotation: Partial<GroupRotation>
+  ): boolean {
+    const g = this.groups.get(groupId);
+    if (!g) return false;
+
+    g.rotation = normalizeRotation({
+      ...g.rotation,
+      ...rotation,
+    });
+
+    const euler = rotationToEuler(g.rotation);
+    g.root.rotation.set(euler.x, euler.y, euler.z);
+
+    return true;
+  }
+
+  rotateGroup90(groupId: GroupId, axis: "x" | "y" | "z", dir: 1 | -1): boolean {
+    const g = this.groups.get(groupId);
+    if (!g) return false;
+
+    const next = { ...g.rotation };
+    next[axis] = normalizeQuarterTurn(next[axis] + dir);
+    return this.setGroupRotation(groupId, next);
+  }
+
   getGroupSnapshot(groupId: GroupId): GroupState | null {
     const g = this.groups.get(groupId);
     if (!g) return null;
@@ -857,6 +939,7 @@ export class VoxelWorld {
         assetKind: g.source.assetKind,
         overrideAssetId: g.source.overrideAssetId ?? null,
         position: { ...g.position },
+        rotation: { ...g.rotation },
       });
     }
 
@@ -883,6 +966,7 @@ export class VoxelWorld {
         instanceId: inst.instanceId,
         sourceAssetId: inst.assetId,
         sourceAssetKind: inst.assetKind,
+        rotation: inst.rotation ?? { x: 0, y: 0, z: 0 },
       });
 
       const gid = this.listGroupIds().at(-1);
@@ -952,20 +1036,27 @@ export class VoxelWorld {
     if (g) return g;
 
     const instanceId = makeRuntimeId();
+    const rotation = normalizeRotation();
 
     const root = new THREE.Group();
     root.name = `voxel-group:${groupId}`;
     root.position.set(position.x, position.y, position.z);
+
+    const euler = rotationToEuler(rotation);
+    root.rotation.set(euler.x, euler.y, euler.z);
+
     root.userData.groupId = groupId;
     root.userData.instanceId = instanceId;
     root.userData.sourceAssetId = null;
     root.userData.sourceAssetKind = null;
     root.userData.overrideAssetId = null;
+    root.userData.rotation = { ...rotation };
 
     this.scene.add(root);
 
     g = {
       position: { ...position },
+      rotation,
       root,
       voxels: new Map(),
       source: {

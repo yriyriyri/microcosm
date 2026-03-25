@@ -1381,7 +1381,7 @@ export default function VoxelWorldEditor(props: {
                 let axis: "x" | "y" | "z" = "y"; 
                 if (tool === "upmovement") axis = "x";
               
-                const ok = (w as any).rotateGroupLocals90?.(gid, axis, dir);
+                const ok = w.rotateGroup90?.(gid, axis, dir);
                 if (!ok) return;
               
                 pendingGroupBoxesSyncRef.current = true;

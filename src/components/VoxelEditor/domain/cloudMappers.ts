@@ -73,7 +73,7 @@ export function worldRecordToWorldDocument(
       assetKind: inst.assetKind!,
       overrideAssetId: inst.overrideAssetId ?? null,
       position: inst.position,
-      rotation: { x: 0, y: 0, z: 0 },
+      rotation: inst.rotation ?? { x: 0, y: 0, z: 0 },
     }));
 
   return {
@@ -96,6 +96,7 @@ export function worldDocumentToSaveWorldInput(
     assetKind: inst.assetKind,
     overrideAssetId: inst.overrideAssetId ?? null,
     position: inst.position,
+    rotation: inst.rotation ?? { x: 0, y: 0, z: 0 },
   }));
 
   const data: WorldData = { instances };
