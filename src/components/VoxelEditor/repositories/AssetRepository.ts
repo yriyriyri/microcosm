@@ -7,8 +7,11 @@ import type {
 import type {
   DraftAssetDocument,
   MarketplaceAssetDocument,
+  SaveDraftAssetDocumentInput,
+  SaveMarketplaceAssetDocumentInput,
 } from "../domain/cloudAssetTypes";
 import type { GroupState } from "../VoxelWorld";
+
 
 export type AssetKvValue = unknown;
 
@@ -66,6 +69,12 @@ export interface AssetRepository {
     id: AssetId,
     creatorAccountId?: string | null
   ): Promise<MarketplaceAssetDocument | null>;
+
+  saveMarketplaceAssetDocument(
+    input: SaveMarketplaceAssetDocumentInput
+  ): Promise<AssetId>;
+  
+  saveDraftAssetDocument(input: SaveDraftAssetDocumentInput): Promise<AssetId>;
 
   renameAsset(id: AssetId, name: string): Promise<void>;
   deleteAsset(id: AssetId): Promise<void>;

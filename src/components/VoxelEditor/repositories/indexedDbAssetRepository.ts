@@ -9,12 +9,15 @@ import type {
 import {
   assetRecordToDraftAssetDocument,
   assetRecordToMarketplaceAssetDocument,
+  draftAssetDocumentToSaveAssetInput,
+  marketplaceAssetDocumentToSaveAssetInput,
 } from "../domain/cloudMappers";
 import type {
   DraftAssetDocument,
   MarketplaceAssetDocument,
+  SaveDraftAssetDocumentInput,
+  SaveMarketplaceAssetDocumentInput,
 } from "../domain/cloudAssetTypes";
-
 import type { AssetMeta } from "../database/AssetDb";
 
 import {
@@ -177,6 +180,18 @@ export class IndexedDbAssetRepository implements AssetRepository {
     const record = await this.loadAsset(id);
     if (!record) return null;
     return assetRecordToMarketplaceAssetDocument(record, creatorAccountId);
+  }
+
+  async saveDraftAssetDocument(
+    input: SaveDraftAssetDocumentInput
+  ): Promise<AssetId> {
+    return await this.saveAsset(draftAssetDocumentToSaveAssetInput(input));
+  }
+
+  async saveMarketplaceAssetDocument(
+    input: SaveMarketplaceAssetDocumentInput
+  ): Promise<AssetId> {
+    return await this.saveAsset(marketplaceAssetDocumentToSaveAssetInput(input));
   }
 
   async renameAsset(id: AssetId, name: string): Promise<void> {

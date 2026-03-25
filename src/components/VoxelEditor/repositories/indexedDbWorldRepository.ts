@@ -5,10 +5,14 @@ import type {
   WorldMetaRecord,
   WorldRecord,
 } from "../domain/worldTypes";
-
-import { worldRecordToWorldDocument } from "../domain/cloudMappers";
-import type { WorldDocument } from "../domain/cloudWorldTypes";
-
+import {
+  worldRecordToWorldDocument,
+  worldDocumentToSaveWorldInput,
+} from "../domain/cloudMappers";
+import type {
+  SaveWorldDocumentInput,
+  WorldDocument,
+} from "../domain/cloudWorldTypes";
 import {
   deleteIsland,
   findIslandIdByName,
@@ -55,5 +59,9 @@ export class IndexedDbWorldRepository implements WorldRepository {
     const record = await this.loadWorld(id);
     if (!record) return null;
     return worldRecordToWorldDocument(record, ownerAccountId);
+  }
+
+  async saveWorldDocument(input: SaveWorldDocumentInput): Promise<WorldId> {
+    return await this.saveWorld(worldDocumentToSaveWorldInput(input));
   }
 }

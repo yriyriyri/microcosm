@@ -4,7 +4,7 @@ import type {
   WorldMetaRecord,
   WorldRecord,
 } from "../domain/worldTypes";
-import type { WorldDocument } from "../domain/cloudWorldTypes";
+import type { SaveWorldDocumentInput, WorldDocument } from "../domain/cloudWorldTypes";
 
 export interface WorldRepository {
   listWorlds(): Promise<WorldMetaRecord[]>;
@@ -18,4 +18,5 @@ export interface WorldRepository {
     id: WorldId,
     ownerAccountId?: string | null
   ): Promise<WorldDocument | null>;
+  saveWorldDocument(input: SaveWorldDocumentInput): Promise<WorldId>;
 }

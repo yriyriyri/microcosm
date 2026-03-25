@@ -2,6 +2,13 @@ import type { AssetRecord, AssetMetaRecord } from "./assetTypes";
 import type { WorldRecord } from "./worldTypes";
 import type { DraftAssetDocument, MarketplaceAssetDocument } from "./cloudAssetTypes";
 import type { WorldDocument, WorldInstanceDocument } from "./cloudWorldTypes";
+import type { SaveAssetInput } from "./assetTypes";
+import type { SaveWorldInput, WorldData, WorldInstanceRecord } from "./worldTypes";
+import type {
+  SaveDraftAssetDocumentInput,
+  SaveMarketplaceAssetDocumentInput,
+} from "./cloudAssetTypes";
+import type { SaveWorldDocumentInput } from "./cloudWorldTypes";
 
 function inferDraftKind(meta: AssetMetaRecord): "normal" | "override" {
   return meta.inLibrary === false ? "override" : "normal";
@@ -79,5 +86,73 @@ export function worldRecordToWorldDocument(
     createdAt: world.meta.createdAt,
     updatedAt: world.meta.updatedAt,
     thumbStorageKey: null,
+  };
+}
+
+export function draftAssetDocumentToSaveAssetInput(
+  doc: SaveDraftAssetDocumentInput
+): SaveAssetInput {
+  return {
+    id: doc.assetId,
+    name: doc.name,
+    group: doc.voxelGroup,
+    thumb: null,
+
+    visibility: "private",
+    inLibrary: doc.isLibraryItem ?? (doc.draftKind !== "override"),
+    isPreset: false,
+
+    sourceAssetId: doc.sourceAssetId ?? null,
+    linkedMarketplaceAssetId: doc.linkedMarketplaceAssetId ?? null,
+    lineageAssetIds: doc.lineageAssetIds ?? [],
+    publishedFromAssetId: null,
+    isImmutable: false,
+
+    forceNewId: !doc.assetId,
+  };
+}
+
+export function marketplaceAssetDocumentToSaveAssetInput(
+  doc: SaveMarketplaceAssetDocumentInput
+): SaveAssetInput {
+  return {
+    id: doc.assetId,
+    name: doc.name,
+    group: doc.voxelGroup,
+    thumb: null,
+
+    visibility: "marketplace",
+    inLibrary: false,
+    isPreset: false,
+
+    sourceAssetId: doc.sourceAssetId ?? null,
+    linkedMarketplaceAssetId: null,
+    lineageAssetIds: doc.lineageAssetIds ?? [],
+    publishedFromAssetId: doc.publishedFromDraftAssetId ?? null,
+    isImmutable: true,
+
+    forceNewId: !doc.assetId,
+  };
+}
+
+export function worldDocumentToSaveWorldInput(
+  doc: SaveWorldDocumentInput
+): SaveWorldInput {
+  const instances: WorldInstanceRecord[] = doc.instances.map((inst) => ({
+    instanceId: inst.instanceId,
+    assetId: inst.assetId,
+    assetVisibility: inst.assetKind === "marketplace" ? "marketplace" : "private",
+    overrideAssetId: inst.overrideAssetId ?? null,
+    overrideAssetVisibility: inst.overrideAssetId ? "private" : null,
+    position: inst.position,
+  }));
+
+  const data: WorldData = { instances };
+
+  return {
+    id: doc.worldId,
+    name: doc.name,
+    data,
+    thumb: null,
   };
 }

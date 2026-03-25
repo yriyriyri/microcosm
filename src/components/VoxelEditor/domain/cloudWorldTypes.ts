@@ -35,3 +35,16 @@ export type WorldDocument = {
 
   thumbStorageKey?: string | null;
 };
+
+export type SaveWorldDocumentInput = {
+  worldId?: CloudWorldId;
+  ownerAccountId: AccountId | null;
+
+  name: string;
+  instances: WorldInstanceDocument[];
+
+  createdAt?: number;
+  updatedAt?: number;
+
+  thumbStorageKey?: string | null;
+};
