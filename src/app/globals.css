@@ -49,24 +49,30 @@ label {
   font: inherit;
 }
 
-.pix-icon {
-  display: inline-block;
+.pix-icon,
+.pix-input {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 
   transform: translateZ(0) scale(1);
   transform-origin: center;
   transition: transform 120ms ease-out;
-  cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-.pix-icon:hover {
+.pix-icon {
+  display: inline-block;
+  cursor: pointer;
+}
+
+.pix-icon:hover,
+.pix-input:hover {
   transform: translateZ(0) scale(1.08);
 }
 
-.pix-icon:active {
+.pix-icon:active,
+.pix-input:active {
   transform: translateZ(0) scale(0.92);
   transition: transform 60ms ease-in;
 }
