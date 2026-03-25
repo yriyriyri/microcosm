@@ -1,31 +1,95 @@
 "use client";
 
 import React, { FormEvent, useRef, useState } from "react";
-import { Login, Me } from "@/services/auth";
+import { Login, Me, Register } from "@/services/auth";
 import { useAuthState } from "./state";
+
+type Mode = "login" | "signup";
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 export default function LoginScreen() {
   const { auth, setAuth } = useAuthState();
 
+  const [mode, setMode] = useState<Mode>("login");
+
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const inputUsernameRef = useRef<HTMLInputElement>(null);
+  const inputEmailRef = useRef<HTMLInputElement>(null);
   const inputPasswordRef = useRef<HTMLInputElement>(null);
+  const inputConfirmPasswordRef = useRef<HTMLInputElement>(null);
 
-  const handleUsernameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      inputPasswordRef.current?.focus();
+  const isSignup = mode === "signup";
+
+  const finalizeAuthenticatedSession = async (accessToken: string) => {
+    const provisionalAuth = {
+      ...auth,
+      isAuthenticated: true,
+      accessToken,
+      me: null,
+      bootstrapped: true,
+    };
+
+    setAuth(provisionalAuth);
+
+    try {
+      const me = await Me(accessToken);
+      setAuth({
+        ...provisionalAuth,
+        me,
+      });
+    } catch {
+      setAuth(provisionalAuth);
     }
   };
 
+  const handleUsernameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+
+    if (isSignup) inputEmailRef.current?.focus();
+    else inputPasswordRef.current?.focus();
+  };
+
+  const handleEmailKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    inputPasswordRef.current?.focus();
+  };
+
   const handlePasswordKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      handleSubmit(e);
-    }
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+
+    if (isSignup) inputConfirmPasswordRef.current?.focus();
+    else handleSubmit(e);
+  };
+
+  const handleConfirmPasswordKeyDown = (
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    handleSubmit(e);
+  };
+
+  const switchMode = (nextMode: Mode) => {
+    if (isSubmitting) return;
+
+    setMode(nextMode);
+    setErrorMessage(null);
+    setPassword("");
+    setConfirmPassword("");
+    if (nextMode === "login") setEmail("");
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -35,37 +99,100 @@ export default function LoginScreen() {
     setIsSubmitting(true);
     setErrorMessage(null);
 
+    const trimmedUsername = username.trim();
+    const trimmedEmail = email.trim();
+
     try {
-      const response = await Login(username.trim(), password);
+      if (isSignup) {
+        if (!trimmedUsername) {
+          setErrorMessage("you missed a spot");
+          inputUsernameRef.current?.focus();
+          return;
+        }
+
+        if (!trimmedEmail) {
+          setErrorMessage("you missed a spot");
+          inputEmailRef.current?.focus();
+          return;
+        }
+
+        if (!isValidEmail(trimmedEmail)) {
+          setErrorMessage("nice try :D");
+          inputEmailRef.current?.focus();
+          return;
+        }
+
+        if (!password) {
+          setErrorMessage("you missed a spot");
+          inputPasswordRef.current?.focus();
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          setErrorMessage("i think you made a typo");
+          inputConfirmPasswordRef.current?.focus();
+          return;
+        }
+
+        try {
+          const registerResponse = await Register(
+            trimmedUsername,
+            trimmedEmail,
+            password
+          );
+
+          if (registerResponse.status !== 200 && registerResponse.status !== 201) {
+            setErrorMessage("create user failed");
+            return;
+          }
+        } catch (err: any) {
+          const message = err?.response?.data?.message as string | undefined;
+
+          if (message?.startsWith("user ") && message?.endsWith(" exist")) {
+            setErrorMessage("username already taken");
+            inputUsernameRef.current?.focus();
+            return;
+          }
+
+          if (message?.startsWith("email ") && message?.endsWith(" exist")) {
+            setErrorMessage("email already in use");
+            inputEmailRef.current?.focus();
+            return;
+          }
+
+          if (message === "send email error") {
+            // user still created, continue to login
+          } else {
+            setErrorMessage("create user failed");
+            return;
+          }
+        }
+
+        const loginResponse = await Login(trimmedUsername, password);
+
+        if (loginResponse.status === 200) {
+          const accessToken = loginResponse.data?.access_token ?? "";
+          await finalizeAuthenticatedSession(accessToken);
+        } else {
+          setErrorMessage("created user but login failed");
+        }
+
+        return;
+      }
+
+      const response = await Login(trimmedUsername, password);
 
       if (response.status === 200) {
         const accessToken = response.data?.access_token ?? "";
-
-        const provisionalAuth = {
-          ...auth,
-          isAuthenticated: true,
-          accessToken,
-          me: null,
-          bootstrapped: true,
-        };
-
-        setAuth(provisionalAuth);
-
-        try {
-          const me = await Me(accessToken);
-          setAuth({
-            ...provisionalAuth,
-            me,
-          });
-        } catch {
-          setAuth(provisionalAuth);
-        }
+        await finalizeAuthenticatedSession(accessToken);
       } else {
         setErrorMessage("login failed");
       }
     } catch (err: any) {
       if (err?.response?.status === 401) {
-        setErrorMessage("invalid username or password");
+        setErrorMessage(
+          isSignup ? "created user but login failed" : "invalid username or password"
+        );
       } else {
         setErrorMessage("unknown error");
       }
@@ -90,7 +217,6 @@ export default function LoginScreen() {
         padding: 24,
       }}
     >
-
       <style>{`
         @keyframes loginLogoBob {
           0%   { transform: translate3d(0, 0px, 0); }
@@ -210,6 +336,48 @@ export default function LoginScreen() {
               />
             </div>
 
+            {isSignup && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  width: "var(--form-width)",
+                  margin: "6px auto 0",
+                }}
+              >
+                <input
+                  ref={inputEmailRef}
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  placeholder="email"
+                  className="voxl-login-input pix-input"
+                  value={email}
+                  disabled={isSubmitting}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onKeyDown={handleEmailKeyDown}
+                  style={{
+                    background: "rgb(225, 249, 254)",
+                    boxShadow: "0 0 2px 2px #DBFAFF, 0 0 0 1px #DBFAFF",
+                    border: "none",
+                    borderRadius: 0,
+                    color: "#00324c",
+                    fontSize: "1rem",
+                    outline: "none",
+                    caretColor: "#00324c",
+                    fontFamily: "var(--font-eagle), monospace",
+                    flex: 1,
+                    minWidth: 0,
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    letterSpacing: "0.06em",
+                  }}
+                />
+              </div>
+            )}
+
             <div
               style={{
                 display: "flex",
@@ -224,7 +392,7 @@ export default function LoginScreen() {
                 ref={inputPasswordRef}
                 type="password"
                 name="password"
-                autoComplete="current-password"
+                autoComplete={isSignup ? "new-password" : "current-password"}
                 placeholder="password"
                 className="voxl-login-input pix-input"
                 value={password}
@@ -249,6 +417,48 @@ export default function LoginScreen() {
                 }}
               />
             </div>
+
+            {isSignup && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  width: "var(--form-width)",
+                  margin: "6px auto 0",
+                }}
+              >
+                <input
+                  ref={inputConfirmPasswordRef}
+                  type="password"
+                  name="confirm-password"
+                  autoComplete="new-password"
+                  placeholder="confirm"
+                  className="voxl-login-input pix-input"
+                  value={confirmPassword}
+                  disabled={isSubmitting}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onKeyDown={handleConfirmPasswordKeyDown}
+                  style={{
+                    background: "rgb(225, 249, 254)",
+                    boxShadow: "0 0 2px 2px #DBFAFF, 0 0 0 1px #DBFAFF",
+                    border: "none",
+                    borderRadius: 0,
+                    color: "#00324c",
+                    fontSize: "1rem",
+                    outline: "none",
+                    caretColor: "#00324c",
+                    fontFamily: "var(--font-eagle), monospace",
+                    flex: 1,
+                    minWidth: 0,
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    letterSpacing: "0.06em",
+                  }}
+                />
+              </div>
+            )}
 
             <div
               style={{
@@ -291,12 +501,18 @@ export default function LoginScreen() {
                   cursor: isSubmitting ? "default" : "pointer",
                 }}
               >
-                {isSubmitting ? "logging in..." : "Lets Go !"}
+                {isSubmitting
+                  ? isSignup
+                    ? "creating..."
+                    : "logging in..."
+                  : "Lets Go !"}
               </button>
 
               <button
                 type="button"
                 className="pix-icon"
+                onClick={() => switchMode(isSignup ? "login" : "signup")}
+                disabled={isSubmitting}
                 style={{
                   appearance: "none",
                   background: "transparent",
@@ -308,10 +524,10 @@ export default function LoginScreen() {
                   color: "#DBFAFF",
                   letterSpacing: "0.06em",
                   opacity: 0.6,
-                  cursor: "pointer",
+                  cursor: isSubmitting ? "default" : "pointer",
                 }}
               >
-                sign up
+                {isSignup ? "sign in" : "sign up"}
               </button>
             </div>
           </form>
