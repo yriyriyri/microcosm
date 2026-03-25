@@ -375,7 +375,12 @@ export default function VoxelPartEditor(props: {
   const effectiveAssetKind =
     currentGroupSource?.assetKind ?? sourceAssetKind ?? null;
 
-  const sourceAssetIsPlainPrivate =
+  const sourceAssetIsMutablePrivate =
+    !!sourceAssetMeta &&
+    sourceAssetMeta.visibility === "private" &&
+    !sourceAssetMeta.isImmutable;
+  
+  const sourceAssetIsStructurallyOverwritable =
     !!sourceAssetMeta &&
     sourceAssetMeta.visibility === "private" &&
     !sourceAssetMeta.linkedMarketplaceAssetId &&
@@ -390,7 +395,7 @@ export default function VoxelPartEditor(props: {
     hasStructuralChanges && !!effectiveAssetMeta;
 
   const showOverwriteButton =
-    hasStructuralChanges && sourceAssetIsPlainPrivate;
+    hasStructuralChanges && sourceAssetIsStructurallyOverwritable;
 
   const canonicalRemixBaseMeta =
     sourceAssetMeta ?? effectiveAssetMeta ?? null;
@@ -430,7 +435,7 @@ export default function VoxelPartEditor(props: {
         }
       } else {
         if (!hasStructuralChanges) {
-          if (sourceAssetMeta && sourceAssetIsPlainPrivate) {
+          if (sourceAssetMeta && sourceAssetIsMutablePrivate) {
             const sourceId = sourceAssetMeta.id;
   
             await assetRepository.saveNonStructuralAssetProgress({
@@ -463,7 +468,7 @@ export default function VoxelPartEditor(props: {
   async function handleOverwriteAsset() {
     const snapshot = getFocusedSnapshot();
     if (!snapshot || !world || !groupId || !sourceAssetMeta) return;
-    if (!sourceAssetIsPlainPrivate) return;
+    if (!sourceAssetIsStructurallyOverwritable) return;
 
     const overrideIdToDelete = currentOverrideAssetId;
     const originalSourceAssetId = sourceAssetMeta.id;
