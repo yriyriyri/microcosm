@@ -1,7 +1,7 @@
 import type { GroupState } from "../VoxelWorld";
 
 export type AssetId = string;
-export type AssetVisibility = "private" | "marketplace" | "system";
+export type AssetVisibility = "private" | "marketplace";
 
 export type AssetMetaRecord = {
   id: AssetId;

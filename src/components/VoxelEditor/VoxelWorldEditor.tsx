@@ -98,7 +98,7 @@ export default function VoxelWorldEditor(props: {
   const placingAssetRef = useRef<{
     metaId: string;
     metaName: string;
-    metaVisibility: "private" | "marketplace" | "system";
+    metaKind: "draft" | "marketplace";
     group: GroupState;
   } | null>(null);
 
@@ -346,7 +346,7 @@ export default function VoxelWorldEditor(props: {
         at: g.position,
         baseId: g.groupId,
         sourceAssetId: assetId,
-        sourceAssetVisibility: "private",
+        sourceAssetKind: "draft",
       });
     }
   
@@ -442,7 +442,7 @@ export default function VoxelWorldEditor(props: {
   
     w.setGroupSource(params.groupId, {
       assetId,
-      assetVisibility: "private",
+      assetKind: "draft",
     });
   
     return assetId;
@@ -594,7 +594,7 @@ export default function VoxelWorldEditor(props: {
     placingAssetRef.current = {
       metaId: loaded.meta.id,
       metaName: loaded.meta.name,
-      metaVisibility: loaded.meta.visibility,
+      metaKind: loaded.meta.visibility === "marketplace" ? "marketplace" : "draft",
       group: loaded.group,
     };
   
@@ -932,7 +932,7 @@ export default function VoxelWorldEditor(props: {
           at: pos,
           baseId: placingAssetRef.current.metaName,
           sourceAssetId: placingAssetRef.current.metaId,
-          sourceAssetVisibility: placingAssetRef.current.metaVisibility,
+          sourceAssetKind: placingAssetRef.current.metaKind,
         });
     
         play("placePart");

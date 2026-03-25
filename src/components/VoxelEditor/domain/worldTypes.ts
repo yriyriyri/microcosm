@@ -1,14 +1,13 @@
-import type { AssetVisibility } from "../VoxelWorld";
 import type { VoxelCoord } from "../Types";
 
 export type WorldId = string;
+export type WorldAssetKind = "draft" | "marketplace";
 
 export type WorldInstanceRecord = {
   instanceId: string;
   assetId: string | null;
-  assetVisibility: AssetVisibility | null;
+  assetKind: WorldAssetKind | null;
   overrideAssetId?: string | null;
-  overrideAssetVisibility?: AssetVisibility | null;
   position: VoxelCoord;
 };
 

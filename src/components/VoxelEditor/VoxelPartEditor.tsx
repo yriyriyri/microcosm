@@ -146,9 +146,8 @@ export default function VoxelPartEditor(props: {
   open: boolean;
   groupId: string | null;
   sourceAssetId: string | null;
-  sourceAssetVisibility: "private" | "marketplace" | "system" | null;
+  sourceAssetKind: "draft" | "marketplace" | null;
   overrideAssetId: string | null;
-  overrideAssetVisibility: "private" | "marketplace" | "system" | null;
   world: VoxelWorld | null;
   onExit: () => void;
 }) {
@@ -156,9 +155,8 @@ export default function VoxelPartEditor(props: {
     open,
     groupId,
     sourceAssetId,
-    sourceAssetVisibility,
+    sourceAssetKind,
     overrideAssetId,
-    overrideAssetVisibility,
     world,
     onExit,
   } = props;
@@ -368,17 +366,14 @@ export default function VoxelPartEditor(props: {
   const currentOverrideAssetId =
     currentGroupSource?.overrideAssetId ?? overrideAssetId ?? null;
 
-  const currentOverrideAssetVisibility =
-    currentGroupSource?.overrideAssetVisibility ?? overrideAssetVisibility ?? null;
-
-  const isEditingOverride = 
+  const isEditingOverride =
     !!currentOverrideAssetId;
 
-  const effectiveAssetId = 
+  const effectiveAssetId =
     currentOverrideAssetId ?? sourceAssetId ?? null;
 
-  const effectiveAssetVisibility =
-    currentOverrideAssetVisibility ?? sourceAssetVisibility ?? null;
+  const effectiveAssetKind =
+    currentGroupSource?.assetKind ?? sourceAssetKind ?? null;
 
   const sourceAssetIsPlainPrivate =
     !!sourceAssetMeta &&
@@ -446,7 +441,7 @@ export default function VoxelPartEditor(props: {
             await liveWorld.refreshInstancesFromSourceAsset({
               sourceAssetId: sourceId,
               nextAssetId: sourceId,
-              nextAssetVisibility: "private",
+              nextAssetKind: "draft",
               includeOverridden: false,
             });
           }
@@ -483,15 +478,14 @@ export default function VoxelPartEditor(props: {
 
       world.setGroupSource(groupId, {
         assetId: nextId,
-        assetVisibility: "private",
+        assetKind: "draft",
         overrideAssetId: null,
-        overrideAssetVisibility: null,
       });
 
       await world.refreshInstancesFromSourceAsset({
         sourceAssetId: originalSourceAssetId,
         nextAssetId: nextId,
-        nextAssetVisibility: "private",
+        nextAssetKind: "draft",
         includeOverridden: false,
       });
 
@@ -536,9 +530,8 @@ export default function VoxelPartEditor(props: {
   
       world.setGroupSource(groupId, {
         assetId: nextId,
-        assetVisibility: "private",
+        assetKind: "draft",
         overrideAssetId: null,
-        overrideAssetVisibility: null,
       });
   
       onExit();
@@ -589,7 +582,6 @@ export default function VoxelPartEditor(props: {
   
     world.setGroupSource(groupId, {
       overrideAssetId: nextOverrideId,
-      overrideAssetVisibility: "private",
     });
   }
 

@@ -50,6 +50,50 @@ function normalizeName(name: string): string {
   return name.trim().toLowerCase();
 }
 
+function txDone(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
+    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+  });
+}
+
+export async function deleteWorldDatabase(): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const openReq = indexedDB.open(DB_NAME);
+
+    openReq.onsuccess = () => {
+      const db = openReq.result;
+      db.close();
+
+      const deleteReq = indexedDB.deleteDatabase(DB_NAME);
+
+      deleteReq.onsuccess = () => resolve();
+      deleteReq.onerror = () =>
+        reject(deleteReq.error ?? new Error("Failed to delete world database"));
+      deleteReq.onblocked = () =>
+        reject(new Error("World database deletion blocked by an open connection"));
+    };
+
+    openReq.onerror = () =>
+      reject(openReq.error ?? new Error("Failed to open world database for deletion"));
+
+    openReq.onupgradeneeded = () => {
+      try {
+        openReq.transaction?.abort();
+      } catch {}
+    };
+  });
+}
+
+export async function deleteAllIslands(): Promise<void> {
+  const db = await openDb();
+  const tx = db.transaction([STORE_META, STORE_DATA], "readwrite");
+  tx.objectStore(STORE_META).clear();
+  tx.objectStore(STORE_DATA).clear();
+  await txDone(tx);
+}
+
 export async function findIslandIdByName(name: string): Promise<string | null> {
   const target = normalizeName(name);
   if (!target) return null;
@@ -57,14 +101,6 @@ export async function findIslandIdByName(name: string): Promise<string | null> {
   const metas = await listIslands();
   const hit = metas.find((m) => normalizeName(m.name) === target);
   return hit?.id ?? null;
-}
-
-function txDone(tx: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
-    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
-  });
 }
 
 export async function listIslands(): Promise<IslandMeta[]> {
@@ -87,7 +123,7 @@ export async function saveIsland(params: {
   name: string;
   data: WorldData;
   id?: string;
-  thumb?: Blob | null; 
+  thumb?: Blob | null;
 }): Promise<string> {
   const db = await openDb();
 
@@ -106,7 +142,7 @@ export async function saveIsland(params: {
     instanceCount: params.data.instances.length,
     thumb: params.thumb ?? existingMeta?.thumb ?? null,
   };
-  
+
   const data: IslandData = {
     id,
     data: params.data,

@@ -1,5 +1,7 @@
 import type { GroupState } from "../VoxelWorld";
 
+export type AssetVisibility = "private" | "marketplace";
+
 export type AssetMeta = {
   id: string;
   name: string;
@@ -7,9 +9,12 @@ export type AssetMeta = {
   updatedAt: number;
   voxelCount: number;
   thumb?: Blob | null;
-  visibility?: "private" | "marketplace" | "system";
+
+  visibility?: AssetVisibility;
   inLibrary?: boolean;
+
   isPreset?: boolean;
+
   sourceAssetId?: string | null;
   linkedMarketplaceAssetId?: string | null;
   lineageAssetIds?: string[];
@@ -23,7 +28,7 @@ type AssetData = {
 };
 
 const DB_NAME = "voxel_editor_assets_db";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const STORE_META = "asset_meta";
 const STORE_DATA = "asset_data";
@@ -50,14 +55,14 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_DATA)) {
         db.createObjectStore(STORE_DATA, { keyPath: "id" });
       }
-
       if (!db.objectStoreNames.contains(STORE_KV)) {
         db.createObjectStore(STORE_KV, { keyPath: "key" });
       }
     };
 
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error ?? new Error("Failed to open IndexedDB (assets)"));
+    req.onerror = () =>
+      reject(req.error ?? new Error("Failed to open IndexedDB (assets)"));
   });
 }
 
@@ -68,17 +73,24 @@ function normalizeName(name: string): string {
 function txDone(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
     tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error ?? new Error("IndexedDB transaction failed"));
-    tx.onabort = () => reject(tx.error ?? new Error("IndexedDB transaction aborted"));
+    tx.onerror = () =>
+      reject(tx.error ?? new Error("IndexedDB transaction failed"));
+    tx.onabort = () =>
+      reject(tx.error ?? new Error("IndexedDB transaction aborted"));
   });
 }
 
+function normalizeVisibility(
+  visibility?: AssetVisibility | "system"
+): AssetVisibility {
+  if (visibility === "system") return "marketplace";
+  return visibility ?? "private";
+}
+
 function normalizeAssetMeta(meta: AssetMeta): AssetMeta {
-  const visibility = meta.visibility ?? "private";
-  const isImmutable =
-    meta.isImmutable ?? (visibility === "marketplace" || visibility === "system");
-  const inLibrary =
-    meta.inLibrary ?? (visibility === "private");
+  const visibility = normalizeVisibility(meta.visibility);
+  const isImmutable = meta.isImmutable ?? visibility === "marketplace";
+  const inLibrary = meta.inLibrary ?? visibility === "private";
 
   return {
     ...meta,
@@ -87,10 +99,40 @@ function normalizeAssetMeta(meta: AssetMeta): AssetMeta {
     isPreset: meta.isPreset ?? false,
     sourceAssetId: meta.sourceAssetId ?? null,
     linkedMarketplaceAssetId: meta.linkedMarketplaceAssetId ?? null,
-    lineageAssetIds: Array.isArray(meta.lineageAssetIds) ? meta.lineageAssetIds : [],
+    lineageAssetIds: Array.isArray(meta.lineageAssetIds)
+      ? meta.lineageAssetIds
+      : [],
     publishedFromAssetId: meta.publishedFromAssetId ?? null,
     isImmutable,
   };
+}
+
+export async function deleteAssetDatabase(): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const openReq = indexedDB.open(DB_NAME);
+
+    openReq.onsuccess = () => {
+      const db = openReq.result;
+      db.close();
+
+      const deleteReq = indexedDB.deleteDatabase(DB_NAME);
+
+      deleteReq.onsuccess = () => resolve();
+      deleteReq.onerror = () =>
+        reject(deleteReq.error ?? new Error("Failed to delete asset database"));
+      deleteReq.onblocked = () =>
+        reject(new Error("Asset database deletion blocked by an open connection"));
+    };
+
+    openReq.onerror = () =>
+      reject(openReq.error ?? new Error("Failed to open asset database for deletion"));
+
+    openReq.onupgradeneeded = () => {
+      try {
+        openReq.transaction?.abort();
+      } catch {}
+    };
+  });
 }
 
 export async function getKv<T = any>(key: string): Promise<T | null> {
@@ -98,7 +140,8 @@ export async function getKv<T = any>(key: string): Promise<T | null> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction([STORE_KV], "readonly");
     const req = tx.objectStore(STORE_KV).get(key);
-    req.onsuccess = () => resolve(((req.result as KvRow | undefined)?.value as T) ?? null);
+    req.onsuccess = () =>
+      resolve(((req.result as KvRow | undefined)?.value as T) ?? null);
     req.onerror = () => reject(req.error ?? new Error("Failed to read kv"));
   });
 }
@@ -144,7 +187,8 @@ export async function getAssetMeta(id: string): Promise<AssetMeta | null> {
       const row = (req.result as AssetMeta) ?? null;
       resolve(row ? normalizeAssetMeta(row) : null);
     };
-    req.onerror = () => reject(req.error ?? new Error("Failed to read asset meta"));
+    req.onerror = () =>
+      reject(req.error ?? new Error("Failed to read asset meta"));
   });
 }
 
@@ -153,7 +197,7 @@ export async function saveAsset(params: {
   group: GroupState;
   id?: string;
   thumb?: Blob | null;
-  visibility?: "private" | "marketplace" | "system";
+  visibility?: AssetVisibility;
   inLibrary?: boolean;
   isPreset?: boolean;
 
@@ -179,36 +223,42 @@ export async function saveAsset(params: {
 
   const existingMeta = await getAssetMeta(id).catch(() => null);
 
-  const nextVisibility = params.visibility ?? existingMeta?.visibility ?? "private";
+  const nextVisibility =
+    normalizeVisibility(params.visibility) ??
+    existingMeta?.visibility ??
+    "private";
+
   const nextImmutable =
     params.isImmutable ??
     existingMeta?.isImmutable ??
-    (nextVisibility === "marketplace" || nextVisibility === "system");
+    (nextVisibility === "marketplace");
 
   const nextInLibrary =
     params.inLibrary ??
     existingMeta?.inLibrary ??
     (nextVisibility === "private");
 
-    const meta: AssetMeta = normalizeAssetMeta({
-      id,
-      name: params.name,
-      createdAt: existingMeta?.createdAt ?? now,
-      updatedAt: now,
-      voxelCount,
-      thumb: params.thumb ?? existingMeta?.thumb ?? null,
-      visibility: nextVisibility,
-      inLibrary: nextInLibrary,
-      isPreset: params.isPreset ?? existingMeta?.isPreset ?? false,
-      sourceAssetId: params.sourceAssetId ?? existingMeta?.sourceAssetId ?? null,
-      linkedMarketplaceAssetId:
-        params.linkedMarketplaceAssetId ?? existingMeta?.linkedMarketplaceAssetId ?? null,
-      lineageAssetIds:
-        params.lineageAssetIds ?? existingMeta?.lineageAssetIds ?? [],
-      publishedFromAssetId:
-        params.publishedFromAssetId ?? existingMeta?.publishedFromAssetId ?? null,
-      isImmutable: nextImmutable,
-    });
+  const meta: AssetMeta = normalizeAssetMeta({
+    id,
+    name: params.name,
+    createdAt: existingMeta?.createdAt ?? now,
+    updatedAt: now,
+    voxelCount,
+    thumb: params.thumb ?? existingMeta?.thumb ?? null,
+    visibility: nextVisibility,
+    inLibrary: nextInLibrary,
+    isPreset: params.isPreset ?? existingMeta?.isPreset ?? false,
+    sourceAssetId: params.sourceAssetId ?? existingMeta?.sourceAssetId ?? null,
+    linkedMarketplaceAssetId:
+      params.linkedMarketplaceAssetId ??
+      existingMeta?.linkedMarketplaceAssetId ??
+      null,
+    lineageAssetIds:
+      params.lineageAssetIds ?? existingMeta?.lineageAssetIds ?? [],
+    publishedFromAssetId:
+      params.publishedFromAssetId ?? existingMeta?.publishedFromAssetId ?? null,
+    isImmutable: nextImmutable,
+  });
 
   const data: AssetData = {
     id,
@@ -235,7 +285,8 @@ export async function loadAsset(
     const tx = db.transaction([STORE_DATA], "readonly");
     const req = tx.objectStore(STORE_DATA).get(id);
     req.onsuccess = () => resolve((req.result as AssetData) ?? null);
-    req.onerror = () => reject(req.error ?? new Error("Failed to read asset data"));
+    req.onerror = () =>
+      reject(req.error ?? new Error("Failed to read asset data"));
   });
 
   if (!data) return null;
@@ -253,9 +304,10 @@ export async function deleteAsset(id: string): Promise<void> {
 
 export async function deleteAllAssets(): Promise<void> {
   const db = await openDb();
-  const tx = db.transaction([STORE_META, STORE_DATA], "readwrite");
+  const tx = db.transaction([STORE_META, STORE_DATA, STORE_KV], "readwrite");
   tx.objectStore(STORE_META).clear();
   tx.objectStore(STORE_DATA).clear();
+  tx.objectStore(STORE_KV).clear();
   await txDone(tx);
 }
 
@@ -285,9 +337,11 @@ export async function overwritePrivateAssetContent(params: {
   if (meta.visibility !== "private" || meta.isImmutable) {
     throw new Error("Only mutable private assets can be overwritten");
   }
-  
+
   if (meta.linkedMarketplaceAssetId) {
-    throw new Error("Marketplace-linked assets cannot be structurally overwritten");
+    throw new Error(
+      "Marketplace-linked assets cannot be structurally overwritten"
+    );
   }
 
   return await saveAsset({
@@ -396,7 +450,7 @@ export async function listMarketplaceAssets(): Promise<AssetMeta[]> {
   const all = await listAssets();
   return all.filter((a) => {
     const meta = normalizeAssetMeta(a);
-    return meta.visibility === "marketplace" || meta.visibility === "system";
+    return meta.visibility === "marketplace";
   });
 }
 
@@ -412,11 +466,14 @@ export async function listPublishedMarketplaceAssets(): Promise<AssetMeta[]> {
   const all = await listAssets();
   return all.filter((a) => {
     const meta = normalizeAssetMeta(a);
-    return meta.visibility === "marketplace";
+    return meta.visibility === "marketplace" && !meta.isPreset;
   });
 }
 
-export async function setAssetLibraryMembership(id: string, inLibrary: boolean): Promise<void> {
+export async function setAssetLibraryMembership(
+  id: string,
+  inLibrary: boolean
+): Promise<void> {
   const db = await openDb();
   const meta = await getAssetMeta(id);
   if (!meta) return;
@@ -459,7 +516,9 @@ export async function createPrivateAsset(params: {
   });
 }
 
-export async function publishAssetToMarketplace(assetId: string): Promise<string> {
+export async function publishAssetToMarketplace(
+  assetId: string
+): Promise<string> {
   const loaded = await loadAsset(assetId);
   if (!loaded) throw new Error("Asset not found");
 
@@ -518,8 +577,8 @@ export async function acquireMarketplaceAssetToLibrary(
 
   const sourceMeta = normalizeAssetMeta(loaded.meta);
 
-  if (sourceMeta.visibility !== "marketplace" && sourceMeta.visibility !== "system") {
-    throw new Error("Only marketplace/system assets can be acquired");
+  if (sourceMeta.visibility !== "marketplace") {
+    throw new Error("Only marketplace assets can be acquired");
   }
 
   const existing = (await listAssets()).find(
@@ -562,7 +621,9 @@ export async function exportAssetToFiles(id: string): Promise<void> {
 
   if (meta.thumb) {
     const pngBlob =
-      meta.thumb.type === "image/png" ? meta.thumb : new Blob([meta.thumb], { type: "image/png" });
+      meta.thumb.type === "image/png"
+        ? meta.thumb
+        : new Blob([meta.thumb], { type: "image/png" });
 
     downloadBlob(pngBlob, `${base}.png`);
   }

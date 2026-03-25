@@ -1,6 +1,5 @@
 import type { GroupState } from "../VoxelWorld";
 import { assetRepository } from "../repositories";
-import { getAssetMeta, saveAsset, getKv, setKv, listAssets } from "./AssetDb";
 
 type PresetManifest = {
   version: number;
@@ -138,9 +137,10 @@ export async function ensurePresetAssetsInstalled(opts?: {
         name: p.name,
         group,
         thumb,
-        visibility: "system",
+        visibility: "marketplace",
         inLibrary: false,
         isPreset: true,
+        isImmutable: true,
       });
     } finally {
       tick({ id: p.id, name: p.name });

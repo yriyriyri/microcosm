@@ -66,13 +66,11 @@ export function worldRecordToWorldDocument(
   ownerAccountId: string | null = null
 ): WorldDocument {
   const instances: WorldInstanceDocument[] = world.data.instances
-    .filter((inst) => !!inst.assetId)
+    .filter((inst) => !!inst.assetId && !!inst.assetKind)
     .map((inst) => ({
       instanceId: inst.instanceId,
       assetId: inst.assetId!,
-      assetKind: inst.assetVisibility === "marketplace" || inst.assetVisibility === "system"
-        ? "marketplace"
-        : "draft",
+      assetKind: inst.assetKind!,
       overrideAssetId: inst.overrideAssetId ?? null,
       position: inst.position,
       rotation: { x: 0, y: 0, z: 0 },
@@ -86,6 +84,27 @@ export function worldRecordToWorldDocument(
     createdAt: world.meta.createdAt,
     updatedAt: world.meta.updatedAt,
     thumbStorageKey: null,
+  };
+}
+
+export function worldDocumentToSaveWorldInput(
+  doc: SaveWorldDocumentInput
+): SaveWorldInput {
+  const instances: WorldInstanceRecord[] = doc.instances.map((inst) => ({
+    instanceId: inst.instanceId,
+    assetId: inst.assetId,
+    assetKind: inst.assetKind,
+    overrideAssetId: inst.overrideAssetId ?? null,
+    position: inst.position,
+  }));
+
+  const data: WorldData = { instances };
+
+  return {
+    id: doc.worldId,
+    name: doc.name,
+    data,
+    thumb: null,
   };
 }
 
@@ -132,27 +151,5 @@ export function marketplaceAssetDocumentToSaveAssetInput(
     isImmutable: true,
 
     forceNewId: !doc.assetId,
-  };
-}
-
-export function worldDocumentToSaveWorldInput(
-  doc: SaveWorldDocumentInput
-): SaveWorldInput {
-  const instances: WorldInstanceRecord[] = doc.instances.map((inst) => ({
-    instanceId: inst.instanceId,
-    assetId: inst.assetId,
-    assetVisibility: inst.assetKind === "marketplace" ? "marketplace" : "private",
-    overrideAssetId: inst.overrideAssetId ?? null,
-    overrideAssetVisibility: inst.overrideAssetId ? "private" : null,
-    position: inst.position,
-  }));
-
-  const data: WorldData = { instances };
-
-  return {
-    id: doc.worldId,
-    name: doc.name,
-    data,
-    thumb: null,
   };
 }

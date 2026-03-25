@@ -6,6 +6,7 @@ import { SoundProvider } from "@/components/VoxelEditor/audio/SoundProvider";
 import LoginScreen from "@/components/Auth/LoginScreen";
 import { useAuthState } from "@/components/Auth/state";
 import { Me } from "@/services/auth";
+import { nukeVoxelEditorDatabases } from "@/components/VoxelEditor/database/nukeEditorDatabases";
 
 function HomeClientInner() {
   const { auth, setAuth, clearAuth } = useAuthState();
@@ -53,11 +54,11 @@ function HomeClientInner() {
     };
   }, []);
 
-  //temp logout / auth get for testing
+  //temp logout + db helpers for testing
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-  
+
     (window as any).voxlAuth = {
       logout: () => {
         clearAuth();
@@ -65,10 +66,20 @@ function HomeClientInner() {
       },
       get: () => auth,
     };
-  
+
+    (window as any).voxlDb = {
+      nuke: async () => {
+        await nukeVoxelEditorDatabases();
+        window.location.reload();
+      },
+    };
+
     return () => {
       try {
         delete (window as any).voxlAuth;
+      } catch {}
+      try {
+        delete (window as any).voxlDb;
       } catch {}
     };
   }, [auth, clearAuth]);

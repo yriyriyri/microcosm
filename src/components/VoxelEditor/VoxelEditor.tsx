@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import VoxelWorldEditor from "./VoxelWorldEditor";
 import VoxelPartEditor from "./VoxelPartEditor";
-import type { VoxelWorld, AssetVisibility } from "./VoxelWorld";
+import type { VoxelWorld, AssetKind } from "./VoxelWorld";
 import { ensurePresetAssetsInstalled } from "./database/AssetPresets";
 import { useSound, useSoundLoading } from "@/components/VoxelEditor/audio/SoundProvider";
 import LoadingOverlay from "./ui/LoadingOverlay";
@@ -18,16 +18,14 @@ const AMBIENCE_FADE_MS = 220;
 
 type FocusedSourceContext = {
   assetId: string | null;
-  assetVisibility: AssetVisibility | null;
+  assetKind: AssetKind | null;
   overrideAssetId: string | null;
-  overrideAssetVisibility: AssetVisibility | null;
 };
 
 const EMPTY_FOCUSED_SOURCE: FocusedSourceContext = {
   assetId: null,
-  assetVisibility: null,
+  assetKind: null,
   overrideAssetId: null,
-  overrideAssetVisibility: null,
 };
 
 export default function VoxelEditor() {
@@ -151,9 +149,8 @@ export default function VoxelEditor() {
     setFocusedGroupId(groupId);
     setFocusedSource({
       assetId: src?.assetId ?? null,
-      assetVisibility: src?.assetVisibility ?? null,
+      assetKind: src?.assetKind ?? null,
       overrideAssetId: src?.overrideAssetId ?? null,
-      overrideAssetVisibility: src?.overrideAssetVisibility ?? null,
     });
     setFocusOpen(true);
   }, []);
@@ -200,9 +197,8 @@ export default function VoxelEditor() {
           open={focusOpen}
           groupId={focusedGroupId}
           sourceAssetId={focusedSource.assetId}
-          sourceAssetVisibility={focusedSource.assetVisibility}
+          sourceAssetKind={focusedSource.assetKind}
           overrideAssetId={focusedSource.overrideAssetId}
-          overrideAssetVisibility={focusedSource.overrideAssetVisibility}
           world={worldRef.current}
           onExit={onExitFocus}
         />

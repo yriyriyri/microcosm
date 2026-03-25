@@ -1,11 +1,15 @@
 import * as THREE from "three";
 import type { VoxelCoord } from "./Types";
 import { keyOf } from "./Types";
-import type { WorldData, WorldInstanceRecord } from "./domain/worldTypes";
+import type {
+  WorldAssetKind,
+  WorldData,
+  WorldInstanceRecord,
+} from "./domain/worldTypes";
 import { assetRepository } from "./repositories";
 
 export type GroupId = string;
-export type AssetVisibility = "private" | "marketplace" | "system";
+export type AssetKind = WorldAssetKind;
 
 //coordinates relative to group origin
 
@@ -22,9 +26,8 @@ export type LocalVoxel = {
 export type GroupSource = {
   instanceId: string;
   assetId: string | null;
-  assetVisibility: AssetVisibility | null;
+  assetKind: AssetKind | null;
   overrideAssetId: string | null;
-  overrideAssetVisibility: AssetVisibility | null;
 };
 
 //group three data + mesh + pos
@@ -295,55 +298,49 @@ export class VoxelWorld {
   setGroupSource(groupId: GroupId, source: Partial<GroupSource>): boolean {
     const g = this.groups.get(groupId);
     if (!g) return false;
-  
+
     g.source = {
       instanceId:
         source.instanceId !== undefined
           ? source.instanceId
           : g.source.instanceId,
-  
+
       assetId:
         source.assetId !== undefined
           ? source.assetId
           : g.source.assetId,
-  
-      assetVisibility:
-        source.assetVisibility !== undefined
-          ? source.assetVisibility
-          : g.source.assetVisibility,
-  
+
+      assetKind:
+        source.assetKind !== undefined
+          ? source.assetKind
+          : g.source.assetKind,
+
       overrideAssetId:
         source.overrideAssetId !== undefined
           ? source.overrideAssetId
           : g.source.overrideAssetId,
-  
-      overrideAssetVisibility:
-        source.overrideAssetVisibility !== undefined
-          ? source.overrideAssetVisibility
-          : g.source.overrideAssetVisibility,
     };
-  
+
     g.root.userData.instanceId = g.source.instanceId;
     g.root.userData.sourceAssetId = g.source.assetId;
-    g.root.userData.sourceAssetVisibility = g.source.assetVisibility;
+    g.root.userData.sourceAssetKind = g.source.assetKind;
     g.root.userData.overrideAssetId = g.source.overrideAssetId;
-    g.root.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
-  
+
     for (const v of g.voxels.values()) {
       v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
-      v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
+      v.mesh.userData.sourceAssetKind = g.source.assetKind;
       v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
-      v.mesh.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
     }
-  
+
     return true;
   }
 
   clearGroupSource(groupId: GroupId): boolean {
     return this.setGroupSource(groupId, {
       assetId: null,
-      assetVisibility: null,
+      assetKind: null,
+      overrideAssetId: null,
     });
   }
 
@@ -352,7 +349,11 @@ export class VoxelWorld {
     if (!g) return false;
 
     const oldPos = g.position;
-    if (oldPos.x === position.x && oldPos.y === position.y && oldPos.z === position.z) return true;
+    if (
+      oldPos.x === position.x &&
+      oldPos.y === position.y &&
+      oldPos.z === position.z
+    ) return true;
 
     for (const v of g.voxels.values()) {
       const world = {
@@ -379,9 +380,8 @@ export class VoxelWorld {
       v.mesh.userData.local = { ...v.local };
       v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
+      v.mesh.userData.sourceAssetKind = g.source.assetKind;
       v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
-      v.mesh.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
-      v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
     }
 
     return true;
@@ -394,23 +394,23 @@ export class VoxelWorld {
       baseId?: string;
       instanceId?: string;
       sourceAssetId?: string | null;
-      sourceAssetVisibility?: AssetVisibility | null;
+      sourceAssetKind?: AssetKind | null;
     }
   ): GroupId {
     const base = opts.baseId ?? state.groupId ?? "asset";
     const gid = this.makeUniqueGroupId(base);
-    
+
     this.addGroup(gid, { ...opts.at });
     this.setGroupSource(gid, {
       instanceId: opts.instanceId ?? makeRuntimeId(),
       assetId: opts.sourceAssetId ?? null,
-      assetVisibility: opts.sourceAssetVisibility ?? null,
+      assetKind: opts.sourceAssetKind ?? null,
     });
-    
+
     for (const v of state.voxels) {
       this.addVoxelLocal(gid, v.local, v.color, { isBlueprint: v.isBlueprint });
     }
-    
+
     return gid;
   }
 
@@ -470,9 +470,8 @@ export class VoxelWorld {
     v.mesh.userData.local = { ...nextLocal };
     v.mesh.userData.instanceId = to.source.instanceId;
     v.mesh.userData.sourceAssetId = to.source.assetId;
+    v.mesh.userData.sourceAssetKind = to.source.assetKind;
     v.mesh.userData.overrideAssetId = to.source.overrideAssetId;
-    v.mesh.userData.overrideAssetVisibility = to.source.overrideAssetVisibility;
-    v.mesh.userData.sourceAssetVisibility = to.source.assetVisibility;
 
     to.root.add(v.mesh);
     to.voxels.set(nextLocalKey, v);
@@ -483,12 +482,8 @@ export class VoxelWorld {
     const g = this.groups.get(groupId);
     if (!g || g.voxels.size === 0) return null;
 
-    let minX = Infinity,
-      minY = Infinity,
-      minZ = Infinity;
-    let maxX = -Infinity,
-      maxY = -Infinity,
-      maxZ = -Infinity;
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
     for (const v of g.voxels.values()) {
       const world = this.worldFrom(g.position, v.local);
@@ -510,8 +505,7 @@ export class VoxelWorld {
   getAllGroupBounds(): Map<GroupId, { min: VoxelCoord; max: VoxelCoord }> {
     const out = new Map<GroupId, { min: VoxelCoord; max: VoxelCoord }>();
 
-    for (const [groupId, g] of this.groups.entries()) {
-      if (g.voxels.size === 0) continue;
+    for (const [groupId] of this.groups.entries()) {
       const b = this.getGroupBounds(groupId);
       if (b) out.set(groupId, b);
     }
@@ -547,7 +541,8 @@ export class VoxelWorld {
       local: { ...v.local },
       groupPosition: { ...gp },
       sourceAssetId: g?.source.assetId ?? null,
-      sourceAssetVisibility: g?.source.assetVisibility ?? null,
+      sourceAssetKind: g?.source.assetKind ?? null,
+      overrideAssetId: g?.source.overrideAssetId ?? null,
     };
   }
 
@@ -589,9 +584,8 @@ export class VoxelWorld {
     mesh.userData.local = { ...local };
     mesh.userData.instanceId = g.source.instanceId;
     mesh.userData.sourceAssetId = g.source.assetId;
+    mesh.userData.sourceAssetKind = g.source.assetKind;
     mesh.userData.overrideAssetId = g.source.overrideAssetId;
-    mesh.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
-    mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
 
     g.root.add(mesh);
 
@@ -652,9 +646,7 @@ export class VoxelWorld {
     const gp = g.position;
 
     const rot = (p: VoxelCoord): VoxelCoord => {
-      const x = p.x | 0,
-        y = p.y | 0,
-        z = p.z | 0;
+      const x = p.x | 0, y = p.y | 0, z = p.z | 0;
 
       if (axis === "y") {
         return dir === 1 ? { x: z, y, z: -x } : { x: -z, y, z: x };
@@ -687,7 +679,6 @@ export class VoxelWorld {
       }
 
       v.local = { ...nextLocal };
-
       v.mesh.position.set(nextLocal.x + 0.5, nextLocal.y + 0.5, nextLocal.z + 0.5);
 
       const worldNew = this.worldFrom(gp, nextLocal);
@@ -697,10 +688,9 @@ export class VoxelWorld {
       v.mesh.userData.groupId = groupId;
       v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
+      v.mesh.userData.sourceAssetKind = g.source.assetKind;
       v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
-      v.mesh.userData.overrideAssetVisibility = g.source.overrideAssetVisibility;
-      v.mesh.userData.sourceAssetVisibility = g.source.assetVisibility;
-      
+
       nextVoxels.set(nextLocalKey, v);
       this.worldIndex.set(keyOf(worldNew), v);
     }
@@ -855,56 +845,54 @@ export class VoxelWorld {
 
   exportWorldData(): WorldData {
     const instances: WorldInstanceRecord[] = [];
-  
+
     for (const [groupId, g] of this.groups.entries()) {
       if (groupId === DEFAULT_GROUP) continue;
       if (!g.voxels.size) continue;
-      if (!g.source.assetId || !g.source.assetVisibility) continue;
-  
+      if (!g.source.assetId || !g.source.assetKind) continue;
+
       instances.push({
         instanceId: g.source.instanceId,
         assetId: g.source.assetId,
-        assetVisibility: g.source.assetVisibility,
+        assetKind: g.source.assetKind,
         overrideAssetId: g.source.overrideAssetId ?? null,
-        overrideAssetVisibility: g.source.overrideAssetVisibility ?? null,
         position: { ...g.position },
       });
     }
-  
+
     return { instances };
   }
 
   async importWorldData(data: WorldData): Promise<void> {
     this.clear();
-  
+
     for (const inst of data.instances) {
-      if (!inst.assetId || !inst.assetVisibility) continue;
-  
+      if (!inst.assetId || !inst.assetKind) continue;
+
       const renderAssetId = inst.overrideAssetId ?? inst.assetId;
       const loaded = await assetRepository.loadAsset(renderAssetId);
-  
+
       if (!loaded) {
         console.warn("Missing asset while importing world:", renderAssetId);
         continue;
       }
-  
+
       this.instantiateGroupState(loaded.group, {
         at: inst.position,
         baseId: loaded.meta.name,
         instanceId: inst.instanceId,
         sourceAssetId: inst.assetId,
-        sourceAssetVisibility: inst.assetVisibility,
+        sourceAssetKind: inst.assetKind,
       });
-  
+
       const gid = this.listGroupIds().at(-1);
       if (!gid) continue;
-  
+
       this.setGroupSource(gid, {
         instanceId: inst.instanceId,
         assetId: inst.assetId,
-        assetVisibility: inst.assetVisibility,
+        assetKind: inst.assetKind,
         overrideAssetId: inst.overrideAssetId ?? null,
-        overrideAssetVisibility: inst.overrideAssetVisibility ?? null,
       });
     }
   }
@@ -912,14 +900,14 @@ export class VoxelWorld {
   async refreshInstancesFromSourceAsset(params: {
     sourceAssetId: string;
     nextAssetId?: string;
-    nextAssetVisibility?: AssetVisibility | null;
+    nextAssetKind?: AssetKind | null;
     skipGroupId?: string | null;
     includeOverridden?: boolean;
   }): Promise<string[]> {
     const {
       sourceAssetId,
       nextAssetId,
-      nextAssetVisibility,
+      nextAssetKind,
       skipGroupId = null,
       includeOverridden = false,
     } = params;
@@ -943,13 +931,13 @@ export class VoxelWorld {
 
       this.setGroupVoxelsLocal(groupId, loaded.group.voxels, { keepPosition: true });
 
-      if (nextAssetId !== undefined || nextAssetVisibility !== undefined) {
+      if (nextAssetId !== undefined || nextAssetKind !== undefined) {
         this.setGroupSource(groupId, {
           assetId: nextAssetId !== undefined ? nextAssetId : g.source.assetId,
-          assetVisibility:
-            nextAssetVisibility !== undefined
-              ? nextAssetVisibility
-              : g.source.assetVisibility,
+          assetKind:
+            nextAssetKind !== undefined
+              ? nextAssetKind
+              : g.source.assetKind,
         });
       }
 
@@ -962,21 +950,20 @@ export class VoxelWorld {
   private ensureGroup(groupId: GroupId, position: VoxelCoord): GroupRecord {
     let g = this.groups.get(groupId);
     if (g) return g;
-  
+
     const instanceId = makeRuntimeId();
-  
+
     const root = new THREE.Group();
     root.name = `voxel-group:${groupId}`;
     root.position.set(position.x, position.y, position.z);
     root.userData.groupId = groupId;
     root.userData.instanceId = instanceId;
     root.userData.sourceAssetId = null;
-    root.userData.sourceAssetVisibility = null;
+    root.userData.sourceAssetKind = null;
     root.userData.overrideAssetId = null;
-    root.userData.overrideAssetVisibility = null;
-  
+
     this.scene.add(root);
-  
+
     g = {
       position: { ...position },
       root,
@@ -984,12 +971,11 @@ export class VoxelWorld {
       source: {
         instanceId,
         assetId: null,
-        assetVisibility: null,
+        assetKind: null,
         overrideAssetId: null,
-        overrideAssetVisibility: null,
       },
     };
-  
+
     this.groups.set(groupId, g);
     return g;
   }

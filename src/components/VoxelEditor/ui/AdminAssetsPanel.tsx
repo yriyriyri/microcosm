@@ -138,11 +138,7 @@ export default function AdminAssetsPanel(props: {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
         <span
           style={badgeStyle(
-            a.visibility === "private"
-              ? "#1d4ed8"
-              : a.visibility === "marketplace"
-              ? "#7c3aed"
-              : "#475569"
+            a.visibility === "private" ? "#1d4ed8" : "#7c3aed"
           )}
         >
           {a.visibility}
@@ -247,7 +243,6 @@ export default function AdminAssetsPanel(props: {
             const url = thumbUrls.get(a.id);
             const isPrivate = a.visibility === "private";
             const isMarketplace = a.visibility === "marketplace";
-            const isSystem = a.visibility === "system";
 
             return (
               <div key={a.id} style={{ border: "1px solid rgba(0,0,0,1)", padding: 10 }}>
@@ -311,7 +306,7 @@ export default function AdminAssetsPanel(props: {
                         </button>
                       )}
 
-                      {(isMarketplace || isSystem) && (
+                      {isMarketplace && (
                         <button
                           onClick={async () => {
                             try {
