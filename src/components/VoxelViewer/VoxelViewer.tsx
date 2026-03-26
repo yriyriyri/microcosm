@@ -48,13 +48,15 @@ type Bounds3 = {
   maxZ: number;
 };
 
-const PLAY_SKY_RADIUS_1 = 4000;
-const PLAY_SKY_RADIUS_2 = 3500;
-const PLAY_SKY_RADIUS_3 = 3000;
+const PLAY_SKY_RADIUS_0 = 8000;
+const PLAY_SKY_RADIUS_1 = 7500;
+const PLAY_SKY_RADIUS_2 = 7000;
+const PLAY_SKY_RADIUS_3 = 6500;
 
-const PLAY_SKY_SEGMENTS_W = 48;
-const PLAY_SKY_SEGMENTS_H = 32;
+const PLAY_SKY_SEGMENTS_W = 256;
+const PLAY_SKY_SEGMENTS_H = 160;
 
+const PLAY_SKY_ROT_SPEED_1 = 0.005;
 const PLAY_SKY_ROT_SPEED_2 = 0.01;
 const PLAY_SKY_ROT_SPEED_3 = 0.018;
 
@@ -136,8 +138,13 @@ export default function VoxelViewer(props: {
   const islandRootRef = useRef<THREE.Object3D | null>(null);
   const publishedWorldRootRef = useRef<THREE.Group | null>(null);
   const playSkyRootRef = useRef<THREE.Group | null>(null);
+  const playSkyCloud1Ref = useRef<THREE.Mesh | null>(null);
   const playSkyCloud2Ref = useRef<THREE.Mesh | null>(null);
   const playSkyCloud3Ref = useRef<THREE.Mesh | null>(null);
+  const playSkyPhase0Ref = useRef(Math.random() * Math.PI * 2);
+  const playSkyPhase1Ref = useRef(Math.random() * Math.PI * 2);
+  const playSkyPhase2Ref = useRef(Math.random() * Math.PI * 2);
+  const playSkyPhase3Ref = useRef(Math.random() * Math.PI * 2);
   const envRTRef = useRef<THREE.WebGLRenderTarget | null>(null);
 
   const jeffTemplateRef = useRef<THREE.Object3D | null>(null);
@@ -357,7 +364,7 @@ export default function VoxelViewer(props: {
       40,
       mount.clientWidth / mount.clientHeight,
       0.1,
-      10000
+      200000
     );
     camera.position.set(172.557, 77.391, 184.354);
     camera.lookAt(0, 0, 0);
@@ -538,15 +545,15 @@ export default function VoxelViewer(props: {
       tex.needsUpdate = true;
     };
 
-    texLoader.load("/player/skybox1.png", (texture) => {
+    texLoader.load("/player/skybox0.png", (texture) => {
       setupSkyTexture(texture);
-
+    
       const geometry = new THREE.SphereGeometry(
-        PLAY_SKY_RADIUS_1,
+        PLAY_SKY_RADIUS_0,
         PLAY_SKY_SEGMENTS_W,
         PLAY_SKY_SEGMENTS_H
       );
-
+    
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.BackSide,
@@ -554,21 +561,46 @@ export default function VoxelViewer(props: {
         depthWrite: false,
         fog: false,
       });
-
+    
       const mesh = new THREE.Mesh(geometry, material);
-      mesh.name = "play-sky-1";
+      mesh.name = "play-sky-0";
+      mesh.rotation.y = playSkyPhase0Ref.current;
       playSkyRoot.add(mesh);
     });
-
+    
+    texLoader.load("/player/skybox1.png", (texture) => {
+      setupSkyTexture(texture);
+    
+      const geometry = new THREE.SphereGeometry(
+        PLAY_SKY_RADIUS_1,
+        PLAY_SKY_SEGMENTS_W,
+        PLAY_SKY_SEGMENTS_H
+      );
+    
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.BackSide,
+        transparent: false,
+        depthWrite: false,
+        fog: false,
+      });
+    
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = "play-sky-1";
+      mesh.rotation.y = playSkyPhase1Ref.current;
+      playSkyRoot.add(mesh);
+      playSkyCloud1Ref.current = mesh;
+    });
+    
     texLoader.load("/player/skybox2.png", (texture) => {
       setupSkyTexture(texture);
-
+    
       const geometry = new THREE.SphereGeometry(
         PLAY_SKY_RADIUS_2,
         PLAY_SKY_SEGMENTS_W,
         PLAY_SKY_SEGMENTS_H
       );
-
+    
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.BackSide,
@@ -576,22 +608,23 @@ export default function VoxelViewer(props: {
         depthWrite: false,
         fog: false,
       });
-
+    
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = "play-sky-2";
+      mesh.rotation.y = playSkyPhase2Ref.current;
       playSkyRoot.add(mesh);
       playSkyCloud2Ref.current = mesh;
     });
-
+    
     texLoader.load("/player/skybox3.png", (texture) => {
       setupSkyTexture(texture);
-
+    
       const geometry = new THREE.SphereGeometry(
         PLAY_SKY_RADIUS_3,
         PLAY_SKY_SEGMENTS_W,
         PLAY_SKY_SEGMENTS_H
       );
-
+    
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.BackSide,
@@ -599,9 +632,10 @@ export default function VoxelViewer(props: {
         depthWrite: false,
         fog: false,
       });
-
+    
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = "play-sky-3";
+      mesh.rotation.y = playSkyPhase3Ref.current;
       playSkyRoot.add(mesh);
       playSkyCloud3Ref.current = mesh;
     });
@@ -724,6 +758,9 @@ export default function VoxelViewer(props: {
       lastMs = now;
 
       if (playModeRef.current) {
+        if (playSkyCloud1Ref.current) {
+          playSkyCloud1Ref.current.rotation.y += PLAY_SKY_ROT_SPEED_1 * dt;
+        }
         if (playSkyCloud2Ref.current) {
           playSkyCloud2Ref.current.rotation.y += PLAY_SKY_ROT_SPEED_2 * dt;
         }
@@ -805,6 +842,7 @@ export default function VoxelViewer(props: {
         disposeObject3D(playSkyRootRef.current);
         scene.remove(playSkyRootRef.current);
         playSkyRootRef.current = null;
+        playSkyCloud1Ref.current = null;
         playSkyCloud2Ref.current = null;
         playSkyCloud3Ref.current = null;
       }
