@@ -25,11 +25,18 @@ const DRIVE_MAX_DRIFT_ANGLE = Math.PI / 5;
 const DRIVE_DRIFT_BUILD_RESPONSE = 2.6;
 const DRIVE_DRIFT_RETURN_RESPONSE = 1.35;
 
+// temp flight controls
+const DRIVE_FLY_SPEED = 70;
+const DRIVE_BOOST_MULTIPLIER = 1.5;
+
 export type DriveMoveState = {
   forward: boolean;
   backward: boolean;
   left: boolean;
   right: boolean;
+  up: boolean;
+  down: boolean;
+  boost: boolean;
 };
 
 export type DriveState = {
@@ -49,6 +56,9 @@ export function createDriveMoveState(): DriveMoveState {
     backward: false,
     left: false,
     right: false,
+    up: false,
+    down: false,
+    boost: false,
   };
 }
 
@@ -77,6 +87,19 @@ export function handleDriveKeyDown(
   if (e.code === "KeyS") moveState.backward = true;
   if (e.code === "KeyA") moveState.left = true;
   if (e.code === "KeyD") moveState.right = true;
+
+  if (e.code === "Space") {
+    moveState.up = true;
+    e.preventDefault();
+  }
+
+  if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
+    moveState.down = true;
+  }
+
+  if (e.code === "KeyQ") {
+    moveState.boost = true;
+  }
 }
 
 export function handleDriveKeyUp(
@@ -87,6 +110,10 @@ export function handleDriveKeyUp(
   if (e.code === "KeyS") moveState.backward = false;
   if (e.code === "KeyA") moveState.left = false;
   if (e.code === "KeyD") moveState.right = false;
+
+  if (e.code === "Space") moveState.up = false;
+  if (e.code === "ShiftLeft" || e.code === "ShiftRight") moveState.down = false;
+  if (e.code === "KeyQ") moveState.boost = false;
 }
 
 export function enterDriveMode(params: {
@@ -136,6 +163,9 @@ export function exitDriveMode(params: {
   moveState.backward = false;
   moveState.left = false;
   moveState.right = false;
+  moveState.up = false;
+  moveState.down = false;
+  moveState.boost = false;
 
   if (camera) {
     camera.fov = 40;
@@ -165,13 +195,14 @@ export function updateDriveCamera(params: {
 
   const steerInput = (moveState.left ? 1 : 0) + (moveState.right ? -1 : 0);
   const throttleInput = (moveState.forward ? 1 : 0) - (moveState.backward ? 1 : 0);
+  const boostMul = moveState.boost ? DRIVE_BOOST_MULTIPLIER : 1;
 
   if (steerInput !== 0 && Math.abs(driveState.speed) > 0.1) {
     driveState.yaw += steerInput * DRIVE_TURN_SPEED * dt;
   }
 
   if (throttleInput > 0) {
-    driveState.speed += DRIVE_ACCEL * dt;
+    driveState.speed += DRIVE_ACCEL * boostMul * dt;
   } else if (throttleInput < 0) {
     driveState.speed -= DRIVE_BRAKE * dt;
   } else {
@@ -182,11 +213,11 @@ export function updateDriveCamera(params: {
   driveState.speed = clamp(
     driveState.speed,
     -DRIVE_MAX_REVERSE_SPEED,
-    DRIVE_MAX_FORWARD_SPEED
+    DRIVE_MAX_FORWARD_SPEED * boostMul
   );
 
   const speedAbs = Math.abs(driveState.speed);
-  const speed01 = clamp(speedAbs / DRIVE_MAX_FORWARD_SPEED, 0, 1);
+  const speed01 = clamp(speedAbs / (DRIVE_MAX_FORWARD_SPEED * DRIVE_BOOST_MULTIPLIER), 0, 1);
 
   let targetDriftAngle = 0;
   if (speedAbs >= DRIVE_MIN_DRIFT_SPEED) {
@@ -219,7 +250,10 @@ export function updateDriveCamera(params: {
   }
 
   vehicleRoot.position.addScaledVector(driveState.velocity, dt);
-  vehicleRoot.position.y = DRIVE_FLOOR_Y;
+
+  const verticalInput = (moveState.up ? 1 : 0) - (moveState.down ? 1 : 0);
+  vehicleRoot.position.y += verticalInput * DRIVE_FLY_SPEED * dt;
+
   vehicleRoot.rotation.y = driveState.yaw;
   vehicleRoot.updateMatrixWorld(true);
 
