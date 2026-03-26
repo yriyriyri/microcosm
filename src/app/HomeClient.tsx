@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import VoxelEditor from "@/components/VoxelEditor/VoxelEditor";
-import { SoundProvider } from "@/components/VoxelEditor/audio/SoundProvider";
 import LoginScreen from "@/components/Auth/LoginScreen";
 import { useAuthState } from "@/components/Auth/state";
 import { Me } from "@/services/auth";
@@ -113,8 +112,6 @@ function HomeClientInner() {
 
 export default function HomeClient() {
   return (
-    <SoundProvider>
-      <HomeClientInner />
-    </SoundProvider>
+    <HomeClientInner />
   );
 }

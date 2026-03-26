@@ -1,11 +1,11 @@
 import VoxelEditor from "@/components/VoxelEditor/VoxelEditor";
 
-export default function EditorWorldPage({
+export default async function EditorWorldPage({
   params,
 }: {
-  params: { worldId: string };
+  params: Promise<{ worldId: string }>;
 }) {
-  const { worldId } = params;
+  const { worldId } = await params;
 
   return (
     <div style={{ width: "100vw", height: "100vh", overflow: "hidden" }}>
