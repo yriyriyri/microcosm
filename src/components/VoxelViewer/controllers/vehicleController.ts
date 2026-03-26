@@ -24,7 +24,7 @@ const DRIVE_MAX_DRIFT_ANGLE = Math.PI / 5;
 const DRIVE_DRIFT_BUILD_RESPONSE = 2.6;
 const DRIVE_DRIFT_RETURN_RESPONSE = 1.35;
 
-const DRIVE_FLY_SPEED = 70;
+const DRIVE_FLY_SPEED = 40;
 const DRIVE_BOOST_MULTIPLIER = 1.5;
 
 export type DriveMoveState = {
