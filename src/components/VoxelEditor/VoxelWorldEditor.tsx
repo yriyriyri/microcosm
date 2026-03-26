@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { RGBELoader } from "three/examples/jsm/Addons.js";
+import { DRACOLoader, RGBELoader } from "three/examples/jsm/Addons.js";
 
 import { applyHeightMistToStandardMaterial } from "@/materials/heightMist";
 
@@ -844,7 +844,12 @@ export default function VoxelWorldEditor(props: {
       (err) => console.error("Failed to load HDRI /world/DayInTheClouds1K.hdr", err)
     );
 
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath("/draco/");
+    dracoLoader.preload();
+
     const gltfLoader = new GLTFLoader();
+    gltfLoader.setDRACOLoader(dracoLoader);
 
     gltfLoader.load(
       "/baked/island.glb",

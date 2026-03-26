@@ -11,6 +11,8 @@ import { listPublishedWorlds } from "@/services/publishedWorlds";
 import { GetUserProfile } from "@/services/user";
 import type { PublishedWorldDocument } from "@/components/VoxelEditor/domain/publishedWorldTypes";
 
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+
 import {
   createFpsMoveState,
   createFpsState,
