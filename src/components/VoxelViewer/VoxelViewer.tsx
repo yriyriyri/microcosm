@@ -83,6 +83,7 @@ export default function VoxelViewer(props: {
   const publishedWorldRootRef = useRef<THREE.Group | null>(null);
 
   const worldBoundsRef = useRef<Bounds3 | null>(null);
+  const playModeRef = useRef(false);
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [worldName, setWorldName] = useState<string>("");
@@ -92,6 +93,10 @@ export default function VoxelViewer(props: {
 
   const moveStateRef = useRef(createFpsMoveState());
   const fpStateRef = useRef(createFpsState());
+
+  useEffect(() => {
+    playModeRef.current = playMode;
+  }, [playMode]);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -244,7 +249,12 @@ export default function VoxelViewer(props: {
     window.addEventListener("resize", onResize);
 
     const onKeyDown = (e: KeyboardEvent) => {
-      handleFpsKeyDown(e, moveStateRef.current, fpStateRef.current.active);
+      handleFpsKeyDown(
+        e,
+        moveStateRef.current,
+        fpStateRef.current,
+        fpStateRef.current.active,
+      );
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
@@ -257,13 +267,20 @@ export default function VoxelViewer(props: {
 
     const onPointerLockChange = () => {
       const locked = document.pointerLockElement === renderer.domElement;
-      fpStateRef.current.active = locked && playMode;
+      fpStateRef.current.active = locked && playModeRef.current;
+    };
+
+    const onMouseDown = () => {
+      if (!playModeRef.current) return;
+      if (document.pointerLockElement === renderer.domElement) return;
+      renderer.domElement.requestPointerLock?.();
     };
 
     document.addEventListener("pointerlockchange", onPointerLockChange);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("pointermove", onPointerMove);
+    renderer.domElement.addEventListener("mousedown", onMouseDown);
 
     let lastMs = performance.now();
     let raf = 0;
@@ -282,8 +299,6 @@ export default function VoxelViewer(props: {
             camera,
             fpsState: fpStateRef.current,
             moveState: moveStateRef.current,
-            floorY: 0,
-            eyeHeight: 1.7,
           });
         }
       } else {
@@ -301,6 +316,7 @@ export default function VoxelViewer(props: {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerlockchange", onPointerLockChange);
+      renderer.domElement.removeEventListener("mousedown", onMouseDown);
 
       if (document.pointerLockElement === renderer.domElement) {
         document.exitPointerLock();
@@ -347,7 +363,7 @@ export default function VoxelViewer(props: {
       renderer.dispose();
       rendererRef.current = null;
     };
-  }, [playMode]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -549,9 +565,6 @@ export default function VoxelViewer(props: {
       renderer,
       fpsState: fpStateRef.current,
       bounds,
-      floorY: 0,
-      eyeHeight: 1.7,
-      skyColor: "#6db7ff",
     });
   }, [playMode]);
 
@@ -585,6 +598,7 @@ export default function VoxelViewer(props: {
           inset: 0,
           overflow: "hidden",
           zIndex: 10,
+          cursor: playMode ? "crosshair" : "default",
         }}
       />
 
@@ -650,21 +664,23 @@ export default function VoxelViewer(props: {
       )}
 
       {playMode && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            zIndex: 40,
-            pointerEvents: "none",
-            color: "#DBFAFF",
-            fontSize: 20,
-            opacity: 0.9,
-          }}
-        >
-          +
-        </div>
+        <>
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 40,
+              pointerEvents: "none",
+              color: "#DBFAFF",
+              fontSize: 20,
+              opacity: 0.9,
+            }}
+          >
+            +
+          </div>
+        </>
       )}
 
       {loadError && (

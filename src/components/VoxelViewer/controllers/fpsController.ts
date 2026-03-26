@@ -1,5 +1,17 @@
 import * as THREE from "three";
 
+const FPS_LOOK_SPEED = 0.0022;
+const FPS_MAX_PITCH = Math.PI / 2 - 0.01;
+
+const FPS_MOVE_SPEED = 28;
+const FPS_GRAVITY = -42;
+const FPS_EYE_HEIGHT = 17;
+const FPS_FLOOR_Y = 0;
+const FPS_JUMP_VELOCITY = 18;
+
+const FPS_FOV = 75;
+const FPS_SKY_COLOR: string | number = "#6db7ff";
+
 export type FpsMoveState = {
   forward: boolean;
   backward: boolean;
@@ -39,6 +51,7 @@ export function createFpsState(): FpsState {
 export function handleFpsKeyDown(
   e: KeyboardEvent,
   moveState: FpsMoveState,
+  fpsState: FpsState,
   isActive: boolean
 ) {
   if (!isActive) return;
@@ -48,6 +61,12 @@ export function handleFpsKeyDown(
   if (e.code === "KeyS") moveState.backward = true;
   if (e.code === "KeyA") moveState.left = true;
   if (e.code === "KeyD") moveState.right = true;
+
+  if (e.code === "Space" && fpsState.grounded) {
+    fpsState.velocityY = FPS_JUMP_VELOCITY;
+    fpsState.grounded = false;
+    e.preventDefault();
+  }
 }
 
 export function handleFpsKeyUp(e: KeyboardEvent, moveState: FpsMoveState) {
@@ -59,16 +78,13 @@ export function handleFpsKeyUp(e: KeyboardEvent, moveState: FpsMoveState) {
 
 export function handleFpsPointerMove(
   e: PointerEvent,
-  fpsState: FpsState,
-  lookSpeed = 0.0022
+  fpsState: FpsState
 ) {
   if (!fpsState.active) return;
 
-  fpsState.yaw -= e.movementX * lookSpeed;
-  fpsState.pitch -= e.movementY * lookSpeed;
-
-  const maxPitch = Math.PI / 2 - 0.01;
-  fpsState.pitch = Math.max(-maxPitch, Math.min(maxPitch, fpsState.pitch));
+  fpsState.yaw -= e.movementX * FPS_LOOK_SPEED;
+  fpsState.pitch -= e.movementY * FPS_LOOK_SPEED;
+  fpsState.pitch = Math.max(-FPS_MAX_PITCH, Math.min(FPS_MAX_PITCH, fpsState.pitch));
 }
 
 export function updateFpsCamera(params: {
@@ -76,25 +92,14 @@ export function updateFpsCamera(params: {
   camera: THREE.PerspectiveCamera;
   fpsState: FpsState;
   moveState: FpsMoveState;
-  moveSpeed?: number;
-  gravity?: number;
-  eyeHeight?: number;
-  floorY?: number;
 }) {
-  const {
-    dt,
-    camera,
-    fpsState,
-    moveState,
-    moveSpeed = 18,
-    gravity = -30,
-    eyeHeight = 1.7,
-    floorY = 0,
-  } = params;
+  const { dt, camera, fpsState, moveState } = params;
 
   const yaw = fpsState.yaw;
-  const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-  const right = new THREE.Vector3(forward.z, 0, -forward.x);
+
+  // Forward should move toward what the camera sees at yaw=0, which is -Z in Three.
+  const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
 
   const move = new THREE.Vector3();
 
@@ -104,20 +109,23 @@ export function updateFpsCamera(params: {
   if (moveState.left) move.sub(right);
 
   if (move.lengthSq() > 0) {
-    move.normalize().multiplyScalar(moveSpeed * dt);
+    move.normalize().multiplyScalar(FPS_MOVE_SPEED * dt);
     fpsState.position.add(move);
   }
 
-  fpsState.velocityY += gravity * dt;
+  fpsState.velocityY += FPS_GRAVITY * dt;
   fpsState.position.y += fpsState.velocityY * dt;
 
-  if (fpsState.position.y < floorY + eyeHeight) {
-    fpsState.position.y = floorY + eyeHeight;
+  if (fpsState.position.y < FPS_FLOOR_Y + FPS_EYE_HEIGHT) {
+    fpsState.position.y = FPS_FLOOR_Y + FPS_EYE_HEIGHT;
     fpsState.velocityY = 0;
     fpsState.grounded = true;
   } else {
     fpsState.grounded = false;
   }
+
+  camera.fov = FPS_FOV;
+  camera.updateProjectionMatrix();
 
   camera.position.copy(fpsState.position);
   camera.rotation.set(fpsState.pitch, fpsState.yaw, 0, "YXZ");
@@ -134,31 +142,22 @@ export function enterFpsMode(params: {
     maxX: number;
     maxZ: number;
   };
-  floorY?: number;
-  eyeHeight?: number;
-  skyColor?: string | number;
 }) {
-  const {
-    camera,
-    scene,
-    renderer,
-    fpsState,
-    bounds,
-    floorY = 0,
-    eyeHeight = 1.7,
-    skyColor = "#6db7ff",
-  } = params;
+  const { camera, scene, renderer, fpsState, bounds } = params;
 
   const centerX = (bounds.minX + bounds.maxX + 1) / 2;
   const centerZ = (bounds.minZ + bounds.maxZ + 1) / 2;
 
-  scene.background = new THREE.Color(skyColor);
+  scene.background = new THREE.Color(FPS_SKY_COLOR);
 
-  fpsState.position.set(centerX, floorY + eyeHeight, centerZ);
+  fpsState.position.set(centerX, FPS_FLOOR_Y + FPS_EYE_HEIGHT, centerZ);
   fpsState.velocityY = 0;
   fpsState.grounded = true;
   fpsState.yaw = 0;
   fpsState.pitch = 0;
+
+  camera.fov = FPS_FOV;
+  camera.updateProjectionMatrix();
 
   camera.position.copy(fpsState.position);
   camera.rotation.set(0, 0, 0, "YXZ");
@@ -171,8 +170,9 @@ export function exitFpsMode(params: {
   renderer: THREE.WebGLRenderer;
   fpsState: FpsState;
   moveState: FpsMoveState;
+  camera?: THREE.PerspectiveCamera | null;
 }) {
-  const { scene, renderer, fpsState, moveState } = params;
+  const { scene, renderer, fpsState, moveState, camera } = params;
 
   fpsState.active = false;
   moveState.forward = false;
@@ -181,6 +181,11 @@ export function exitFpsMode(params: {
   moveState.right = false;
 
   scene.background = null;
+
+  if (camera) {
+    camera.fov = 40;
+    camera.updateProjectionMatrix();
+  }
 
   if (document.pointerLockElement === renderer.domElement) {
     document.exitPointerLock();
