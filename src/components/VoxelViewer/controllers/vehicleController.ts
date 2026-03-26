@@ -21,11 +21,9 @@ const DRIVE_FOV = 82;
 const DRIVE_MIN_DRIFT_SPEED = 14;
 const DRIVE_MAX_DRIFT_ANGLE = Math.PI / 5;
 
-// split the response so recovery is less snappy
 const DRIVE_DRIFT_BUILD_RESPONSE = 2.6;
 const DRIVE_DRIFT_RETURN_RESPONSE = 1.35;
 
-// temp flight controls
 const DRIVE_FLY_SPEED = 70;
 const DRIVE_BOOST_MULTIPLIER = 1.5;
 
