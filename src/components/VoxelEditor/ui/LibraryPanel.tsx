@@ -193,9 +193,6 @@ export default function LibraryPanel(props: {
                   >
                     {it.name}
                   </div>
-                  <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2 }}>
-                    {it.voxelCount.toLocaleString()} voxels • {new Date(it.updatedAt).toLocaleString()}
-                  </div>
                 </div>
 
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
