@@ -8,6 +8,9 @@ type PresetManifest = {
 
 const KV_PRESETS_VERSION = "presets:installedVersion";
 
+let presetBootstrapPromise: Promise<void> | null = null;
+let presetBootstrapDone = false;
+
 async function mapLimit<T>(
   items: T[],
   limit: number,
@@ -169,4 +172,36 @@ export async function ensurePresetAssetsInstalled(opts?: {
       version: manifest.version,
     });
   }
+}
+
+export function ensurePresetAssetsInstalledOnce(opts?: {
+  force?: boolean;
+  debug?: boolean;
+  concurrency?: number;
+  onProgress?: (p: number, info?: { done: number; total: number; id?: string; name?: string }) => void;
+}) {
+  if (opts?.force) {
+    return ensurePresetAssetsInstalled(opts);
+  }
+
+  if (presetBootstrapDone) {
+    opts?.onProgress?.(1, { done: 1, total: 1 });
+    return Promise.resolve();
+  }
+
+  if (presetBootstrapPromise) {
+    return presetBootstrapPromise;
+  }
+
+  presetBootstrapPromise = ensurePresetAssetsInstalled(opts)
+    .then(() => {
+      presetBootstrapDone = true;
+    })
+    .finally(() => {
+      if (!presetBootstrapDone) {
+        presetBootstrapPromise = null;
+      }
+    });
+
+  return presetBootstrapPromise;
 }

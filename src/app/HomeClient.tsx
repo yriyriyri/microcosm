@@ -5,7 +5,7 @@ import LoginScreen from "@/components/Auth/LoginScreen";
 import { useAuthState } from "@/components/Auth/state";
 import { Me } from "@/services/auth";
 import { nukeVoxelEditorDatabases } from "@/components/VoxelEditor/database/nukeEditorDatabases";
-import { ensurePresetAssetsInstalled } from "@/components/VoxelEditor/database/AssetPresets";
+import { ensurePresetAssetsInstalledOnce } from "@/components/VoxelEditor/database/AssetPresets";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 import Games from "@/components/Home/Games/Games";
 import Library from "@/components/Home/Library/Library";
@@ -59,7 +59,7 @@ function HomeClientInner() {
         setLoadingText("loading presets…");
         setPresetProgress(0);
   
-        await ensurePresetAssetsInstalled({
+        await ensurePresetAssetsInstalledOnce({
           onProgress: (p, info) => {
             if (cancelled) return;
             setPresetProgress(p);
