@@ -11,7 +11,7 @@ export default function AssetContainer(props: {
 
   return (
     <div
-      className={size === "big" ? "pix-icon-large" : "pix-icon"}
+      className={"pix-icon"}
       onClick={onClick}
       style={{
         width: "100%",
