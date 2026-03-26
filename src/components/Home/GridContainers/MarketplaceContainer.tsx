@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 
-export default function VoxboxContainer(props: {
+export default function MarketplaceContainer(props: {
   label?: string;
   onClick?: () => void;
   size?: "small" | "big";

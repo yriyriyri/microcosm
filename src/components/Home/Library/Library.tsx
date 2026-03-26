@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PackedGrid, { type PackedGridItem } from "@/components/Home/PackedGrid/PackedGrid";
-import VoxboxContainer from "@/components/Home/VoxboxContainer/VoxboxContainer";
+import LibraryContainer from "../GridContainers/LibraryContainer";
 import { worldRepository } from "@/components/VoxelEditor/repositories";
 import type { WorldMetaRecord } from "@/components/VoxelEditor/domain/worldTypes";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
@@ -102,7 +102,7 @@ export default function Library() {
       id: item.id,
       size,
       content: (
-        <VoxboxContainer
+        <LibraryContainer
           label={item.kind === "create" ? (busy ? "Creating..." : item.name) : item.name}
           size={size}
           onClick={() => {
