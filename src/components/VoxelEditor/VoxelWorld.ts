@@ -1154,7 +1154,8 @@ export class VoxelWorld {
     };
 
     const hasLocalVoxel = (x: number, y: number, z: number) => {
-      return g.voxels.has(keyOf({ x, y, z }));
+      const neighbor = g.voxels.get(keyOf({ x, y, z }));
+      return !!neighbor && !neighbor.isBlueprint;
     };
 
     const pushFace = (
@@ -1183,6 +1184,7 @@ export class VoxelWorld {
     };
 
     for (const v of g.voxels.values()) {
+      if (v.isBlueprint) continue;
       const x = v.local.x;
       const y = v.local.y;
       const z = v.local.z;
@@ -1278,7 +1280,14 @@ export class VoxelWorld {
   ): PublishedWorldBakedGroupSnapshot | null {
     const g = this.groups.get(groupId);
     if (!g || !g.voxels.size) return null;
-
+  
+    const realVoxelCount = Array.from(g.voxels.values()).reduce(
+      (sum, v) => sum + (v.isBlueprint ? 0 : 1),
+      0
+    );
+  
+    if (realVoxelCount <= 0) return null;
+  
     return {
       groupId,
       sourceAssetId: g.source.assetId ?? null,
@@ -1286,7 +1295,7 @@ export class VoxelWorld {
       position: { ...g.position },
       rotation: { ...g.rotation },
       bounds: this.getGroupBounds(groupId),
-      voxelCount: g.voxels.size,
+      voxelCount: realVoxelCount,
       surfaces: this.getPublishedFaceBuckets(groupId),
     };
   }
