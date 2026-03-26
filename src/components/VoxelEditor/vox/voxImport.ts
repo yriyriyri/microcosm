@@ -70,6 +70,22 @@ class R {
   }
 }
 
+function isExposedToAir(
+  x: number,
+  y: number,
+  z: number,
+  occupied: Set<string>
+): boolean {
+  return (
+    !occupied.has(`${x + 1}|${y}|${z}`) ||
+    !occupied.has(`${x - 1}|${y}|${z}`) ||
+    !occupied.has(`${x}|${y + 1}|${z}`) ||
+    !occupied.has(`${x}|${y - 1}|${z}`) ||
+    !occupied.has(`${x}|${y}|${z + 1}`) ||
+    !occupied.has(`${x}|${y}|${z - 1}`)
+  );
+}
+
 function parseTranslation(s?: string): VoxVec3 {
   if (!s) return { x: 0, y: 0, z: 0 };
   const parts = s.trim().split(/\s+/).map((n) => parseInt(n, 10));
@@ -379,15 +395,29 @@ export function parseVox(buffer: ArrayBuffer): ImportedGroup[] {
     }
   }
 
+  // remove internal voxels
+  const occupiedWorld = new Set<string>();
+  for (const worldVoxels of voxelsByGroup.values()) {
+    for (const v of worldVoxels) {
+      occupiedWorld.add(`${v.x}|${v.y}|${v.z}`);
+    }
+  }
+
   // convert WORLD voxels -> GROUPS with local coords
   const groups: ImportedGroup[] = [];
 
   for (const [groupId, worldVoxels] of voxelsByGroup.entries()) {
     if (worldVoxels.length === 0) continue;
 
+    const surfaceWorldVoxels = worldVoxels.filter((v) =>
+      isExposedToAir(v.x, v.y, v.z, occupiedWorld)
+    );
+
+    if (surfaceWorldVoxels.length === 0) continue;
+
     let minX = Infinity, minY = Infinity, minZ = Infinity;
 
-    for (const v of worldVoxels) {
+    for (const v of surfaceWorldVoxels) {
       minX = Math.min(minX, v.x);
       minY = Math.min(minY, v.y);
       minZ = Math.min(minZ, v.z);
@@ -395,7 +425,7 @@ export function parseVox(buffer: ArrayBuffer): ImportedGroup[] {
 
     const position = { x: minX, y: minY, z: minZ };
 
-    const localVoxels: ImportedVoxel[] = worldVoxels.map((v) => ({
+    const localVoxels: ImportedVoxel[] = surfaceWorldVoxels.map((v) => ({
       x: v.x - position.x,
       y: v.y - position.y,
       z: v.z - position.z,
@@ -404,7 +434,6 @@ export function parseVox(buffer: ArrayBuffer): ImportedGroup[] {
 
     groups.push({ groupId, position, voxels: localVoxels });
   }
-
   // recenter +  ground applied to group positions not voxel locals
   if (groups.length) {
     let gMinX = Infinity, gMinY = Infinity, gMinZ = Infinity;
