@@ -8,7 +8,19 @@ import { RGBELoader } from "three/examples/jsm/Addons.js";
 
 import { applyHeightMistToStandardMaterial } from "@/materials/heightMist";
 import { listPublishedWorlds } from "@/services/publishedWorlds";
+import { GetUserProfile } from "@/services/user";
 import type { PublishedWorldDocument } from "@/components/VoxelEditor/domain/publishedWorldTypes";
+
+import {
+  createFpsMoveState,
+  createFpsState,
+  enterFpsMode,
+  exitFpsMode,
+  handleFpsKeyDown,
+  handleFpsKeyUp,
+  handleFpsPointerMove,
+  updateFpsCamera,
+} from "./controllers/fpsController";
 
 function recenterCameraOnBounds(params: {
   minX: number;
@@ -45,6 +57,15 @@ function quarterTurnsToEuler(rotation?: {
   );
 }
 
+type Bounds3 = {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+};
+
 export default function VoxelViewer(props: {
   publishedWorldId: string | null;
 }) {
@@ -61,7 +82,16 @@ export default function VoxelViewer(props: {
   const envRTRef = useRef<THREE.WebGLRenderTarget | null>(null);
   const publishedWorldRootRef = useRef<THREE.Group | null>(null);
 
+  const worldBoundsRef = useRef<Bounds3 | null>(null);
+
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [worldName, setWorldName] = useState<string>("");
+  const [authorName, setAuthorName] = useState<string>("");
+
+  const [playMode, setPlayMode] = useState(false);
+
+  const moveStateRef = useRef(createFpsMoveState());
+  const fpStateRef = useRef(createFpsState());
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -213,10 +243,53 @@ export default function VoxelViewer(props: {
 
     window.addEventListener("resize", onResize);
 
+    const onKeyDown = (e: KeyboardEvent) => {
+      handleFpsKeyDown(e, moveStateRef.current, fpStateRef.current.active);
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      handleFpsKeyUp(e, moveStateRef.current);
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      handleFpsPointerMove(e, fpStateRef.current);
+    };
+
+    const onPointerLockChange = () => {
+      const locked = document.pointerLockElement === renderer.domElement;
+      fpStateRef.current.active = locked && playMode;
+    };
+
+    document.addEventListener("pointerlockchange", onPointerLockChange);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("pointermove", onPointerMove);
+
+    let lastMs = performance.now();
     let raf = 0;
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      controls.update();
+
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - lastMs) / 1000);
+      lastMs = now;
+
+      if (fpStateRef.current.active) {
+        const camera = cameraRef.current;
+        if (camera) {
+          updateFpsCamera({
+            dt,
+            camera,
+            fpsState: fpStateRef.current,
+            moveState: moveStateRef.current,
+            floorY: 0,
+            eyeHeight: 1.7,
+          });
+        }
+      } else {
+        controls.update();
+      }
+
       renderer.render(scene, camera);
     };
     tick();
@@ -224,6 +297,14 @@ export default function VoxelViewer(props: {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerlockchange", onPointerLockChange);
+
+      if (document.pointerLockElement === renderer.domElement) {
+        document.exitPointerLock();
+      }
 
       if (publishedWorldRootRef.current) {
         publishedWorldRootRef.current.traverse((obj) => {
@@ -266,7 +347,7 @@ export default function VoxelViewer(props: {
       renderer.dispose();
       rendererRef.current = null;
     };
-  }, []);
+  }, [playMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -281,6 +362,10 @@ export default function VoxelViewer(props: {
       if (!publishedWorldId) return;
 
       setLoadError(null);
+      setWorldName("");
+      setAuthorName("");
+      setPlayMode(false);
+      worldBoundsRef.current = null;
 
       root.traverse((obj) => {
         const mesh = obj as THREE.Mesh;
@@ -307,6 +392,20 @@ export default function VoxelViewer(props: {
         if (!world) {
           setLoadError("Published world not found.");
           return;
+        }
+
+        setWorldName(world.worldName || "Untitled World");
+
+        try {
+          const profile = await GetUserProfile(world.publisherUserId);
+          if (!cancelled) {
+            setAuthorName(profile.username || "unknown user");
+          }
+        } catch (err) {
+          console.error("Failed to resolve viewer author name", err);
+          if (!cancelled) {
+            setAuthorName("unknown user");
+          }
         }
 
         let minX = Infinity;
@@ -382,6 +481,8 @@ export default function VoxelViewer(props: {
         }
 
         if (Number.isFinite(minX)) {
+          worldBoundsRef.current = { minX, minY, minZ, maxX, maxY, maxZ };
+
           recenterCameraOnBounds({
             minX,
             minY,
@@ -408,6 +509,52 @@ export default function VoxelViewer(props: {
     };
   }, [publishedWorldId]);
 
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const controls = controlsRef.current;
+    const camera = cameraRef.current;
+    const renderer = rendererRef.current;
+    if (!scene || !controls || !camera || !renderer) return;
+
+    if (!playMode) {
+      controls.enabled = true;
+
+      exitFpsMode({
+        scene,
+        renderer,
+        fpsState: fpStateRef.current,
+        moveState: moveStateRef.current,
+      });
+
+      const bounds = worldBoundsRef.current;
+      if (bounds) {
+        recenterCameraOnBounds({
+          ...bounds,
+          controls,
+          camera,
+        });
+      }
+
+      return;
+    }
+
+    const bounds = worldBoundsRef.current;
+    if (!bounds) return;
+
+    controls.enabled = false;
+
+    enterFpsMode({
+      camera,
+      scene,
+      renderer,
+      fpsState: fpStateRef.current,
+      bounds,
+      floorY: 0,
+      eyeHeight: 1.7,
+      skyColor: "#6db7ff",
+    });
+  }, [playMode]);
+
   return (
     <div
       style={{
@@ -416,17 +563,20 @@ export default function VoxelViewer(props: {
         height: "100%",
         overflow: "hidden",
         userSelect: "none",
-        backgroundImage: `url('/world/bg.png')`,
+        backgroundImage: playMode ? "none" : `url('/world/bg.png')`,
         backgroundRepeat: "no-repeat",
         backgroundPosition: "center center",
         backgroundSize: "cover",
+        backgroundColor: playMode ? "#6db7ff" : undefined,
       }}
     >
-      <div className="clouds" aria-hidden>
-        <img className="cloud cloudBg" src="/world/bgc.png" alt="" />
-        <img className="cloud cloudMg" src="/world/mgc.png" alt="" />
-        <img className="cloud cloudFg" src="/world/fgc.png" alt="" />
-      </div>
+      {!playMode && (
+        <div className="clouds" aria-hidden>
+          <img className="cloud cloudBg" src="/world/bgc.png" alt="" />
+          <img className="cloud cloudMg" src="/world/mgc.png" alt="" />
+          <img className="cloud cloudFg" src="/world/fgc.png" alt="" />
+        </div>
+      )}
 
       <div
         ref={mountRef}
@@ -437,6 +587,85 @@ export default function VoxelViewer(props: {
           zIndex: 10,
         }}
       />
+
+      {!playMode && !loadError && (worldName || authorName) && (
+        <div
+          style={{
+            position: "absolute",
+            top: 60,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 30,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 20,
+            pointerEvents: "auto",
+            textAlign: "center",
+            color: "#DBFAFF",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 45,
+              lineHeight: 1.05,
+              letterSpacing: "0.1em",
+              maxWidth: "80vw",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {worldName}
+          </div>
+
+          <div
+            style={{
+              fontSize: 24,
+              opacity: 0.72,
+              maxWidth: "80vw",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {authorName ? `by ${authorName}` : ""}
+          </div>
+
+          <div
+            className="pix-icon"
+            onClick={() => {
+              setPlayMode(true);
+            }}
+            style={{
+              marginTop: 8,
+              fontSize: 30,
+              color: "#DBFAFF",
+              userSelect: "none",
+            }}
+          >
+            Let's Go!
+          </div>
+        </div>
+      )}
+
+      {playMode && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 40,
+            pointerEvents: "none",
+            color: "#DBFAFF",
+            fontSize: 20,
+            opacity: 0.9,
+          }}
+        >
+          +
+        </div>
+      )}
 
       {loadError && (
         <div
