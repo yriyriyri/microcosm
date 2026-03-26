@@ -39,17 +39,17 @@ export default function AdminAssetsPanel(props: {
       alert("No assets to export.");
       return;
     }
-
+  
     const zip = new JSZip();
-
+  
     const manifest: {
       version: number;
       presets: { id: string; name: string; json: string; thumb?: string }[];
     } = { version: 1, presets: [] };
-
+  
     const assetsFolder = zip.folder("presets/assets")!;
     const thumbsFolder = zip.folder("presets/thumbs")!;
-
+  
     const usedSlug = new Map<string, number>();
     const uniqueSlug = (name: string) => {
       const base0 = slugify(name) || "asset";
@@ -57,24 +57,30 @@ export default function AdminAssetsPanel(props: {
       usedSlug.set(base0, n + 1);
       return n === 0 ? base0 : `${base0}-${n + 1}`;
     };
-
-    for (const m of metas) {
+  
+    const sortedMetas = [...metas].sort((a, b) => {
+      const byName = a.name.localeCompare(b.name);
+      if (byName !== 0) return byName;
+      return a.id.localeCompare(b.id);
+    });
+  
+    for (const m of sortedMetas) {
       const loaded = await assetRepository.loadAsset(m.id);
       if (!loaded) continue;
-
+  
       const slug = uniqueSlug(loaded.meta.name);
-      const id = `preset_${slug}`;
-
+      const id = loaded.meta.id;
+  
       const jsonName = `${slug}.json`;
       const pngName = `${slug}.png`;
-
+  
       assetsFolder.file(jsonName, JSON.stringify(loaded.group, null, 2));
-
+  
       if (loaded.meta.thumb) {
         const buf = await loaded.meta.thumb.arrayBuffer();
         thumbsFolder.file(pngName, buf);
       }
-
+  
       manifest.presets.push({
         id,
         name: loaded.meta.name,
@@ -82,9 +88,9 @@ export default function AdminAssetsPanel(props: {
         ...(loaded.meta.thumb ? { thumb: `/presets/thumbs/${pngName}` } : {}),
       });
     }
-
+  
     zip.file("presets/manifest.json", JSON.stringify(manifest, null, 2));
-
+  
     const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
