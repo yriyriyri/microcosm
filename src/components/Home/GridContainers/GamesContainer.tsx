@@ -3,11 +3,21 @@
 import React, { useMemo } from "react";
 
 export default function GamesContainer(props: {
-  label?: string;
+  title?: string;
+  subtitle?: string;
+  meta?: string;
+  footer?: string;
   onClick?: () => void;
   size?: "small" | "big";
 }) {
-  const { label = "voxbox", onClick, size = "small" } = props;
+  const {
+    title = "Untitled World",
+    subtitle = "",
+    meta = "",
+    footer = "",
+    onClick,
+    size = "small",
+  } = props;
 
   const bg = useMemo(() => {
     const palette = [
@@ -34,15 +44,70 @@ export default function GamesContainer(props: {
         borderRadius: 8,
         cursor: onClick ? "pointer" : "default",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        flexDirection: "column",
+        justifyContent: "space-between",
         color: "rgba(255,255,255,0.95)",
-        fontSize: 18,
         userSelect: "none",
         overflow: "visible",
+        padding: 14,
       }}
     >
-      {label}
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: size === "big" ? 24 : 18,
+            lineHeight: 1.05,
+            marginBottom: 6,
+            wordBreak: "break-word",
+          }}
+        >
+          {title}
+        </div>
+
+        {!!subtitle && (
+          <div
+            style={{
+              fontSize: 14,
+              lineHeight: 1.2,
+              opacity: 0.8,
+              marginBottom: 8,
+              wordBreak: "break-word",
+            }}
+          >
+            {subtitle}
+          </div>
+        )}
+
+        {!!meta && (
+          <div
+            style={{
+              fontSize: 12,
+              lineHeight: 1.3,
+              opacity: 0.75,
+              wordBreak: "break-word",
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: size === "big" ? 5 : 3,
+              WebkitBoxOrient: "vertical",
+            }}
+          >
+            {meta}
+          </div>
+        )}
+      </div>
+
+      {!!footer && (
+        <div
+          style={{
+            fontSize: 12,
+            lineHeight: 1.2,
+            opacity: 0.8,
+            marginTop: 12,
+          }}
+        >
+          {footer}
+        </div>
+      )}
     </div>
   );
 }
