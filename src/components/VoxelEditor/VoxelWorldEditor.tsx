@@ -768,7 +768,7 @@ export default function VoxelWorldEditor(props: {
 
     scene.background = null;
 
-    const camera = new THREE.PerspectiveCamera(40, mount.clientWidth / mount.clientHeight, 0.1, 2000);
+    const camera = new THREE.PerspectiveCamera(40, mount.clientWidth / mount.clientHeight, 0.1, 5000);
     camera.position.set(40, 40, 40);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;

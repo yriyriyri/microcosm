@@ -19,8 +19,11 @@ const DRIVE_FLOOR_Y = 0;
 const DRIVE_FOV = 82;
 
 const DRIVE_MIN_DRIFT_SPEED = 14;
-const DRIVE_MAX_DRIFT_ANGLE = Math.PI / 5; 
-const DRIVE_DRIFT_RESPONSE = 2.8; 
+const DRIVE_MAX_DRIFT_ANGLE = Math.PI / 5;
+
+// split the response so recovery is less snappy
+const DRIVE_DRIFT_BUILD_RESPONSE = 2.6;
+const DRIVE_DRIFT_RETURN_RESPONSE = 1.35;
 
 export type DriveMoveState = {
   forward: boolean;
@@ -163,12 +166,10 @@ export function updateDriveCamera(params: {
   const steerInput = (moveState.left ? 1 : 0) + (moveState.right ? -1 : 0);
   const throttleInput = (moveState.forward ? 1 : 0) - (moveState.backward ? 1 : 0);
 
-  // visual facing
   if (steerInput !== 0 && Math.abs(driveState.speed) > 0.1) {
     driveState.yaw += steerInput * DRIVE_TURN_SPEED * dt;
   }
 
-  // scalar speed
   if (throttleInput > 0) {
     driveState.speed += DRIVE_ACCEL * dt;
   } else if (throttleInput < 0) {
@@ -187,19 +188,20 @@ export function updateDriveCamera(params: {
   const speedAbs = Math.abs(driveState.speed);
   const speed01 = clamp(speedAbs / DRIVE_MAX_FORWARD_SPEED, 0, 1);
 
-  // target drift angle:
-  // slow speed => almost none
-  // high speed + steering => bigger sideways movement offset
   let targetDriftAngle = 0;
   if (speedAbs >= DRIVE_MIN_DRIFT_SPEED) {
     targetDriftAngle = -steerInput * DRIVE_MAX_DRIFT_ANGLE * speed01;
   }
 
-  // same response rate when entering or recovering
+  const driftResponse =
+    steerInput !== 0
+      ? DRIVE_DRIFT_BUILD_RESPONSE
+      : DRIVE_DRIFT_RETURN_RESPONSE;
+
   driveState.driftAngle = moveToward(
     driveState.driftAngle,
     targetDriftAngle,
-    DRIVE_DRIFT_RESPONSE * dt
+    driftResponse * dt
   );
 
   const moveYaw = driveState.yaw + driveState.driftAngle;

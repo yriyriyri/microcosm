@@ -32,6 +32,8 @@ import {
   updateDriveCamera,
 } from "./controllers/vehicleController";
 
+const TEMP_WORLD_SCALE = 0.5;
+
 function recenterCameraOnBounds(params: {
   minX: number;
   minY: number;
@@ -76,9 +78,9 @@ type Bounds3 = {
   maxZ: number;
 };
 
-const PLAY_SKY_RADIUS_1 = 3600;
-const PLAY_SKY_RADIUS_2 = 3000;
-const PLAY_SKY_RADIUS_3 = 2550;
+const PLAY_SKY_RADIUS_1 = 4000;
+const PLAY_SKY_RADIUS_2 = 3500;
+const PLAY_SKY_RADIUS_3 = 3000;
 
 const PLAY_SKY_SEGMENTS_W = 48;
 const PLAY_SKY_SEGMENTS_H = 32;
@@ -88,7 +90,7 @@ const PLAY_SKY_ROT_SPEED_3 = 0.018;
 
 const DRIVABLE_MARKETPLACE_IDS = new Set([
   "preset_car",
-  "preset_hovercraft",
+  "preset_mini-hovercraft",
 ]);
 
 export default function VoxelViewer(props: {
@@ -212,7 +214,7 @@ export default function VoxelViewer(props: {
       40,
       mount.clientWidth / mount.clientHeight,
       0.1,
-      4000
+      10000
     );
     camera.position.set(172.557, 77.391, 184.354);
     camera.lookAt(0, 0, 0);
@@ -772,15 +774,22 @@ export default function VoxelViewer(props: {
           groupRoot.userData.latestMarketplaceAssetId =
           group.latestMarketplaceAssetId ?? null;
 
-          groupRoot.name = `published-group:${group.groupId}`;
+          const latestMarketplaceAssetId = group.latestMarketplaceAssetId ?? null;
+          const isVehicle =
+            latestMarketplaceAssetId === "preset_car" ||
+            latestMarketplaceAssetId === "preset_mini-hovercraft";
+          
+          const yOffset = isVehicle ? 0 : 20;
+          
           groupRoot.position.set(
             group.position.x,
-            group.position.y,
+            group.position.y + yOffset,
             group.position.z
           );
-
+          
           const euler = quarterTurnsToEuler(group.rotation);
           groupRoot.rotation.set(euler.x, euler.y, euler.z);
+          groupRoot.scale.setScalar(TEMP_WORLD_SCALE);
 
           for (const surface of group.surfaces) {
             const geometry = new THREE.BufferGeometry();
@@ -831,13 +840,14 @@ export default function VoxelViewer(props: {
 
           root.add(groupRoot);
 
+
           if (group.bounds) {
-            minX = Math.min(minX, group.bounds.min.x);
-            minY = Math.min(minY, group.bounds.min.y);
-            minZ = Math.min(minZ, group.bounds.min.z);
-            maxX = Math.max(maxX, group.bounds.max.x);
-            maxY = Math.max(maxY, group.bounds.max.y);
-            maxZ = Math.max(maxZ, group.bounds.max.z);
+            minX = Math.min(minX, group.bounds.min.x * TEMP_WORLD_SCALE);
+            minY = Math.min(minY, group.bounds.min.y * TEMP_WORLD_SCALE);
+            minZ = Math.min(minZ, group.bounds.min.z * TEMP_WORLD_SCALE);
+            maxX = Math.max(maxX, group.bounds.max.x * TEMP_WORLD_SCALE);
+            maxY = Math.max(maxY, group.bounds.max.y * TEMP_WORLD_SCALE);
+            maxZ = Math.max(maxZ, group.bounds.max.z * TEMP_WORLD_SCALE);
           }
         }
 

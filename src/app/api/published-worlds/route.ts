@@ -9,7 +9,11 @@ import type {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const DATA_DIR =
+  process.env.NODE_ENV === "production"
+    ? "/tmp"
+    : path.join(process.cwd(), "data");
+
 const DATA_FILE = path.join(DATA_DIR, "published-worlds.json");
 const MAX_WORLDS = 100;
 
