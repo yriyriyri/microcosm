@@ -229,6 +229,7 @@ export async function POST(req: NextRequest) {
     const parsed = validateCreatePublishedWorldInput(body);
 
     if (!parsed.ok) {
+      console.log("publish validation failed:", parsed.error, body);
       return NextResponse.json(
         { ok: false, error: parsed.error },
         { status: 400 }
