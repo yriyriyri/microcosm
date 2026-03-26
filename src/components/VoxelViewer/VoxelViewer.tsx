@@ -143,6 +143,10 @@ export default function VoxelViewer(props: {
   const jeffTemplateRef = useRef<THREE.Object3D | null>(null);
   const jeffInstanceRef = useRef<THREE.Object3D | null>(null);
 
+  const jeffClipsRef = useRef<THREE.AnimationClip[]>([]);
+  const jeffMixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const jeffFinishHandlerRef = useRef<((e: { action: THREE.AnimationAction }) => void) | null>(null);
+
   const raycasterRef = useRef(new THREE.Raycaster());
   const hoveredVehicleRootRef = useRef<THREE.Object3D | null>(null);
   const hoveredVehicleBoxRef = useRef<THREE.Box3Helper | null>(null);
@@ -189,67 +193,112 @@ export default function VoxelViewer(props: {
 
   function detachJeff() {
     const inst = jeffInstanceRef.current;
-    if (!inst) return;
-    inst.parent?.remove(inst);
-    jeffInstanceRef.current = null;
+    if (inst) {
+      inst.parent?.remove(inst);
+      jeffInstanceRef.current = null;
+    }
+  
+    if (jeffMixerRef.current && jeffFinishHandlerRef.current) {
+      jeffMixerRef.current.removeEventListener("finished", jeffFinishHandlerRef.current);
+      jeffFinishHandlerRef.current = null;
+    }
+  
+    if (jeffMixerRef.current) {
+      jeffMixerRef.current.stopAllAction();
+      jeffMixerRef.current = null;
+    }
   }
 
   function attachJeffToVehicle(vehicleRoot: THREE.Object3D) {
     const template = jeffTemplateRef.current;
     if (!template) return;
-
+  
     detachJeff();
-
+  
     vehicleRoot.updateMatrixWorld(true);
-
+  
     const vehicleBox = new THREE.Box3().setFromObject(vehicleRoot);
     const vehicleCenterWorld = new THREE.Vector3();
     vehicleBox.getCenter(vehicleCenterWorld);
-
+  
     const vehicleTopCenterWorld = new THREE.Vector3(
       vehicleCenterWorld.x,
       vehicleBox.max.y,
       vehicleCenterWorld.z
     );
-
+  
     const attachLocal = vehicleRoot.worldToLocal(vehicleTopCenterWorld.clone());
-
+  
     const cloned = cloneSkeleton(template) as THREE.Object3D;
     cloned.name = "jeff-rider";
-
+  
     const rawBox = new THREE.Box3().setFromObject(cloned);
     const rawSize = new THREE.Vector3();
     const rawCenter = new THREE.Vector3();
     rawBox.getSize(rawSize);
     rawBox.getCenter(rawCenter);
-
+  
     const rawHeight = Math.max(rawSize.y, 0.0001);
     const uniformScale = JEFF_TARGET_HEIGHT / rawHeight;
     cloned.scale.setScalar(uniformScale);
     cloned.updateMatrixWorld(true);
-
+  
     const scaledBox = new THREE.Box3().setFromObject(cloned);
     const scaledSize = new THREE.Vector3();
     const scaledCenter = new THREE.Vector3();
     scaledBox.getSize(scaledSize);
     scaledBox.getCenter(scaledCenter);
-
+  
     cloned.position.set(
       attachLocal.x - scaledCenter.x,
       attachLocal.y - (scaledCenter.y - scaledSize.y * 0.5) + JEFF_Y_OFFSET,
       attachLocal.z - scaledCenter.z
     );
     cloned.rotation.set(0, JEFF_ROT_Y, 0);
-
+  
     cloned.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!(mesh as any).isMesh) return;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
     });
-
+  
     vehicleRoot.add(cloned);
     jeffInstanceRef.current = cloned;
+  
+    if (jeffClipsRef.current.length > 0) {
+      const mixer = new THREE.AnimationMixer(cloned);
+      jeffMixerRef.current = mixer;
+    
+      const enterClip = jeffClipsRef.current[0] ?? null;
+      const loopClip = jeffClipsRef.current[2] ?? jeffClipsRef.current[0] ?? null;
+    
+      if (enterClip) {
+        const enterAction = mixer.clipAction(enterClip);
+        enterAction.reset();
+        enterAction.setLoop(THREE.LoopOnce, 1);
+        enterAction.clampWhenFinished = true;
+        enterAction.play();
+    
+        const onFinished = (e: { action: THREE.AnimationAction }) => {
+          if (e.action !== enterAction) return;
+    
+          mixer.removeEventListener("finished", onFinished);
+          jeffFinishHandlerRef.current = null;
+    
+          if (!loopClip) return;
+    
+          const loopAction = mixer.clipAction(loopClip);
+          loopAction.reset();
+          loopAction.setLoop(THREE.LoopRepeat, Infinity);
+          loopAction.clampWhenFinished = false;
+          loopAction.play();
+        };
+    
+        mixer.addEventListener("finished", onFinished);
+        jeffFinishHandlerRef.current = onFinished;
+      }
+    }
   }
 
   function findVehicleRootFromObject(obj: THREE.Object3D | null): THREE.Object3D | null {
@@ -444,24 +493,25 @@ export default function VoxelViewer(props: {
     );
 
     gltfLoader.load(
-      "/Jeff.glb",
+      "/player/Jeff.glb",
       (gltf) => {
         const root = gltf.scene;
         root.name = "jeff-template";
         root.visible = true;
-
+    
         root.traverse((obj) => {
           const mesh = obj as THREE.Mesh;
           if (!(mesh as any).isMesh) return;
           mesh.castShadow = true;
           mesh.receiveShadow = true;
         });
-
+    
         jeffTemplateRef.current = root;
+        jeffClipsRef.current = gltf.animations ?? [];
       },
       undefined,
       (err) => {
-        console.error("Failed to load /Jeff.glb", err);
+        console.error("Failed to load /player/Jeff.glb", err);
       }
     );
 
@@ -682,6 +732,10 @@ export default function VoxelViewer(props: {
         }
       }
 
+      if (jeffMixerRef.current) {
+        jeffMixerRef.current.update(dt);
+      }
+
       if (driveStateRef.current.active) {
         const activeCamera = cameraRef.current;
         if (activeCamera) {
@@ -732,6 +786,12 @@ export default function VoxelViewer(props: {
       }
 
       detachJeff();
+      if (jeffMixerRef.current) {
+        jeffMixerRef.current.stopAllAction();
+        jeffMixerRef.current = null;
+      }
+      jeffClipsRef.current = [];
+
       clearHoveredVehicleBox();
       hoveredVehicleRootRef.current = null;
 

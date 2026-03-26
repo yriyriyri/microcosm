@@ -1,31 +1,34 @@
 import * as THREE from "three";
 
-const DRIVE_ACCEL = 110;
+const DRIVE_ACCEL = 130;
 const DRIVE_BRAKE = 90;
 const DRIVE_COAST_DRAG = 0.992;
 const DRIVE_BRAKE_DRAG = 0.985;
 
-const DRIVE_MAX_FORWARD_SPEED = 140;
+const DRIVE_MAX_FORWARD_SPEED = 160;
 const DRIVE_MAX_REVERSE_SPEED = 24;
-const DRIVE_TURN_SPEED = 0.9;
+const DRIVE_TURN_SPEED = 0.6;
 
-const DRIVE_CAMERA_HEIGHT = 40;
+const DRIVE_CAMERA_HEIGHT = 30;
 const DRIVE_CAMERA_DISTANCE = 62;
 const DRIVE_CAMERA_SPEED_DISTANCE = 34;
 const DRIVE_CAMERA_LERP = 6.5;
 const DRIVE_CAMERA_LOOK_LERP = 7.5;
 
-const DRIVE_FLOOR_Y = 0;
 const DRIVE_FOV = 82;
 
 const DRIVE_MIN_DRIFT_SPEED = 14;
 const DRIVE_MAX_DRIFT_ANGLE = Math.PI / 5;
 
-const DRIVE_DRIFT_BUILD_RESPONSE = 2.6;
-const DRIVE_DRIFT_RETURN_RESPONSE = 1.35;
+const DRIVE_DRIFT_BUILD_RESPONSE = 1.0;
+const DRIVE_DRIFT_RETURN_RESPONSE = 3.2;
 
 const DRIVE_FLY_SPEED = 40;
 const DRIVE_BOOST_MULTIPLIER = 1.5;
+
+const DRIVE_VISUAL_STEER_ANGLE = Math.PI / 5;
+const DRIVE_VISUAL_BANK_ANGLE = Math.PI / 3;
+const DRIVE_VISUAL_RESPONSE = 1.3;
 
 export type DriveMoveState = {
   forward: boolean;
@@ -46,6 +49,10 @@ export type DriveState = {
   followOffsetLocal: THREE.Vector3;
   velocity: THREE.Vector3;
   lookTarget: THREE.Vector3;
+  visualSteerYaw: number;
+  visualBank: number;
+  verticalSpeed: number;
+  boostFactor: number;
 };
 
 export function createDriveMoveState(): DriveMoveState {
@@ -70,6 +77,10 @@ export function createDriveState(): DriveState {
     followOffsetLocal: new THREE.Vector3(),
     velocity: new THREE.Vector3(),
     lookTarget: new THREE.Vector3(),
+    visualSteerYaw: 0,
+    visualBank: 0,
+    verticalSpeed: 0,
+    boostFactor: 1,
   };
 }
 
@@ -133,6 +144,8 @@ export function enterDriveMode(params: {
   driveState.vehicleRoot = vehicleRoot;
   driveState.speed = 0;
   driveState.yaw = vehicleRoot.rotation.y;
+  driveState.visualSteerYaw = 0;
+  driveState.visualBank = 0;
   driveState.driftAngle = 0;
   driveState.followOffsetLocal.copy(centerLocal);
   driveState.velocity.set(0, 0, 0);
@@ -153,6 +166,8 @@ export function exitDriveMode(params: {
   driveState.vehicleRoot = null;
   driveState.speed = 0;
   driveState.yaw = 0;
+  driveState.visualSteerYaw = 0;
+  driveState.visualBank = 0;
   driveState.driftAngle = 0;
   driveState.followOffsetLocal.set(0, 0, 0);
   driveState.velocity.set(0, 0, 0);
@@ -252,7 +267,33 @@ export function updateDriveCamera(params: {
   const verticalInput = (moveState.up ? 1 : 0) - (moveState.down ? 1 : 0);
   vehicleRoot.position.y += verticalInput * DRIVE_FLY_SPEED * dt;
 
-  vehicleRoot.rotation.y = driveState.yaw;
+  const visualTurnTarget =
+  steerInput * DRIVE_VISUAL_STEER_ANGLE * speed01 -
+  driveState.driftAngle * 0.35;
+
+  const visualBankTarget =
+    -steerInput * DRIVE_VISUAL_BANK_ANGLE * speed01;
+
+  const visualAlpha = 1 - Math.exp(-DRIVE_VISUAL_RESPONSE * dt);
+
+  driveState.visualSteerYaw = THREE.MathUtils.lerp(
+    driveState.visualSteerYaw,
+    visualTurnTarget,
+    visualAlpha
+  );
+
+  driveState.visualBank = THREE.MathUtils.lerp(
+    driveState.visualBank,
+    visualBankTarget,
+    visualAlpha
+  );
+
+  vehicleRoot.rotation.set(
+    0,
+    driveState.yaw + driveState.visualSteerYaw,
+    driveState.visualBank
+  );
+
   vehicleRoot.updateMatrixWorld(true);
 
   const targetWorld = vehicleRoot.localToWorld(
