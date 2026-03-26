@@ -32,7 +32,7 @@ import {
   updateDriveCamera,
 } from "./controllers/vehicleController";
 
-const TEMP_WORLD_SCALE = 0.5;
+const TEMP_WORLD_SCALE = 0.8;
 
 function recenterCameraOnBounds(params: {
   minX: number;
