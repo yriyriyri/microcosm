@@ -22,6 +22,16 @@ import {
   updateFpsCamera,
 } from "./controllers/fpsController";
 
+import {
+  createDriveMoveState,
+  createDriveState,
+  enterDriveMode,
+  exitDriveMode,
+  handleDriveKeyDown,
+  handleDriveKeyUp,
+  updateDriveCamera,
+} from "./controllers/vehicleController";
+
 function recenterCameraOnBounds(params: {
   minX: number;
   minY: number;
@@ -76,6 +86,11 @@ const PLAY_SKY_SEGMENTS_H = 32;
 const PLAY_SKY_ROT_SPEED_2 = 0.01;
 const PLAY_SKY_ROT_SPEED_3 = 0.018;
 
+const DRIVABLE_MARKETPLACE_IDS = new Set([
+  "preset_car",
+  "preset_hovercraft",
+]);
+
 export default function VoxelViewer(props: {
   publishedWorldId: string | null;
 }) {
@@ -103,9 +118,80 @@ export default function VoxelViewer(props: {
   const [authorName, setAuthorName] = useState<string>("");
 
   const [playMode, setPlayMode] = useState(false);
+  const [driveMode, setDriveMode] = useState(false);
 
   const moveStateRef = useRef(createFpsMoveState());
   const fpStateRef = useRef(createFpsState());
+
+  const raycasterRef = useRef(new THREE.Raycaster());
+  const hoveredVehicleRootRef = useRef<THREE.Object3D | null>(null);
+  const hoveredVehicleBoxRef = useRef<THREE.Box3Helper | null>(null);
+
+  const driveMoveStateRef = useRef(createDriveMoveState());
+  const driveStateRef = useRef(createDriveState());
+
+  function clearHoveredVehicleBox() {
+    const scene = sceneRef.current;
+    const helper = hoveredVehicleBoxRef.current;
+    if (!scene || !helper) return;
+
+    scene.remove(helper);
+    (helper.material as THREE.Material).dispose();
+    hoveredVehicleBoxRef.current = null;
+  }
+
+  function setHoveredVehicleBoxFor(root: THREE.Object3D | null) {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    clearHoveredVehicleBox();
+    hoveredVehicleRootRef.current = root;
+
+    if (!root) return;
+
+    const box = new THREE.Box3().setFromObject(root);
+    const helper = new THREE.Box3Helper(box, 0xc7ecff);
+    helper.renderOrder = 9999;
+    scene.add(helper);
+    hoveredVehicleBoxRef.current = helper;
+  }
+
+  function findVehicleRootFromObject(obj: THREE.Object3D | null): THREE.Object3D | null {
+    let cur: THREE.Object3D | null = obj;
+    while (cur) {
+      const latestMarketplaceAssetId = cur.userData?.latestMarketplaceAssetId;
+      if (
+        typeof latestMarketplaceAssetId === "string" &&
+        DRIVABLE_MARKETPLACE_IDS.has(latestMarketplaceAssetId)
+      ) {
+        return cur;
+      }
+      cur = cur.parent;
+    }
+    return null;
+  }
+
+  function updateVehicleHover() {
+    const camera = cameraRef.current;
+    const root = publishedWorldRootRef.current;
+    if (!camera || !root) {
+      setHoveredVehicleBoxFor(null);
+      return;
+    }
+
+    const raycaster = raycasterRef.current;
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+    const hits = raycaster.intersectObject(root, true);
+    const hitRoot =
+      hits.length > 0 ? findVehicleRootFromObject(hits[0].object) : null;
+
+    if (hitRoot !== hoveredVehicleRootRef.current) {
+      setHoveredVehicleBoxFor(hitRoot);
+    } else if (hoveredVehicleBoxRef.current && hitRoot) {
+      hoveredVehicleBoxRef.current.box.setFromObject(hitRoot);
+    }
+  }
 
   useEffect(() => {
     playModeRef.current = playMode;
@@ -377,16 +463,71 @@ export default function VoxelViewer(props: {
     window.addEventListener("resize", onResize);
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (driveStateRef.current.active) {
+        if (e.code === "KeyE") {
+          const renderer = rendererRef.current;
+          const camera = cameraRef.current;
+
+          exitDriveMode({
+            camera,
+            driveState: driveStateRef.current,
+            moveState: driveMoveStateRef.current,
+          });
+
+          setDriveMode(false);
+
+          if (renderer) {
+            renderer.domElement.requestPointerLock?.();
+          }
+
+          fpStateRef.current.active = true;
+          e.preventDefault();
+          return;
+        }
+
+        handleDriveKeyDown(e, driveMoveStateRef.current, true);
+        return;
+      }
+
       handleFpsKeyDown(
         e,
         moveStateRef.current,
         fpStateRef.current,
         fpStateRef.current.active
       );
+
+      if (
+        e.code === "KeyE" &&
+        playModeRef.current &&
+        fpStateRef.current.active &&
+        hoveredVehicleRootRef.current
+      ) {
+        const camera = cameraRef.current;
+        if (!camera) return;
+
+        enterDriveMode({
+          camera,
+          vehicleRoot: hoveredVehicleRootRef.current,
+          driveState: driveStateRef.current,
+        });
+
+        setDriveMode(true);
+        fpStateRef.current.active = false;
+
+        if (document.pointerLockElement === renderer.domElement) {
+          document.exitPointerLock();
+        }
+
+        clearHoveredVehicleBox();
+        hoveredVehicleRootRef.current = null;
+
+        e.preventDefault();
+      }
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
       handleFpsKeyUp(e, moveStateRef.current);
+      handleDriveKeyUp(e, driveMoveStateRef.current);
     };
 
     const onPointerMove = (e: PointerEvent) => {
@@ -400,6 +541,7 @@ export default function VoxelViewer(props: {
 
     const onMouseDown = () => {
       if (!playModeRef.current) return;
+      if (driveStateRef.current.active) return;
       if (document.pointerLockElement === renderer.domElement) return;
       renderer.domElement.requestPointerLock?.();
     };
@@ -428,7 +570,17 @@ export default function VoxelViewer(props: {
         }
       }
 
-      if (fpStateRef.current.active) {
+      if (driveStateRef.current.active) {
+        const activeCamera = cameraRef.current;
+        if (activeCamera) {
+          updateDriveCamera({
+            dt,
+            camera: activeCamera,
+            driveState: driveStateRef.current,
+            moveState: driveMoveStateRef.current,
+          });
+        }
+      } else if (fpStateRef.current.active) {
         const activeCamera = cameraRef.current;
         if (activeCamera) {
           updateFpsCamera({
@@ -437,8 +589,15 @@ export default function VoxelViewer(props: {
             fpsState: fpStateRef.current,
             moveState: moveStateRef.current,
           });
+
+          if (playModeRef.current) {
+            updateVehicleHover();
+          }
         }
       } else {
+        if (!playModeRef.current) {
+          clearHoveredVehicleBox();
+        }
         controls.update();
       }
 
@@ -458,6 +617,9 @@ export default function VoxelViewer(props: {
       if (document.pointerLockElement === renderer.domElement) {
         document.exitPointerLock();
       }
+
+      clearHoveredVehicleBox();
+      hoveredVehicleRootRef.current = null;
 
       if (publishedWorldRootRef.current) {
         publishedWorldRootRef.current.traverse((obj) => {
@@ -545,6 +707,16 @@ export default function VoxelViewer(props: {
       setAuthorName("");
       setPlayMode(false);
       worldBoundsRef.current = null;
+      clearHoveredVehicleBox();
+      hoveredVehicleRootRef.current = null;
+
+      driveStateRef.current.active = false;
+      driveStateRef.current.vehicleRoot = null;
+      driveStateRef.current.speed = 0;
+      driveMoveStateRef.current.forward = false;
+      driveMoveStateRef.current.backward = false;
+      driveMoveStateRef.current.left = false;
+      driveMoveStateRef.current.right = false;
 
       root.traverse((obj) => {
         const mesh = obj as THREE.Mesh;
@@ -596,6 +768,10 @@ export default function VoxelViewer(props: {
 
         for (const group of world.groups) {
           const groupRoot = new THREE.Group();
+
+          groupRoot.userData.latestMarketplaceAssetId =
+          group.latestMarketplaceAssetId ?? null;
+
           groupRoot.name = `published-group:${group.groupId}`;
           groupRoot.position.set(
             group.position.x,
@@ -707,12 +883,23 @@ export default function VoxelViewer(props: {
       controls.enabled = true;
       if (playSkyRoot) playSkyRoot.visible = false;
 
+      exitDriveMode({
+        camera,
+        driveState: driveStateRef.current,
+        moveState: driveMoveStateRef.current,
+      });
+
+      setDriveMode(false);
+
       exitFpsMode({
         renderer,
         fpsState: fpStateRef.current,
         moveState: moveStateRef.current,
         camera,
       });
+
+      clearHoveredVehicleBox();
+      hoveredVehicleRootRef.current = null;
 
       const bounds = worldBoundsRef.current;
       if (bounds) {
@@ -835,21 +1022,43 @@ export default function VoxelViewer(props: {
       )}
 
       {playMode && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            zIndex: 40,
-            pointerEvents: "none",
-            color: "#DBFAFF",
-            fontSize: 20,
-            opacity: 0.9,
-          }}
-        >
-          +
-        </div>
+        <>
+          {!driveMode && (
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                zIndex: 40,
+                pointerEvents: "none",
+                color: "#DBFAFF",
+                fontSize: 20,
+                opacity: 0.9,
+              }}
+            >
+              +
+            </div>
+          )}
+
+          {!driveMode && hoveredVehicleRootRef.current && (
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: 48,
+                transform: "translateX(-50%)",
+                zIndex: 40,
+                pointerEvents: "none",
+                color: "#DBFAFF",
+                fontSize: 20,
+                opacity: 0.9,
+              }}
+            >
+              Press E to enter
+            </div>
+          )}
+        </>
       )}
 
       {loadError && (
