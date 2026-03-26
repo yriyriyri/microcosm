@@ -28,7 +28,11 @@ const EMPTY_FOCUSED_SOURCE: FocusedSourceContext = {
   overrideAssetId: null,
 };
 
-export default function VoxelEditor() {
+export default function VoxelEditor(props: {
+  initialWorldId?: string | null;
+}) {
+  const { initialWorldId = null } = props;
+
   const { unlock, play, startLoopAt, setLoopVolume, getTime, startLoop } = useSound();
 
   const [focusOpen, setFocusOpen] = useState(false);
@@ -181,6 +185,7 @@ export default function VoxelEditor() {
         }}
       >
         <VoxelWorldEditor
+          initialWorldId={initialWorldId}
           onFocusGroup={onFocusGroup}
           focusOpen={focusOpen}
           onWorldReady={(w) => {

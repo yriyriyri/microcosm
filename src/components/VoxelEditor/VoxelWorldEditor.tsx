@@ -67,12 +67,14 @@ function setPrimaryWorldId(id: string) {
 }
 
 export default function VoxelWorldEditor(props: {
+  initialWorldId?: string | null;
   onFocusGroup: (groupId: string) => void;
   focusOpen: boolean;
   onWorldReady?: (world: VoxelWorld | null) => void;
   onRequestAutosaveRef?: (fn: (opts?: { immediate?: boolean; reason?: string }) => void) => void;
 }) {
-  const { onFocusGroup, focusOpen } = props;
+  const { initialWorldId = null, onFocusGroup, focusOpen } = props;
+
   const { unlock, play, startLoopAt, setLoopVolume, getTime, startLoop, click } = useSound();
 
   const { me } = useAuthState();
@@ -903,7 +905,12 @@ export default function VoxelWorldEditor(props: {
     let cancelled = false;
 
     (async () => {
-      let id = getPrimaryWorldId();
+      const explicitWorldId = initialWorldId?.trim() || null;
+      let id = explicitWorldId;
+
+      if (!id) {
+        id = getPrimaryWorldId();
+      }
 
       if (id) {
         const loaded = await worldRepository.loadWorld(id);
@@ -911,14 +918,25 @@ export default function VoxelWorldEditor(props: {
 
         if (loaded) {
           currentIslandIdRef.current = loaded.meta.id;
+          setIslandName(loaded.meta.name);
+
+          if (!explicitWorldId) {
+            setPrimaryWorldId(loaded.meta.id);
+          }
+
           await world.importWorldData(loaded.data);
-        
+          if (cancelled) return;
+
           setSelectedGroupId(null);
           setHoveredGroupId(null);
           hoveredGroupIdLiveRef.current = null;
           pendingGroupBoxesSyncRef.current = true;
-        
+
           return;
+        }
+
+        if (explicitWorldId) {
+          console.warn("Requested world not found:", explicitWorldId);
         }
 
         id = null;
@@ -927,7 +945,7 @@ export default function VoxelWorldEditor(props: {
       const data = world.exportWorldData();
       const thumb = await captureSquareThumbnailFromCurrentCamera();
       if (cancelled) return;
-      
+
       const newId = await worldRepository.saveWorld({
         name: "Primary World",
         data,
@@ -936,6 +954,7 @@ export default function VoxelWorldEditor(props: {
       if (cancelled) return;
 
       currentIslandIdRef.current = newId;
+      setIslandName("My Voxbox");
       setPrimaryWorldId(newId);
     })();
 
@@ -1239,7 +1258,7 @@ export default function VoxelWorldEditor(props: {
       }
       renderer.dispose();
     };
-  }, [mouseNDC, raycaster]);
+  }, [mouseNDC, raycaster, initialWorldId]);
 
   return (
     <div
