@@ -1294,9 +1294,62 @@ export class VoxelWorld {
       assetKind: g.source.assetKind ?? null,
       position: { ...g.position },
       rotation: { ...g.rotation },
-      bounds: this.getGroupBounds(groupId),
+      bounds: this.getPublishedGroupBounds(groupId),
       voxelCount: realVoxelCount,
       surfaces: this.getPublishedFaceBuckets(groupId),
+    };
+  }
+
+  getPublishedGroupBounds(
+    groupId: GroupId
+  ): { min: VoxelCoord; max: VoxelCoord } | null {
+    const g = this.groups.get(groupId);
+    if (!g || g.voxels.size === 0) return null;
+  
+    g.root.updateMatrixWorld(true);
+  
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  
+    const p = new THREE.Vector3();
+    let found = false;
+  
+    for (const v of g.voxels.values()) {
+      if (v.isBlueprint) continue;
+  
+      found = true;
+  
+      p.set(v.local.x + 0.5, v.local.y + 0.5, v.local.z + 0.5);
+      p.applyMatrix4(g.root.matrixWorld);
+  
+      const vxMin = p.x - 0.5;
+      const vyMin = p.y - 0.5;
+      const vzMin = p.z - 0.5;
+      const vxMax = p.x + 0.5;
+      const vyMax = p.y + 0.5;
+      const vzMax = p.z + 0.5;
+  
+      minX = Math.min(minX, vxMin);
+      minY = Math.min(minY, vyMin);
+      minZ = Math.min(minZ, vzMin);
+      maxX = Math.max(maxX, vxMax);
+      maxY = Math.max(maxY, vyMax);
+      maxZ = Math.max(maxZ, vzMax);
+    }
+  
+    if (!found) return null;
+  
+    return {
+      min: {
+        x: Math.floor(minX),
+        y: Math.floor(minY),
+        z: Math.floor(minZ),
+      },
+      max: {
+        x: Math.ceil(maxX) - 1,
+        y: Math.ceil(maxY) - 1,
+        z: Math.ceil(maxZ) - 1,
+      },
     };
   }
 
