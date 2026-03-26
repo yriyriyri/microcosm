@@ -121,7 +121,16 @@ export async function ensurePresetAssetsInstalled(opts?: {
     try {
       if (!opts?.force) {
         const existing = await assetRepository.getAssetMeta(p.id).catch(() => null);
-        if (existing) return;
+      
+        const hasCorrectLineage =
+          !!existing &&
+          Array.isArray((existing as any).lineageAssetIds) &&
+          (existing as any).lineageAssetIds.length > 0 &&
+          (existing as any).lineageAssetIds[(existing as any).lineageAssetIds.length - 1] === p.id;
+      
+        if (hasCorrectLineage) {
+          return;
+        }
       }
 
       const jsonUrl = resolvePresetUrl(p.json);
@@ -141,6 +150,7 @@ export async function ensurePresetAssetsInstalled(opts?: {
         inLibrary: false,
         isPreset: true,
         isImmutable: true,
+        lineageAssetIds: [p.id],
       });
     } finally {
       tick({ id: p.id, name: p.name });

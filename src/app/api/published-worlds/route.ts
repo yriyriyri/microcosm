@@ -70,7 +70,7 @@ function validateCreatePublishedWorldInput(
     return { ok: false, error: "Body must be an object" };
   }
 
-  const { publisherUserId, worldName, voxelCount, sourceAssetIds, groups } = body;
+  const { publisherUserId, worldName, voxelCount, latestMarketplaceAssetIds, groups } = body;
 
   if (typeof publisherUserId !== "string" || !publisherUserId.trim()) {
     return { ok: false, error: "publisherUserId is required" };
@@ -85,10 +85,10 @@ function validateCreatePublishedWorldInput(
   }
 
   if (
-    !Array.isArray(sourceAssetIds) ||
-    !sourceAssetIds.every((v) => typeof v === "string")
+    !Array.isArray(latestMarketplaceAssetIds) ||
+    !latestMarketplaceAssetIds.every((v) => typeof v === "string")
   ) {
-    return { ok: false, error: "sourceAssetIds must be a string array" };
+    return { ok: false, error: "latestMarketplaceAssetIds must be a string array" };
   }
 
   if (!Array.isArray(groups)) {
@@ -106,11 +106,11 @@ function validateCreatePublishedWorldInput(
     }
 
     if (
-      g.sourceAssetId !== null &&
-      g.sourceAssetId !== undefined &&
-      typeof g.sourceAssetId !== "string"
+      g.latestMarketplaceAssetId !== null &&
+      g.latestMarketplaceAssetId !== undefined &&
+      typeof g.latestMarketplaceAssetId !== "string"
     ) {
-      return { ok: false, error: `groups[${i}].sourceAssetId must be string|null` };
+      return { ok: false, error: `groups[${i}].latestMarketplaceAssetId must be string|null` };
     }
 
     if (
@@ -188,7 +188,7 @@ function validateCreatePublishedWorldInput(
       publisherUserId: publisherUserId.trim(),
       worldName: worldName.trim(),
       voxelCount,
-      sourceAssetIds,
+      latestMarketplaceAssetIds,
       groups: groups as CreatePublishedWorldInput["groups"],
     },
   };
@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
       publisherUserId: parsed.value.publisherUserId,
       worldName: parsed.value.worldName,
       voxelCount: parsed.value.voxelCount,
-      sourceAssetIds: Array.from(new Set(parsed.value.sourceAssetIds)),
+      latestMarketplaceAssetIds: Array.from(new Set(parsed.value.latestMarketplaceAssetIds)),
       groups: parsed.value.groups,
       createdAt: now,
       updatedAt: now,

@@ -12,7 +12,7 @@ export type PublishedWorldSurfacePayload = {
 
 export type PublishedWorldGroupPayload = {
   groupId: string;
-  sourceAssetId: string | null;
+  latestMarketplaceAssetId: string | null;
   assetKind: "draft" | "marketplace" | null;
   position: VoxelCoord;
   rotation: GroupRotation;
@@ -28,7 +28,7 @@ export type CreatePublishedWorldInput = {
   publisherUserId: string;
   worldName: string;
   voxelCount: number;
-  sourceAssetIds: string[];
+  latestMarketplaceAssetIds: string[];
   groups: PublishedWorldGroupPayload[];
 };
 
@@ -37,7 +37,7 @@ export type PublishedWorldDocument = {
   publisherUserId: string;
   worldName: string;
   voxelCount: number;
-  sourceAssetIds: string[];
+  latestMarketplaceAssetIds: string[];
   groups: PublishedWorldGroupPayload[];
   createdAt: number;
   updatedAt: number;

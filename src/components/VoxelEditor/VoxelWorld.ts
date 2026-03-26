@@ -78,8 +78,6 @@ export type VoxelWorldRenderConfig = {
 
 const DEFAULT_GROUP: GroupId = "default";
 
-//published world
-
 // published world bake
 
 export type PublishedWorldSurface = {
@@ -94,7 +92,7 @@ export type PublishedWorldSurface = {
 
 export type PublishedWorldBakedGroupSnapshot = {
   groupId: string;
-  sourceAssetId: string | null;
+  latestMarketplaceAssetId: string | null;
   assetKind: AssetKind | null;
   position: VoxelCoord;
   rotation: GroupRotation;
@@ -108,7 +106,7 @@ export type PublishedWorldBakedGroupSnapshot = {
 
 export type PublishedWorldBakedSnapshot = {
   voxelCount: number;
-  sourceAssetIds: string[];
+  latestMarketplaceAssetIds: string[];
   groups: PublishedWorldBakedGroupSnapshot[];
 };
 
@@ -1129,6 +1127,31 @@ export class VoxelWorld {
 
   // publishing
 
+  private async getLatestMarketplaceAssetIdForGroup(
+    groupId: GroupId
+  ): Promise<string | null> {
+    const g = this.groups.get(groupId);
+    if (!g) return null;
+  
+    const assetId = g.source.assetId;
+    if (!assetId) return null;
+  
+    try {
+      const meta = await assetRepository.getAssetMeta(assetId);
+      const lineage = (meta as any)?.lineageAssetIds;
+  
+      if (Array.isArray(lineage) && lineage.length > 0) {
+        const first = lineage[0];
+        return typeof first === "string" && first.trim() ? first : null;
+      }
+  
+      return null;
+    } catch (err) {
+      console.warn("Failed to resolve latest marketplace lineage for asset:", assetId, err);
+      return null;
+    }
+  }
+
   private getPublishedFaceBuckets(groupId: GroupId): PublishedWorldSurface[] {
     const g = this.groups.get(groupId);
     if (!g || !g.voxels.size) return [];
@@ -1275,9 +1298,9 @@ export class VoxelWorld {
     );
   }
 
-  private getPublishedBakedGroupSnapshot(
+  private async getPublishedBakedGroupSnapshot(
     groupId: GroupId
-  ): PublishedWorldBakedGroupSnapshot | null {
+  ): Promise<PublishedWorldBakedGroupSnapshot | null> {
     const g = this.groups.get(groupId);
     if (!g || !g.voxels.size) return null;
   
@@ -1290,7 +1313,7 @@ export class VoxelWorld {
   
     return {
       groupId,
-      sourceAssetId: g.source.assetId ?? null,
+      latestMarketplaceAssetId: await this.getLatestMarketplaceAssetIdForGroup(groupId),
       assetKind: g.source.assetKind ?? null,
       position: { ...g.position },
       rotation: { ...g.rotation },
@@ -1353,29 +1376,29 @@ export class VoxelWorld {
     };
   }
 
-  getPublishedWorldSnapshot(): PublishedWorldBakedSnapshot {
+  async getPublishedWorldSnapshot(): Promise<PublishedWorldBakedSnapshot> {
     const groups: PublishedWorldBakedGroupSnapshot[] = [];
-    const sourceAssetIdsSet = new Set<string>();
+    const latestMarketplaceAssetIdsSet = new Set<string>();
     let voxelCount = 0;
-
+  
     for (const [groupId, g] of this.groups.entries()) {
       if (groupId === DEFAULT_GROUP) continue;
       if (!g.voxels.size) continue;
-
-      const baked = this.getPublishedBakedGroupSnapshot(groupId);
+  
+      const baked = await this.getPublishedBakedGroupSnapshot(groupId);
       if (!baked) continue;
-
-      if (baked.sourceAssetId) {
-        sourceAssetIdsSet.add(baked.sourceAssetId);
+  
+      if (baked.latestMarketplaceAssetId) {
+        latestMarketplaceAssetIdsSet.add(baked.latestMarketplaceAssetId);
       }
-
+  
       voxelCount += baked.voxelCount;
       groups.push(baked);
     }
-
+  
     return {
       voxelCount,
-      sourceAssetIds: Array.from(sourceAssetIdsSet),
+      latestMarketplaceAssetIds: Array.from(latestMarketplaceAssetIdsSet),
       groups,
     };
   }

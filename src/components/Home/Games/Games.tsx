@@ -10,7 +10,7 @@ import { assetRepository } from "@/components/VoxelEditor/repositories";
 
 type PublishedWorldGroupRow = {
   groupId: string;
-  sourceAssetId: string | null;
+  latestMarketplaceAssetId: string | null;
   assetKind: "draft" | "marketplace" | null;
 };
 
@@ -19,7 +19,7 @@ type PublishedWorldRow = {
   publisherUserId: string;
   worldName: string;
   voxelCount: number;
-  sourceAssetIds: string[];
+  latestMarketplaceAssetIds: string[];
   groups?: PublishedWorldGroupRow[];
   createdAt: number;
   updatedAt: number;
@@ -57,11 +57,13 @@ export default function Games() {
           new Set(
             rows.flatMap((r) =>
               Array.isArray(r.groups)
-                ? r.groups.map((g) => g.sourceAssetId).filter(Boolean)
+                ? r.groups
+                    .map((g) => g.latestMarketplaceAssetId)
+                    .filter((v): v is string => typeof v === "string" && !!v)
                 : []
             )
           )
-        ) as string[];
+        );
 
         const [userEntries, assetEntries] = await Promise.all([
           Promise.all(
@@ -97,7 +99,7 @@ export default function Games() {
           const countByAssetId = new Map<string, number>();
 
           for (const group of row.groups ?? []) {
-            const assetId = group.sourceAssetId;
+            const assetId = group.latestMarketplaceAssetId;
             if (!assetId) continue;
             countByAssetId.set(assetId, (countByAssetId.get(assetId) ?? 0) + 1);
           }

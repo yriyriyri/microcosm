@@ -541,7 +541,7 @@ export default function VoxelWorldEditor(props: {
       return;
     }
 
-    const snapshot = world.getPublishedWorldSnapshot();
+    const snapshot = await world.getPublishedWorldSnapshot();
     if (!snapshot.groups.length) {
       alert("World is empty.");
       return;
@@ -554,7 +554,7 @@ export default function VoxelWorldEditor(props: {
         publisherUserId: me.user_id,
         worldName: islandName.trim() || "Untitled World",
         voxelCount: snapshot.voxelCount,
-        sourceAssetIds: snapshot.sourceAssetIds,
+        latestMarketplaceAssetIds: snapshot.latestMarketplaceAssetIds,
         groups: snapshot.groups,
       });
 
