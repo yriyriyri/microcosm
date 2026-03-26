@@ -80,13 +80,19 @@ const DEFAULT_GROUP: GroupId = "default";
 
 //published world
 
-export type PublishedWorldGroupVoxel = {
-  local: VoxelCoord;
+// published world bake
+
+export type PublishedWorldSurface = {
   color: string;
   isBlueprint: boolean;
+  positions: number[];
+  normals: number[];
+  indices: number[];
+  vertexCount: number;
+  triangleCount: number;
 };
 
-export type PublishedWorldGroupSnapshot = {
+export type PublishedWorldBakedGroupSnapshot = {
   groupId: string;
   sourceAssetId: string | null;
   assetKind: AssetKind | null;
@@ -97,13 +103,13 @@ export type PublishedWorldGroupSnapshot = {
     max: VoxelCoord;
   } | null;
   voxelCount: number;
-  voxels: PublishedWorldGroupVoxel[];
+  surfaces: PublishedWorldSurface[];
 };
 
-export type PublishedWorldSnapshot = {
+export type PublishedWorldBakedSnapshot = {
   voxelCount: number;
   sourceAssetIds: string[];
-  groups: PublishedWorldGroupSnapshot[];
+  groups: PublishedWorldBakedGroupSnapshot[];
 };
 
 //helpers
@@ -1123,45 +1129,170 @@ export class VoxelWorld {
 
   // publishing
 
-  getPublishedWorldSnapshot(): {
-    voxelCount: number;
-    sourceAssetIds: string[];
-    groups: {
-      groupId: string;
-      sourceAssetId: string | null;
-      assetKind: "draft" | "marketplace" | null;
-      position: { x: number; y: number; z: number };
-      rotation: { x: 0 | 1 | 2 | 3; y: 0 | 1 | 2 | 3; z: 0 | 1 | 2 | 3 };
-      bounds: {
-        min: { x: number; y: number; z: number };
-        max: { x: number; y: number; z: number };
-      } | null;
-      voxelCount: number;
-      voxels: {
-        local: { x: number; y: number; z: number };
-        color: string;
-        isBlueprint: boolean;
-      }[];
-    }[];
-  } {
-    const groups: {
-      groupId: string;
-      sourceAssetId: string | null;
-      assetKind: "draft" | "marketplace" | null;
-      position: { x: number; y: number; z: number };
-      rotation: { x: 0 | 1 | 2 | 3; y: 0 | 1 | 2 | 3; z: 0 | 1 | 2 | 3 };
-      bounds: {
-        min: { x: number; y: number; z: number };
-        max: { x: number; y: number; z: number };
-      } | null;
-      voxelCount: number;
-      voxels: {
-        local: { x: number; y: number; z: number };
-        color: string;
-        isBlueprint: boolean;
-      }[];
-    }[] = [];
+  private getPublishedFaceBuckets(groupId: GroupId): PublishedWorldSurface[] {
+    const g = this.groups.get(groupId);
+    if (!g || !g.voxels.size) return [];
 
+    const buckets = new Map<string, PublishedWorldSurface>();
+
+    const getBucket = (color: string, isBlueprint: boolean) => {
+      const key = `${color}|${isBlueprint ? "bp" : "solid"}`;
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = {
+          color,
+          isBlueprint,
+          positions: [],
+          normals: [],
+          indices: [],
+          vertexCount: 0,
+          triangleCount: 0,
+        };
+        buckets.set(key, bucket);
+      }
+      return bucket;
+    };
+
+    const hasLocalVoxel = (x: number, y: number, z: number) => {
+      return g.voxels.has(keyOf({ x, y, z }));
+    };
+
+    const pushFace = (
+      bucket: PublishedWorldSurface,
+      verts: [number, number, number][],
+      normal: [number, number, number]
+    ) => {
+      const base = bucket.vertexCount;
+
+      for (const [x, y, z] of verts) {
+        bucket.positions.push(x, y, z);
+        bucket.normals.push(normal[0], normal[1], normal[2]);
+      }
+
+      bucket.indices.push(
+        base + 0,
+        base + 1,
+        base + 2,
+        base + 0,
+        base + 2,
+        base + 3
+      );
+
+      bucket.vertexCount += 4;
+      bucket.triangleCount += 2;
+    };
+
+    for (const v of g.voxels.values()) {
+      const x = v.local.x;
+      const y = v.local.y;
+      const z = v.local.z;
+
+      const bucket = getBucket(v.color, v.isBlueprint);
+
+      if (!hasLocalVoxel(x + 1, y, z)) {
+        pushFace(
+          bucket,
+          [
+            [x + 1, y, z],
+            [x + 1, y + 1, z],
+            [x + 1, y + 1, z + 1],
+            [x + 1, y, z + 1],
+          ],
+          [1, 0, 0]
+        );
+      }
+
+      if (!hasLocalVoxel(x - 1, y, z)) {
+        pushFace(
+          bucket,
+          [
+            [x, y, z + 1],
+            [x, y + 1, z + 1],
+            [x, y + 1, z],
+            [x, y, z],
+          ],
+          [-1, 0, 0]
+        );
+      }
+
+      if (!hasLocalVoxel(x, y + 1, z)) {
+        pushFace(
+          bucket,
+          [
+            [x, y + 1, z],
+            [x, y + 1, z + 1],
+            [x + 1, y + 1, z + 1],
+            [x + 1, y + 1, z],
+          ],
+          [0, 1, 0]
+        );
+      }
+
+      if (!hasLocalVoxel(x, y - 1, z)) {
+        pushFace(
+          bucket,
+          [
+            [x, y, z + 1],
+            [x, y, z],
+            [x + 1, y, z],
+            [x + 1, y, z + 1],
+          ],
+          [0, -1, 0]
+        );
+      }
+
+      if (!hasLocalVoxel(x, y, z + 1)) {
+        pushFace(
+          bucket,
+          [
+            [x + 1, y, z + 1],
+            [x + 1, y + 1, z + 1],
+            [x, y + 1, z + 1],
+            [x, y, z + 1],
+          ],
+          [0, 0, 1]
+        );
+      }
+
+      if (!hasLocalVoxel(x, y, z - 1)) {
+        pushFace(
+          bucket,
+          [
+            [x, y, z],
+            [x, y + 1, z],
+            [x + 1, y + 1, z],
+            [x + 1, y, z],
+          ],
+          [0, 0, -1]
+        );
+      }
+    }
+
+    return Array.from(buckets.values()).filter(
+      (s) => s.vertexCount > 0 && s.indices.length > 0
+    );
+  }
+
+  private getPublishedBakedGroupSnapshot(
+    groupId: GroupId
+  ): PublishedWorldBakedGroupSnapshot | null {
+    const g = this.groups.get(groupId);
+    if (!g || !g.voxels.size) return null;
+
+    return {
+      groupId,
+      sourceAssetId: g.source.assetId ?? null,
+      assetKind: g.source.assetKind ?? null,
+      position: { ...g.position },
+      rotation: { ...g.rotation },
+      bounds: this.getGroupBounds(groupId),
+      voxelCount: g.voxels.size,
+      surfaces: this.getPublishedFaceBuckets(groupId),
+    };
+  }
+
+  getPublishedWorldSnapshot(): PublishedWorldBakedSnapshot {
+    const groups: PublishedWorldBakedGroupSnapshot[] = [];
     const sourceAssetIdsSet = new Set<string>();
     let voxelCount = 0;
 
@@ -1169,35 +1300,15 @@ export class VoxelWorld {
       if (groupId === DEFAULT_GROUP) continue;
       if (!g.voxels.size) continue;
 
-      const voxels = Array.from(g.voxels.values()).map((v) => ({
-        local: { ...v.local },
-        color: v.color,
-        isBlueprint: v.isBlueprint,
-      }));
+      const baked = this.getPublishedBakedGroupSnapshot(groupId);
+      if (!baked) continue;
 
-      const bounds = this.getGroupBounds(groupId);
-
-      if (g.source.assetId) {
-        sourceAssetIdsSet.add(g.source.assetId);
+      if (baked.sourceAssetId) {
+        sourceAssetIdsSet.add(baked.sourceAssetId);
       }
 
-      voxelCount += voxels.length;
-
-      groups.push({
-        groupId,
-        sourceAssetId: g.source.assetId ?? null,
-        assetKind: g.source.assetKind ?? null,
-        position: { ...g.position },
-        rotation: { ...g.rotation },
-        bounds: bounds
-          ? {
-              min: { ...bounds.min },
-              max: { ...bounds.max },
-            }
-          : null,
-        voxelCount: voxels.length,
-        voxels,
-      });
+      voxelCount += baked.voxelCount;
+      groups.push(baked);
     }
 
     return {

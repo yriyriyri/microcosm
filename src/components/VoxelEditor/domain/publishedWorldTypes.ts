@@ -1,23 +1,27 @@
-export type PublishedWorldGroupVoxel = {
-  local: { x: number; y: number; z: number };
+import type { GroupRotation, VoxelCoord } from "../Types";
+
+export type PublishedWorldSurfacePayload = {
   color: string;
   isBlueprint: boolean;
+  positions: number[];
+  normals: number[];
+  indices: number[];
+  vertexCount: number;
+  triangleCount: number;
 };
 
-export type PublishedWorldGroupBounds = {
-  min: { x: number; y: number; z: number };
-  max: { x: number; y: number; z: number };
-};
-
-export type PublishedWorldGroupDocument = {
+export type PublishedWorldGroupPayload = {
   groupId: string;
   sourceAssetId: string | null;
   assetKind: "draft" | "marketplace" | null;
-  position: { x: number; y: number; z: number };
-  rotation: { x: 0 | 1 | 2 | 3; y: 0 | 1 | 2 | 3; z: 0 | 1 | 2 | 3 };
-  bounds: PublishedWorldGroupBounds | null;
+  position: VoxelCoord;
+  rotation: GroupRotation;
+  bounds: {
+    min: VoxelCoord;
+    max: VoxelCoord;
+  } | null;
   voxelCount: number;
-  voxels: PublishedWorldGroupVoxel[];
+  surfaces: PublishedWorldSurfacePayload[];
 };
 
 export type CreatePublishedWorldInput = {
@@ -25,7 +29,7 @@ export type CreatePublishedWorldInput = {
   worldName: string;
   voxelCount: number;
   sourceAssetIds: string[];
-  groups: PublishedWorldGroupDocument[];
+  groups: PublishedWorldGroupPayload[];
 };
 
 export type PublishedWorldDocument = {
@@ -34,7 +38,7 @@ export type PublishedWorldDocument = {
   worldName: string;
   voxelCount: number;
   sourceAssetIds: string[];
-  groups: PublishedWorldGroupDocument[];
+  groups: PublishedWorldGroupPayload[];
   createdAt: number;
   updatedAt: number;
 };

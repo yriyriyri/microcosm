@@ -27,6 +27,10 @@ function isInt(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value);
 }
 
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function isQuarterTurn(value: unknown): value is 0 | 1 | 2 | 3 {
   return value === 0 || value === 1 || value === 2 || value === 3;
 }
@@ -49,6 +53,14 @@ function isRotation(
     isQuarterTurn(value.y) &&
     isQuarterTurn(value.z)
   );
+}
+
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every(isNumber);
+}
+
+function isIntArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every(isInt);
 }
 
 function validateCreatePublishedWorldInput(
@@ -130,26 +142,42 @@ function validateCreatePublishedWorldInput(
       return { ok: false, error: `groups[${i}].voxelCount must be a non-negative integer` };
     }
 
-    if (!Array.isArray(g.voxels)) {
-      return { ok: false, error: `groups[${i}].voxels must be an array` };
+    if (!Array.isArray(g.surfaces)) {
+      return { ok: false, error: `groups[${i}].surfaces must be an array` };
     }
 
-    for (let j = 0; j < g.voxels.length; j++) {
-      const v = g.voxels[j];
-      if (!isObject(v)) {
-        return { ok: false, error: `groups[${i}].voxels[${j}] must be an object` };
+    for (let j = 0; j < g.surfaces.length; j++) {
+      const s = g.surfaces[j];
+      if (!isObject(s)) {
+        return { ok: false, error: `groups[${i}].surfaces[${j}] must be an object` };
       }
 
-      if (!isVec3(v.local)) {
-        return { ok: false, error: `groups[${i}].voxels[${j}].local must be an integer vec3` };
+      if (typeof s.color !== "string" || !s.color.trim()) {
+        return { ok: false, error: `groups[${i}].surfaces[${j}].color is required` };
       }
 
-      if (typeof v.color !== "string" || !v.color.trim()) {
-        return { ok: false, error: `groups[${i}].voxels[${j}].color is required` };
+      if (typeof s.isBlueprint !== "boolean") {
+        return { ok: false, error: `groups[${i}].surfaces[${j}].isBlueprint must be boolean` };
       }
 
-      if (typeof v.isBlueprint !== "boolean") {
-        return { ok: false, error: `groups[${i}].voxels[${j}].isBlueprint must be boolean` };
+      if (!isNumberArray(s.positions) || s.positions.length % 3 !== 0) {
+        return { ok: false, error: `groups[${i}].surfaces[${j}].positions must be a number[] divisible by 3` };
+      }
+
+      if (!isNumberArray(s.normals) || s.normals.length !== s.positions.length) {
+        return { ok: false, error: `groups[${i}].surfaces[${j}].normals must be a number[] matching positions length` };
+      }
+
+      if (!isIntArray(s.indices) || s.indices.length % 3 !== 0) {
+        return { ok: false, error: `groups[${i}].surfaces[${j}].indices must be an integer[] divisible by 3` };
+      }
+
+      if (!isInt(s.vertexCount) || s.vertexCount < 0) {
+        return { ok: false, error: `groups[${i}].surfaces[${j}].vertexCount must be a non-negative integer` };
+      }
+
+      if (!isInt(s.triangleCount) || s.triangleCount < 0) {
+        return { ok: false, error: `groups[${i}].surfaces[${j}].triangleCount must be a non-negative integer` };
       }
     }
   }
