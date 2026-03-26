@@ -10,7 +10,6 @@ const FPS_FLOOR_Y = 0;
 const FPS_JUMP_VELOCITY = 18;
 
 const FPS_FOV = 75;
-const FPS_SKY_COLOR: string | number = "#6db7ff";
 
 export type FpsMoveState = {
   forward: boolean;
@@ -84,7 +83,10 @@ export function handleFpsPointerMove(
 
   fpsState.yaw -= e.movementX * FPS_LOOK_SPEED;
   fpsState.pitch -= e.movementY * FPS_LOOK_SPEED;
-  fpsState.pitch = Math.max(-FPS_MAX_PITCH, Math.min(FPS_MAX_PITCH, fpsState.pitch));
+  fpsState.pitch = Math.max(
+    -FPS_MAX_PITCH,
+    Math.min(FPS_MAX_PITCH, fpsState.pitch)
+  );
 }
 
 export function updateFpsCamera(params: {
@@ -97,7 +99,6 @@ export function updateFpsCamera(params: {
 
   const yaw = fpsState.yaw;
 
-  // Forward should move toward what the camera sees at yaw=0, which is -Z in Three.
   const forward = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
 
@@ -133,7 +134,6 @@ export function updateFpsCamera(params: {
 
 export function enterFpsMode(params: {
   camera: THREE.PerspectiveCamera;
-  scene: THREE.Scene;
   renderer: THREE.WebGLRenderer;
   fpsState: FpsState;
   bounds: {
@@ -143,12 +143,10 @@ export function enterFpsMode(params: {
     maxZ: number;
   };
 }) {
-  const { camera, scene, renderer, fpsState, bounds } = params;
+  const { camera, renderer, fpsState, bounds } = params;
 
   const centerX = (bounds.minX + bounds.maxX + 1) / 2;
   const centerZ = (bounds.minZ + bounds.maxZ + 1) / 2;
-
-  scene.background = new THREE.Color(FPS_SKY_COLOR);
 
   fpsState.position.set(centerX, FPS_FLOOR_Y + FPS_EYE_HEIGHT, centerZ);
   fpsState.velocityY = 0;
@@ -166,21 +164,18 @@ export function enterFpsMode(params: {
 }
 
 export function exitFpsMode(params: {
-  scene: THREE.Scene;
   renderer: THREE.WebGLRenderer;
   fpsState: FpsState;
   moveState: FpsMoveState;
   camera?: THREE.PerspectiveCamera | null;
 }) {
-  const { scene, renderer, fpsState, moveState, camera } = params;
+  const { renderer, fpsState, moveState, camera } = params;
 
   fpsState.active = false;
   moveState.forward = false;
   moveState.backward = false;
   moveState.left = false;
   moveState.right = false;
-
-  scene.background = null;
 
   if (camera) {
     camera.fov = 40;

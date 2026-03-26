@@ -66,6 +66,16 @@ type Bounds3 = {
   maxZ: number;
 };
 
+const PLAY_SKY_RADIUS_1 = 1200;
+const PLAY_SKY_RADIUS_2 = 1000;
+const PLAY_SKY_RADIUS_3 = 850;
+
+const PLAY_SKY_SEGMENTS_W = 48;
+const PLAY_SKY_SEGMENTS_H = 32;
+
+const PLAY_SKY_ROT_SPEED_2 = 0.01;
+const PLAY_SKY_ROT_SPEED_3 = 0.018;
+
 export default function VoxelViewer(props: {
   publishedWorldId: string | null;
 }) {
@@ -81,6 +91,9 @@ export default function VoxelViewer(props: {
   const islandRootRef = useRef<THREE.Object3D | null>(null);
   const envRTRef = useRef<THREE.WebGLRenderTarget | null>(null);
   const publishedWorldRootRef = useRef<THREE.Group | null>(null);
+  const playSkyRootRef = useRef<THREE.Group | null>(null);
+  const playSkyCloud2Ref = useRef<THREE.Mesh | null>(null);
+  const playSkyCloud3Ref = useRef<THREE.Mesh | null>(null);
 
   const worldBoundsRef = useRef<Bounds3 | null>(null);
   const playModeRef = useRef(false);
@@ -96,6 +109,9 @@ export default function VoxelViewer(props: {
 
   useEffect(() => {
     playModeRef.current = playMode;
+    if (playSkyRootRef.current) {
+      playSkyRootRef.current.visible = playMode;
+    }
   }, [playMode]);
 
   useEffect(() => {
@@ -237,6 +253,106 @@ export default function VoxelViewer(props: {
     scene.add(publishedWorldRoot);
     publishedWorldRootRef.current = publishedWorldRoot;
 
+    const playSkyRoot = new THREE.Group();
+    playSkyRoot.name = "play-sky-root";
+    playSkyRoot.visible = false;
+    scene.add(playSkyRoot);
+    playSkyRootRef.current = playSkyRoot;
+
+    const texLoader = new THREE.TextureLoader();
+
+    const setupSkyTexture = (tex: THREE.Texture) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.needsUpdate = true;
+    };
+
+    texLoader.load(
+      "/player/skybox1.png",
+      (texture) => {
+        setupSkyTexture(texture);
+
+        const geometry = new THREE.SphereGeometry(
+          PLAY_SKY_RADIUS_1,
+          PLAY_SKY_SEGMENTS_W,
+          PLAY_SKY_SEGMENTS_H
+        );
+
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          side: THREE.BackSide,
+          transparent: false,
+          depthWrite: false,
+          fog: false,
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = "play-sky-1";
+        playSkyRoot.add(mesh);
+      },
+      undefined,
+      (err) => console.error("Failed to load /player/skybox1.png", err)
+    );
+
+    texLoader.load(
+      "/player/skybox2.png",
+      (texture) => {
+        setupSkyTexture(texture);
+
+        const geometry = new THREE.SphereGeometry(
+          PLAY_SKY_RADIUS_2,
+          PLAY_SKY_SEGMENTS_W,
+          PLAY_SKY_SEGMENTS_H
+        );
+
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          side: THREE.BackSide,
+          transparent: true,
+          depthWrite: false,
+          fog: false,
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = "play-sky-2";
+        playSkyRoot.add(mesh);
+        playSkyCloud2Ref.current = mesh;
+      },
+      undefined,
+      (err) => console.error("Failed to load /player/skybox2.png", err)
+    );
+
+    texLoader.load(
+      "/player/skybox3.png",
+      (texture) => {
+        setupSkyTexture(texture);
+
+        const geometry = new THREE.SphereGeometry(
+          PLAY_SKY_RADIUS_3,
+          PLAY_SKY_SEGMENTS_W,
+          PLAY_SKY_SEGMENTS_H
+        );
+
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          side: THREE.BackSide,
+          transparent: true,
+          depthWrite: false,
+          fog: false,
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = "play-sky-3";
+        playSkyRoot.add(mesh);
+        playSkyCloud3Ref.current = mesh;
+      },
+      undefined,
+      (err) => console.error("Failed to load /player/skybox3.png", err)
+    );
+
     const onResize = () => {
       const w = mount.clientWidth;
       const h = mount.clientHeight;
@@ -253,7 +369,7 @@ export default function VoxelViewer(props: {
         e,
         moveStateRef.current,
         fpStateRef.current,
-        fpStateRef.current.active,
+        fpStateRef.current.active
       );
     };
 
@@ -291,12 +407,21 @@ export default function VoxelViewer(props: {
       const dt = Math.min(0.05, (now - lastMs) / 1000);
       lastMs = now;
 
+      if (playModeRef.current) {
+        if (playSkyCloud2Ref.current) {
+          playSkyCloud2Ref.current.rotation.y += PLAY_SKY_ROT_SPEED_2 * dt;
+        }
+        if (playSkyCloud3Ref.current) {
+          playSkyCloud3Ref.current.rotation.y += PLAY_SKY_ROT_SPEED_3 * dt;
+        }
+      }
+
       if (fpStateRef.current.active) {
-        const camera = cameraRef.current;
-        if (camera) {
+        const activeCamera = cameraRef.current;
+        if (activeCamera) {
           updateFpsCamera({
             dt,
-            camera,
+            camera: activeCamera,
             fpsState: fpStateRef.current,
             moveState: moveStateRef.current,
           });
@@ -338,6 +463,32 @@ export default function VoxelViewer(props: {
 
         scene.remove(publishedWorldRootRef.current);
         publishedWorldRootRef.current = null;
+      }
+
+      if (playSkyRootRef.current) {
+        playSkyRootRef.current.traverse((obj) => {
+          const mesh = obj as THREE.Mesh;
+          if (!(mesh as any).isMesh) return;
+
+          mesh.geometry?.dispose();
+
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => {
+              const mm = m as THREE.MeshBasicMaterial;
+              mm.map?.dispose();
+              mm.dispose();
+            });
+          } else {
+            const mm = mesh.material as THREE.MeshBasicMaterial;
+            mm.map?.dispose();
+            mm.dispose();
+          }
+        });
+
+        scene.remove(playSkyRootRef.current);
+        playSkyRootRef.current = null;
+        playSkyCloud2Ref.current = null;
+        playSkyCloud3Ref.current = null;
       }
 
       if (islandRootRef.current) {
@@ -530,16 +681,19 @@ export default function VoxelViewer(props: {
     const controls = controlsRef.current;
     const camera = cameraRef.current;
     const renderer = rendererRef.current;
+    const playSkyRoot = playSkyRootRef.current;
+
     if (!scene || !controls || !camera || !renderer) return;
 
     if (!playMode) {
       controls.enabled = true;
+      if (playSkyRoot) playSkyRoot.visible = false;
 
       exitFpsMode({
-        scene,
         renderer,
         fpsState: fpStateRef.current,
         moveState: moveStateRef.current,
+        camera,
       });
 
       const bounds = worldBoundsRef.current;
@@ -558,10 +712,10 @@ export default function VoxelViewer(props: {
     if (!bounds) return;
 
     controls.enabled = false;
+    if (playSkyRoot) playSkyRoot.visible = true;
 
     enterFpsMode({
       camera,
-      scene,
       renderer,
       fpsState: fpStateRef.current,
       bounds,
@@ -580,7 +734,6 @@ export default function VoxelViewer(props: {
         backgroundRepeat: "no-repeat",
         backgroundPosition: "center center",
         backgroundSize: "cover",
-        backgroundColor: playMode ? "#6db7ff" : undefined,
       }}
     >
       {!playMode && (
@@ -664,23 +817,21 @@ export default function VoxelViewer(props: {
       )}
 
       {playMode && (
-        <>
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              zIndex: 40,
-              pointerEvents: "none",
-              color: "#DBFAFF",
-              fontSize: 20,
-              opacity: 0.9,
-            }}
-          >
-            +
-          </div>
-        </>
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: 40,
+            pointerEvents: "none",
+            color: "#DBFAFF",
+            fontSize: 20,
+            opacity: 0.9,
+          }}
+        >
+          +
+        </div>
       )}
 
       {loadError && (
@@ -757,49 +908,25 @@ export default function VoxelViewer(props: {
 
         @keyframes cloudSineMg {
           0% {
-            transform: translate3d(
-              calc(-50% + 0.3%),
-              calc(-50% + 0.05%),
-              0
-            );
+            transform: translate3d(calc(-50% + 0.3%), calc(-50% + 0.05%), 0);
           }
           50% {
-            transform: translate3d(
-              calc(-50% - 0.3%),
-              calc(-50% - 0.05%),
-              0
-            );
+            transform: translate3d(calc(-50% - 0.3%), calc(-50% - 0.05%), 0);
           }
           100% {
-            transform: translate3d(
-              calc(-50% + 0.3%),
-              calc(-50% + 0.05%),
-              0
-            );
+            transform: translate3d(calc(-50% + 0.3%), calc(-50% + 0.05%), 0);
           }
         }
 
         @keyframes cloudSineFg {
           0% {
-            transform: translate3d(
-              calc(-50% - 0.4%),
-              calc(-50% - 0.075%),
-              0
-            );
+            transform: translate3d(calc(-50% - 0.4%), calc(-50% - 0.075%), 0);
           }
           50% {
-            transform: translate3d(
-              calc(-50% + 0.4%),
-              calc(-50% + 0.075%),
-              0
-            );
+            transform: translate3d(calc(-50% + 0.4%), calc(-50% + 0.075%), 0);
           }
           100% {
-            transform: translate3d(
-              calc(-50% - 0.4%),
-              calc(-50% - 0.075%),
-              0
-            );
+            transform: translate3d(calc(-50% - 0.4%), calc(-50% - 0.075%), 0);
           }
         }
       `}</style>
