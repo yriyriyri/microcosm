@@ -35,7 +35,6 @@ import {
 } from "./controllers/vehicleController";
 
 const TEMP_WORLD_SCALE = 1.0;
-
 const JEFF_TARGET_HEIGHT = 10;
 const JEFF_Y_OFFSET = -5.0;
 const JEFF_ROT_Y = Math.PI / 2;
