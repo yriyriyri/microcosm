@@ -4,14 +4,14 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { RGBELoader } from "three/examples/jsm/Addons.js";
 
 import { applyHeightMistToStandardMaterial } from "@/materials/heightMist";
 import { listPublishedWorlds } from "@/services/publishedWorlds";
 import { GetUserProfile } from "@/services/user";
 import type { PublishedWorldDocument } from "@/components/VoxelEditor/domain/publishedWorldTypes";
-
-import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 
 import {
   createFpsMoveState,
@@ -35,9 +35,34 @@ import {
 } from "./controllers/vehicleController";
 
 const TEMP_WORLD_SCALE = 1.0;
-const JEFF_SCALE = 6;
-const JEFF_Y_OFFSET = 1.5;
-const JEFF_ROT_Y = Math.PI;
+
+const JEFF_TARGET_HEIGHT = 10;
+const JEFF_Y_OFFSET = -5.0;
+const JEFF_ROT_Y = Math.PI / 2;
+
+type Bounds3 = {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+};
+
+const PLAY_SKY_RADIUS_1 = 4000;
+const PLAY_SKY_RADIUS_2 = 3500;
+const PLAY_SKY_RADIUS_3 = 3000;
+
+const PLAY_SKY_SEGMENTS_W = 48;
+const PLAY_SKY_SEGMENTS_H = 32;
+
+const PLAY_SKY_ROT_SPEED_2 = 0.01;
+const PLAY_SKY_ROT_SPEED_3 = 0.018;
+
+const DRIVABLE_MARKETPLACE_IDS = new Set([
+  "preset_car",
+  "preset_mini-hovercraft",
+]);
 
 function recenterCameraOnBounds(params: {
   minX: number;
@@ -74,29 +99,28 @@ function quarterTurnsToEuler(rotation?: {
   );
 }
 
-type Bounds3 = {
-  minX: number;
-  minY: number;
-  minZ: number;
-  maxX: number;
-  maxY: number;
-  maxZ: number;
-};
+function disposeObject3D(root: THREE.Object3D | null) {
+  if (!root) return;
 
-const PLAY_SKY_RADIUS_1 = 4000;
-const PLAY_SKY_RADIUS_2 = 3500;
-const PLAY_SKY_RADIUS_3 = 3000;
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!(mesh as any).isMesh) return;
 
-const PLAY_SKY_SEGMENTS_W = 48;
-const PLAY_SKY_SEGMENTS_H = 32;
+    mesh.geometry?.dispose();
 
-const PLAY_SKY_ROT_SPEED_2 = 0.01;
-const PLAY_SKY_ROT_SPEED_3 = 0.018;
-
-const DRIVABLE_MARKETPLACE_IDS = new Set([
-  "preset_car",
-  "preset_mini-hovercraft",
-]);
+    if (Array.isArray(mesh.material)) {
+      for (const m of mesh.material) {
+        const mm = m as THREE.Material & { map?: THREE.Texture | null };
+        mm.map?.dispose?.();
+        mm.dispose();
+      }
+    } else {
+      const mm = mesh.material as THREE.Material & { map?: THREE.Texture | null };
+      mm.map?.dispose?.();
+      mm.dispose();
+    }
+  });
+}
 
 export default function VoxelViewer(props: {
   publishedWorldId: string | null;
@@ -105,46 +129,44 @@ export default function VoxelViewer(props: {
 
   const mountRef = useRef<HTMLDivElement | null>(null);
 
-  const jeffTemplateRef = useRef<THREE.Object3D | null>(null);
-  const jeffInstanceRef = useRef<THREE.Object3D | null>(null);
-
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
 
   const islandRootRef = useRef<THREE.Object3D | null>(null);
-  const envRTRef = useRef<THREE.WebGLRenderTarget | null>(null);
   const publishedWorldRootRef = useRef<THREE.Group | null>(null);
   const playSkyRootRef = useRef<THREE.Group | null>(null);
   const playSkyCloud2Ref = useRef<THREE.Mesh | null>(null);
   const playSkyCloud3Ref = useRef<THREE.Mesh | null>(null);
+  const envRTRef = useRef<THREE.WebGLRenderTarget | null>(null);
 
-  const worldBoundsRef = useRef<Bounds3 | null>(null);
-  const playModeRef = useRef(false);
-
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [worldName, setWorldName] = useState<string>("");
-  const [authorName, setAuthorName] = useState<string>("");
-
-  const [playMode, setPlayMode] = useState(false);
-  const [driveMode, setDriveMode] = useState(false);
-
-  const moveStateRef = useRef(createFpsMoveState());
-  const fpStateRef = useRef(createFpsState());
+  const jeffTemplateRef = useRef<THREE.Object3D | null>(null);
+  const jeffInstanceRef = useRef<THREE.Object3D | null>(null);
 
   const raycasterRef = useRef(new THREE.Raycaster());
   const hoveredVehicleRootRef = useRef<THREE.Object3D | null>(null);
   const hoveredVehicleBoxRef = useRef<THREE.Box3Helper | null>(null);
 
+  const moveStateRef = useRef(createFpsMoveState());
+  const fpStateRef = useRef(createFpsState());
+
   const driveMoveStateRef = useRef(createDriveMoveState());
   const driveStateRef = useRef(createDriveState());
+
+  const worldBoundsRef = useRef<Bounds3 | null>(null);
+  const playModeRef = useRef(false);
+
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [worldName, setWorldName] = useState("");
+  const [authorName, setAuthorName] = useState("");
+  const [playMode, setPlayMode] = useState(false);
+  const [driveMode, setDriveMode] = useState(false);
 
   function clearHoveredVehicleBox() {
     const scene = sceneRef.current;
     const helper = hoveredVehicleBoxRef.current;
     if (!scene || !helper) return;
-
     scene.remove(helper);
     (helper.material as THREE.Material).dispose();
     hoveredVehicleBoxRef.current = null;
@@ -169,48 +191,66 @@ export default function VoxelViewer(props: {
   function detachJeff() {
     const inst = jeffInstanceRef.current;
     if (!inst) return;
-  
     inst.parent?.remove(inst);
     jeffInstanceRef.current = null;
   }
-  
+
   function attachJeffToVehicle(vehicleRoot: THREE.Object3D) {
     const template = jeffTemplateRef.current;
     if (!template) return;
-  
+
     detachJeff();
-  
+
     vehicleRoot.updateMatrixWorld(true);
-  
-    const worldBox = new THREE.Box3().setFromObject(vehicleRoot);
-    const centerWorld = new THREE.Vector3();
-    const sizeWorld = new THREE.Vector3();
-    worldBox.getCenter(centerWorld);
-    worldBox.getSize(sizeWorld);
-  
-    const localAttach = vehicleRoot.worldToLocal(centerWorld.clone());
-    const vehicleTopLocalY =
-      vehicleRoot.worldToLocal(new THREE.Vector3(0, worldBox.max.y, 0)).y;
-  
-    const jeff = template.clone(true);
-    jeff.name = "jeff-rider";
-    jeff.position.set(
-      localAttach.x,
-      vehicleTopLocalY + JEFF_Y_OFFSET,
-      localAttach.z
+
+    const vehicleBox = new THREE.Box3().setFromObject(vehicleRoot);
+    const vehicleCenterWorld = new THREE.Vector3();
+    vehicleBox.getCenter(vehicleCenterWorld);
+
+    const vehicleTopCenterWorld = new THREE.Vector3(
+      vehicleCenterWorld.x,
+      vehicleBox.max.y,
+      vehicleCenterWorld.z
     );
-    jeff.rotation.set(0, JEFF_ROT_Y, 0);
-    jeff.scale.setScalar(JEFF_SCALE);
-  
-    jeff.traverse((obj) => {
+
+    const attachLocal = vehicleRoot.worldToLocal(vehicleTopCenterWorld.clone());
+
+    const cloned = cloneSkeleton(template) as THREE.Object3D;
+    cloned.name = "jeff-rider";
+
+    const rawBox = new THREE.Box3().setFromObject(cloned);
+    const rawSize = new THREE.Vector3();
+    const rawCenter = new THREE.Vector3();
+    rawBox.getSize(rawSize);
+    rawBox.getCenter(rawCenter);
+
+    const rawHeight = Math.max(rawSize.y, 0.0001);
+    const uniformScale = JEFF_TARGET_HEIGHT / rawHeight;
+    cloned.scale.setScalar(uniformScale);
+    cloned.updateMatrixWorld(true);
+
+    const scaledBox = new THREE.Box3().setFromObject(cloned);
+    const scaledSize = new THREE.Vector3();
+    const scaledCenter = new THREE.Vector3();
+    scaledBox.getSize(scaledSize);
+    scaledBox.getCenter(scaledCenter);
+
+    cloned.position.set(
+      attachLocal.x - scaledCenter.x,
+      attachLocal.y - (scaledCenter.y - scaledSize.y * 0.5) + JEFF_Y_OFFSET,
+      attachLocal.z - scaledCenter.z
+    );
+    cloned.rotation.set(0, JEFF_ROT_Y, 0);
+
+    cloned.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!(mesh as any).isMesh) return;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
     });
-  
-    vehicleRoot.add(jeff);
-    jeffInstanceRef.current = jeff;
+
+    vehicleRoot.add(cloned);
+    jeffInstanceRef.current = cloned;
   }
 
   function findVehicleRootFromObject(obj: THREE.Object3D | null): THREE.Object3D | null {
@@ -284,10 +324,8 @@ export default function VoxelViewer(props: {
     });
     rendererRef.current = renderer;
 
-    const DPR = Math.min(window.devicePixelRatio, 2);
-    renderer.setPixelRatio(DPR);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(mount.clientWidth, mount.clientHeight);
-
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.NeutralToneMapping;
@@ -305,14 +343,12 @@ export default function VoxelViewer(props: {
     dir.shadow.bias = -0.00035;
     dir.shadow.normalBias = 0.03;
     dir.shadow.mapSize.set(2048, 2048);
-    
     dir.shadow.camera.left = -220;
     dir.shadow.camera.right = 220;
     dir.shadow.camera.top = 220;
     dir.shadow.camera.bottom = -220;
     dir.shadow.camera.near = 1;
     dir.shadow.camera.far = 500;
-    
     dir.position.setFromSphericalCoords(
       250,
       THREE.MathUtils.degToRad(60),
@@ -346,7 +382,13 @@ export default function VoxelViewer(props: {
       (err) => console.error("Failed to load HDRI /world/DayInTheClouds1K.hdr", err)
     );
 
+    const dracoLoader = new DRACOLoader();
+    dracoLoader.setDecoderPath("/draco/");
+    dracoLoader.preload();
+
     const gltfLoader = new GLTFLoader();
+    gltfLoader.setDRACOLoader(dracoLoader);
+
     gltfLoader.load(
       "/baked/island.glb",
       (gltf) => {
@@ -371,7 +413,7 @@ export default function VoxelViewer(props: {
           const applyTo = (mat: THREE.Material) => {
             const m = mat as THREE.MeshStandardMaterial;
             if (!("roughness" in m)) return;
-            
+
             m.roughness = 0.92;
             m.metalness = 0.02;
 
@@ -447,88 +489,73 @@ export default function VoxelViewer(props: {
       tex.needsUpdate = true;
     };
 
-    texLoader.load(
-      "/player/skybox1.png",
-      (texture) => {
-        setupSkyTexture(texture);
+    texLoader.load("/player/skybox1.png", (texture) => {
+      setupSkyTexture(texture);
 
-        const geometry = new THREE.SphereGeometry(
-          PLAY_SKY_RADIUS_1,
-          PLAY_SKY_SEGMENTS_W,
-          PLAY_SKY_SEGMENTS_H
-        );
+      const geometry = new THREE.SphereGeometry(
+        PLAY_SKY_RADIUS_1,
+        PLAY_SKY_SEGMENTS_W,
+        PLAY_SKY_SEGMENTS_H
+      );
 
-        const material = new THREE.MeshBasicMaterial({
-          map: texture,
-          side: THREE.BackSide,
-          transparent: false,
-          depthWrite: false,
-          fog: false,
-        });
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.BackSide,
+        transparent: false,
+        depthWrite: false,
+        fog: false,
+      });
 
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = "play-sky-1";
-        playSkyRoot.add(mesh);
-      },
-      undefined,
-      (err) => console.error("Failed to load /player/skybox1.png", err)
-    );
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = "play-sky-1";
+      playSkyRoot.add(mesh);
+    });
 
-    texLoader.load(
-      "/player/skybox2.png",
-      (texture) => {
-        setupSkyTexture(texture);
+    texLoader.load("/player/skybox2.png", (texture) => {
+      setupSkyTexture(texture);
 
-        const geometry = new THREE.SphereGeometry(
-          PLAY_SKY_RADIUS_2,
-          PLAY_SKY_SEGMENTS_W,
-          PLAY_SKY_SEGMENTS_H
-        );
+      const geometry = new THREE.SphereGeometry(
+        PLAY_SKY_RADIUS_2,
+        PLAY_SKY_SEGMENTS_W,
+        PLAY_SKY_SEGMENTS_H
+      );
 
-        const material = new THREE.MeshBasicMaterial({
-          map: texture,
-          side: THREE.BackSide,
-          transparent: true,
-          depthWrite: false,
-          fog: false,
-        });
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+      });
 
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = "play-sky-2";
-        playSkyRoot.add(mesh);
-        playSkyCloud2Ref.current = mesh;
-      },
-      undefined,
-      (err) => console.error("Failed to load /player/skybox2.png", err)
-    );
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = "play-sky-2";
+      playSkyRoot.add(mesh);
+      playSkyCloud2Ref.current = mesh;
+    });
 
-    texLoader.load(
-      "/player/skybox3.png",
-      (texture) => {
-        setupSkyTexture(texture);
+    texLoader.load("/player/skybox3.png", (texture) => {
+      setupSkyTexture(texture);
 
-        const geometry = new THREE.SphereGeometry(
-          PLAY_SKY_RADIUS_3,
-          PLAY_SKY_SEGMENTS_W,
-          PLAY_SKY_SEGMENTS_H
-        );
+      const geometry = new THREE.SphereGeometry(
+        PLAY_SKY_RADIUS_3,
+        PLAY_SKY_SEGMENTS_W,
+        PLAY_SKY_SEGMENTS_H
+      );
 
-        const material = new THREE.MeshBasicMaterial({
-          map: texture,
-          side: THREE.BackSide,
-          transparent: true,
-          depthWrite: false,
-          fog: false,
-        });
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+      });
 
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = "play-sky-3";
-        playSkyRoot.add(mesh);
-        playSkyCloud3Ref.current = mesh;
-      },
-      undefined,
-      (err) => console.error("Failed to load /player/skybox3.png", err)
-    );
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = "play-sky-3";
+      playSkyRoot.add(mesh);
+      playSkyCloud3Ref.current = mesh;
+    });
 
     const onResize = () => {
       const w = mount.clientWidth;
@@ -545,14 +572,15 @@ export default function VoxelViewer(props: {
       if (driveStateRef.current.active) {
         if (e.code === "KeyE") {
           const renderer = rendererRef.current;
-          const camera = cameraRef.current;
+          const activeCamera = cameraRef.current;
 
           exitDriveMode({
-            camera,
+            camera: activeCamera,
             driveState: driveStateRef.current,
             moveState: driveMoveStateRef.current,
           });
 
+          detachJeff();
           setDriveMode(false);
 
           if (renderer) {
@@ -574,19 +602,21 @@ export default function VoxelViewer(props: {
         fpStateRef.current,
         fpStateRef.current.active
       );
+
       if (
         e.code === "KeyE" &&
         playModeRef.current &&
         fpStateRef.current.active &&
         hoveredVehicleRootRef.current
       ) {
-        const camera = cameraRef.current;
-        if (!camera) return;
+        const activeCamera = cameraRef.current;
+        const renderer = rendererRef.current;
+        if (!activeCamera || !renderer) return;
 
         const vehicleRoot = hoveredVehicleRootRef.current;
 
         enterDriveMode({
-          camera,
+          camera: activeCamera,
           vehicleRoot,
           driveState: driveStateRef.current,
         });
@@ -636,6 +666,7 @@ export default function VoxelViewer(props: {
 
     let lastMs = performance.now();
     let raf = 0;
+
     const tick = () => {
       raf = requestAnimationFrame(tick);
 
@@ -685,6 +716,7 @@ export default function VoxelViewer(props: {
 
       renderer.render(scene, camera);
     };
+
     tick();
 
     return () => {
@@ -700,47 +732,18 @@ export default function VoxelViewer(props: {
         document.exitPointerLock();
       }
 
+      detachJeff();
       clearHoveredVehicleBox();
       hoveredVehicleRootRef.current = null;
 
       if (publishedWorldRootRef.current) {
-        publishedWorldRootRef.current.traverse((obj) => {
-          const mesh = obj as THREE.Mesh;
-          if (!(mesh as any).isMesh) return;
-
-          mesh.geometry?.dispose();
-
-          if (Array.isArray(mesh.material)) {
-            mesh.material.forEach((m) => m.dispose());
-          } else {
-            mesh.material?.dispose();
-          }
-        });
-
+        disposeObject3D(publishedWorldRootRef.current);
         scene.remove(publishedWorldRootRef.current);
         publishedWorldRootRef.current = null;
       }
 
       if (playSkyRootRef.current) {
-        playSkyRootRef.current.traverse((obj) => {
-          const mesh = obj as THREE.Mesh;
-          if (!(mesh as any).isMesh) return;
-
-          mesh.geometry?.dispose();
-
-          if (Array.isArray(mesh.material)) {
-            mesh.material.forEach((m) => {
-              const mm = m as THREE.MeshBasicMaterial;
-              mm.map?.dispose();
-              mm.dispose();
-            });
-          } else {
-            const mm = mesh.material as THREE.MeshBasicMaterial;
-            mm.map?.dispose();
-            mm.dispose();
-          }
-        });
-
+        disposeObject3D(playSkyRootRef.current);
         scene.remove(playSkyRootRef.current);
         playSkyRootRef.current = null;
         playSkyCloud2Ref.current = null;
@@ -748,6 +751,7 @@ export default function VoxelViewer(props: {
       }
 
       if (islandRootRef.current) {
+        disposeObject3D(islandRootRef.current);
         scene.remove(islandRootRef.current);
         islandRootRef.current = null;
       }
@@ -759,7 +763,14 @@ export default function VoxelViewer(props: {
         envRTRef.current = null;
       }
 
+      if (jeffTemplateRef.current) {
+        disposeObject3D(jeffTemplateRef.current);
+        jeffTemplateRef.current = null;
+      }
+
+      dracoLoader.dispose();
       controls.dispose();
+
       controlsRef.current = null;
       cameraRef.current = null;
       sceneRef.current = null;
@@ -767,6 +778,7 @@ export default function VoxelViewer(props: {
       if (renderer.domElement.parentElement === mount) {
         mount.removeChild(renderer.domElement);
       }
+
       renderer.dispose();
       rendererRef.current = null;
     };
@@ -776,21 +788,22 @@ export default function VoxelViewer(props: {
     let cancelled = false;
 
     async function loadPublishedWorld() {
-      const scene = sceneRef.current;
       const root = publishedWorldRootRef.current;
       const controls = controlsRef.current;
       const camera = cameraRef.current;
 
-      if (!scene || !root || !controls || !camera) return;
+      if (!root || !controls || !camera) return;
       if (!publishedWorldId) return;
 
       setLoadError(null);
       setWorldName("");
       setAuthorName("");
       setPlayMode(false);
+      setDriveMode(false);
       worldBoundsRef.current = null;
       clearHoveredVehicleBox();
       hoveredVehicleRootRef.current = null;
+      detachJeff();
 
       driveStateRef.current.active = false;
       driveStateRef.current.vehicleRoot = null;
@@ -800,18 +813,7 @@ export default function VoxelViewer(props: {
       driveMoveStateRef.current.left = false;
       driveMoveStateRef.current.right = false;
 
-      root.traverse((obj) => {
-        const mesh = obj as THREE.Mesh;
-        if (!(mesh as any).isMesh) return;
-
-        mesh.geometry?.dispose();
-
-        if (Array.isArray(mesh.material)) {
-          mesh.material.forEach((m) => m.dispose());
-        } else {
-          mesh.material?.dispose();
-        }
-      });
+      disposeObject3D(root);
       root.clear();
 
       try {
@@ -850,30 +852,29 @@ export default function VoxelViewer(props: {
 
         for (const group of world.groups) {
           const groupRoot = new THREE.Group();
-
+          groupRoot.name = `published-group:${group.groupId}`;
           groupRoot.userData.latestMarketplaceAssetId =
-          group.latestMarketplaceAssetId ?? null;
+            group.latestMarketplaceAssetId ?? null;
 
           const latestMarketplaceAssetId = group.latestMarketplaceAssetId ?? null;
           const isVehicle =
             latestMarketplaceAssetId === "preset_car" ||
             latestMarketplaceAssetId === "preset_mini-hovercraft";
-          
+
           const yOffset = isVehicle ? 0 : 20;
-          
+
           groupRoot.position.set(
             group.position.x,
             group.position.y + yOffset,
             group.position.z
           );
-          
+
           const euler = quarterTurnsToEuler(group.rotation);
           groupRoot.rotation.set(euler.x, euler.y, euler.z);
           groupRoot.scale.setScalar(TEMP_WORLD_SCALE);
 
           for (const surface of group.surfaces) {
             const geometry = new THREE.BufferGeometry();
-            //TEST TEST TEST
 
             geometry.setAttribute(
               "position",
@@ -894,8 +895,8 @@ export default function VoxelViewer(props: {
               metalness: 0.02,
             });
 
-            if (scene.environment) {
-              material.envMap = scene.environment;
+            if (sceneRef.current?.environment) {
+              material.envMap = sceneRef.current.environment;
             }
 
             if (surface.isBlueprint) {
@@ -920,7 +921,6 @@ export default function VoxelViewer(props: {
           }
 
           root.add(groupRoot);
-
 
           if (group.bounds) {
             minX = Math.min(minX, group.bounds.min.x * TEMP_WORLD_SCALE);
@@ -962,13 +962,12 @@ export default function VoxelViewer(props: {
   }, [publishedWorldId]);
 
   useEffect(() => {
-    const scene = sceneRef.current;
     const controls = controlsRef.current;
     const camera = cameraRef.current;
     const renderer = rendererRef.current;
     const playSkyRoot = playSkyRootRef.current;
 
-    if (!scene || !controls || !camera || !renderer) return;
+    if (!controls || !camera || !renderer) return;
 
     if (!playMode) {
       controls.enabled = true;
@@ -980,6 +979,7 @@ export default function VoxelViewer(props: {
         moveState: driveMoveStateRef.current,
       });
 
+      detachJeff();
       setDriveMode(false);
 
       exitFpsMode({
