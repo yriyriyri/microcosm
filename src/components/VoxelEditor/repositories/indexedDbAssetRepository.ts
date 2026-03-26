@@ -53,6 +53,7 @@ function toAssetMetaRecord(meta: AssetMeta): AssetMetaRecord {
     visibility: meta.visibility ?? "private",
     inLibrary: meta.inLibrary ?? true,
     isPreset: meta.isPreset ?? false,
+    thumbStorageKey: meta.thumbStorageKey ?? null,
     sourceAssetId: meta.sourceAssetId ?? null,
     linkedMarketplaceAssetId: meta.linkedMarketplaceAssetId ?? null,
     lineageAssetIds: meta.lineageAssetIds ?? [],

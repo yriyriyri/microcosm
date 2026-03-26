@@ -7,6 +7,7 @@ export type IslandMeta = {
   updatedAt: number;
   instanceCount: number;
   thumb?: Blob | null;
+  thumbStorageKey?: string | null;
 };
 
 type IslandData = {
@@ -124,6 +125,7 @@ export async function saveIsland(params: {
   data: WorldData;
   id?: string;
   thumb?: Blob | null;
+  thumbStorageKey?: string | null;
 }): Promise<string> {
   const db = await openDb();
 
@@ -141,6 +143,10 @@ export async function saveIsland(params: {
     updatedAt: now,
     instanceCount: params.data.instances.length,
     thumb: params.thumb ?? existingMeta?.thumb ?? null,
+    thumbStorageKey:
+      params.thumbStorageKey !== undefined
+        ? params.thumbStorageKey
+        : existingMeta?.thumbStorageKey ?? null,
   };
 
   const data: IslandData = {

@@ -49,7 +49,6 @@ export type MarketplaceAssetDocument = {
 
   thumbStorageKey?: string | null;
 
-  sourceAssetId?: string | null;
   lineageAssetIds: string[];
 
   compiledRender?: CompiledRenderPayload | null;
@@ -88,7 +87,6 @@ export type SaveMarketplaceAssetDocumentInput = {
 
   thumbStorageKey?: string | null;
 
-  sourceAssetId?: string | null;
   lineageAssetIds?: string[];
 
   compiledRender?: CompiledRenderPayload | null;

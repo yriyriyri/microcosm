@@ -24,6 +24,7 @@ export type WorldMetaRecord = {
   updatedAt: number;
   instanceCount: number;
   thumb?: Blob | null;
+  thumbStorageKey?: string | null;
 };
 
 export type WorldRecord = {
@@ -36,4 +37,5 @@ export type SaveWorldInput = {
   name: string;
   data: WorldData;
   thumb?: Blob | null;
+  thumbStorageKey?: string | null;
 };

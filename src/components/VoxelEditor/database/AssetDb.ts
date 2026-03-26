@@ -9,6 +9,7 @@ export type AssetMeta = {
   updatedAt: number;
   voxelCount: number;
   thumb?: Blob | null;
+  thumbStorageKey?: string | null;
 
   visibility?: AssetVisibility;
   inLibrary?: boolean;
@@ -97,6 +98,7 @@ function normalizeAssetMeta(meta: AssetMeta): AssetMeta {
     visibility,
     inLibrary,
     isPreset: meta.isPreset ?? false,
+    thumbStorageKey: meta.thumbStorageKey ?? null,
     sourceAssetId: meta.sourceAssetId ?? null,
     linkedMarketplaceAssetId: meta.linkedMarketplaceAssetId ?? null,
     lineageAssetIds: Array.isArray(meta.lineageAssetIds)
@@ -197,6 +199,7 @@ export async function saveAsset(params: {
   group: GroupState;
   id?: string;
   thumb?: Blob | null;
+  thumbStorageKey?: string | null;
   visibility?: AssetVisibility;
   inLibrary?: boolean;
   isPreset?: boolean;
@@ -245,6 +248,10 @@ export async function saveAsset(params: {
     updatedAt: now,
     voxelCount,
     thumb: params.thumb ?? existingMeta?.thumb ?? null,
+    thumbStorageKey:
+      params.thumbStorageKey !== undefined
+        ? params.thumbStorageKey
+        : existingMeta?.thumbStorageKey ?? null,
     visibility: nextVisibility,
     inLibrary: nextInLibrary,
     isPreset: params.isPreset ?? existingMeta?.isPreset ?? false,
@@ -349,6 +356,7 @@ export async function overwritePrivateAssetContent(params: {
     name: meta.name,
     group: params.group,
     thumb: params.thumb ?? meta.thumb ?? null,
+    thumbStorageKey: meta.thumbStorageKey ?? null,
     visibility: meta.visibility,
     inLibrary: meta.inLibrary ?? true,
     isPreset: meta.isPreset ?? false,
@@ -380,6 +388,7 @@ export async function saveNonStructuralAssetProgress(params: {
     name: meta.name,
     group: params.group,
     thumb: params.thumb ?? meta.thumb ?? null,
+    thumbStorageKey: meta.thumbStorageKey ?? null,
     visibility: meta.visibility,
     inLibrary: meta.inLibrary ?? true,
     isPreset: meta.isPreset ?? false,
@@ -403,6 +412,7 @@ export async function remixAssetFromSource(params: {
     name: params.name,
     group: params.group,
     thumb: params.thumb ?? null,
+    thumbStorageKey: null,
     visibility: "private",
     inLibrary: true,
     isPreset: false,
@@ -506,6 +516,7 @@ export async function createPrivateAsset(params: {
     name: params.name,
     group: params.group,
     thumb: params.thumb ?? null,
+    thumbStorageKey: null,
     visibility: "private",
     inLibrary: true,
     isImmutable: false,
@@ -528,11 +539,11 @@ export async function publishAssetToMarketplace(
     name: loaded.meta.name,
     group: loaded.group,
     thumb: loaded.meta.thumb ?? null,
+    thumbStorageKey: null,
     visibility: "marketplace",
     inLibrary: false,
     isImmutable: true,
     isPreset: false,
-    sourceAssetId: sourceMeta.id,
     linkedMarketplaceAssetId: null,
     lineageAssetIds: sourceMeta.lineageAssetIds ?? [],
     publishedFromAssetId: sourceMeta.id,
@@ -558,6 +569,7 @@ export async function forkAssetToPrivateDraft(
     name: opts?.name ?? loaded.meta.name,
     group: loaded.group,
     thumb: loaded.meta.thumb ?? null,
+    thumbStorageKey: null,
     visibility: "private",
     inLibrary: opts?.addToLibrary ?? true,
     isImmutable: false,
@@ -596,6 +608,7 @@ export async function acquireMarketplaceAssetToLibrary(
     name: opts?.name ?? loaded.meta.name,
     group: loaded.group,
     thumb: loaded.meta.thumb ?? null,
+    thumbStorageKey: null,
     visibility: "private",
     inLibrary: true,
     isImmutable: false,

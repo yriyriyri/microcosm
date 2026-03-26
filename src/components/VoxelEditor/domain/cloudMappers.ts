@@ -27,7 +27,7 @@ export function assetRecordToDraftAssetDocument(
     voxelGroup: asset.group,
     createdAt: meta.createdAt,
     updatedAt: meta.updatedAt,
-    thumbStorageKey: null,
+    thumbStorageKey: meta.thumbStorageKey ?? null,
     sourceAssetId: meta.sourceAssetId ?? null,
     linkedMarketplaceAssetId: meta.linkedMarketplaceAssetId ?? null,
     lineageAssetIds: meta.lineageAssetIds ?? [],
@@ -49,8 +49,7 @@ export function assetRecordToMarketplaceAssetDocument(
     name: meta.name,
     voxelGroup: asset.group,
     createdAt: meta.createdAt,
-    thumbStorageKey: null,
-    sourceAssetId: meta.sourceAssetId ?? null,
+    thumbStorageKey: meta.thumbStorageKey ?? null,
     lineageAssetIds: meta.lineageAssetIds ?? [],
     compiledRender: {
       meshStorageKey: null,
@@ -83,7 +82,7 @@ export function worldRecordToWorldDocument(
     instances,
     createdAt: world.meta.createdAt,
     updatedAt: world.meta.updatedAt,
-    thumbStorageKey: null,
+    thumbStorageKey: world.meta.thumbStorageKey ?? null,
   };
 }
 
@@ -106,6 +105,7 @@ export function worldDocumentToSaveWorldInput(
     name: doc.name,
     data,
     thumb: null,
+    thumbStorageKey: doc.thumbStorageKey ?? null,
   };
 }
 
@@ -117,6 +117,7 @@ export function draftAssetDocumentToSaveAssetInput(
     name: doc.name,
     group: doc.voxelGroup,
     thumb: null,
+    thumbStorageKey: doc.thumbStorageKey ?? null,
 
     visibility: "private",
     inLibrary: doc.isLibraryItem ?? (doc.draftKind !== "override"),
@@ -140,12 +141,12 @@ export function marketplaceAssetDocumentToSaveAssetInput(
     name: doc.name,
     group: doc.voxelGroup,
     thumb: null,
+    thumbStorageKey: doc.thumbStorageKey ?? null,
 
     visibility: "marketplace",
     inLibrary: false,
     isPreset: false,
 
-    sourceAssetId: doc.sourceAssetId ?? null,
     linkedMarketplaceAssetId: null,
     lineageAssetIds: doc.lineageAssetIds ?? [],
     publishedFromAssetId: doc.publishedFromDraftAssetId ?? null,

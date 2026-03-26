@@ -10,6 +10,7 @@ export type AssetMetaRecord = {
   updatedAt: number;
   voxelCount: number;
   thumb?: Blob | null;
+  thumbStorageKey?: string | null;
 
   visibility: AssetVisibility;
   inLibrary?: boolean;
@@ -27,6 +28,7 @@ export type SaveAssetInput = {
   name: string;
   group: GroupState;
   thumb?: Blob | null;
+  thumbStorageKey?: string | null;
 
   visibility?: AssetVisibility;
   inLibrary?: boolean;
