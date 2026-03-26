@@ -6,6 +6,9 @@ import { useAuthState } from "@/components/Auth/state";
 import { Me } from "@/services/auth";
 import { nukeVoxelEditorDatabases } from "@/components/VoxelEditor/database/nukeEditorDatabases";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
+import Games from "@/components/Home/Games/Games";
+import Library from "@/components/Home/Library/Library";
+import Marketplace from "@/components/Home/Marketplace/Marketplace";
 
 type HomeTab = "marketplace" | "library" | "games";
 
@@ -122,6 +125,18 @@ function HomeClientInner() {
       <div
         style={{
           position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 52,
+          zIndex: 90,
+          pointerEvents: "none",
+        }}
+      />
+
+      <div
+        style={{
+          position: "absolute",
           top: 20,
           right: 24,
           zIndex: 100,
@@ -143,6 +158,7 @@ function HomeClientInner() {
             opacity: tab === "games" ? 1 : 0.75,
             userSelect: "none",
             fontSize: 25,
+            overflow: "visible",
           }}
         >
           Games
@@ -160,6 +176,7 @@ function HomeClientInner() {
             opacity: tab === "marketplace" ? 1 : 0.75,
             userSelect: "none",
             fontSize: 25,
+            overflow: "visible",
           }}
         >
           Marketplace
@@ -177,83 +194,16 @@ function HomeClientInner() {
             opacity: tab === "library" ? 1 : 0.75,
             userSelect: "none",
             fontSize: 25,
+            overflow: "visible",
           }}
         >
           Library
         </label>
       </div>
 
-      {tab === "marketplace" && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 20,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "auto",
-          }}
-        >
-          <div
-            className="pix-logo"
-            style={{
-              fontSize: 32,
-              color: "#DBFAFF",
-            }}
-          >
-            Marketplace Placeholder
-          </div>
-        </div>
-      )}
-
-      {tab === "library" && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 20,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "auto",
-          }}
-        >
-          <div
-            className="pix-logo"
-            style={{
-              fontSize: 32,
-              color: "#DBFAFF",
-            }}
-          >
-            Library Placeholder
-          </div>
-        </div>
-      )}
-
-      {tab === "games" && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 20,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "auto",
-          }}
-        >
-          <div
-            className="pix-logo"
-            style={{
-              fontSize: 32,
-              color: "#DBFAFF",
-            }}
-          >
-            Games Placeholder
-          </div>
-        </div>
-      )}
+      {tab === "marketplace" && <Marketplace />}
+      {tab === "library" && <Library />}
+      {tab === "games" && <Games />}
     </main>
   );
 }

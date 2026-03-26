@@ -5,8 +5,9 @@ import React, { useMemo } from "react";
 export default function VoxboxContainer(props: {
   label?: string;
   onClick?: () => void;
+  size?: "small" | "big";
 }) {
-  const { label = "voxbox", onClick } = props;
+  const { label = "voxbox", onClick, size = "small" } = props;
 
   const bg = useMemo(() => {
     const palette = [
@@ -24,7 +25,7 @@ export default function VoxboxContainer(props: {
 
   return (
     <div
-      className="pix-icon"
+      className={size === "big" ? "pix-icon-large" : "pix-icon"}
       onClick={onClick}
       style={{
         width: "100%",
@@ -38,7 +39,7 @@ export default function VoxboxContainer(props: {
         color: "rgba(255,255,255,0.95)",
         fontSize: 18,
         userSelect: "none",
-        overflow: "hidden",
+        overflow: "visible",
       }}
     >
       {label}

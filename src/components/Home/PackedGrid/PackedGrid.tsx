@@ -20,7 +20,8 @@ export default function PackedGrid(props: {
         width: "100%",
         height: "100%",
         overflowY: "auto",
-        overflowX: "hidden",
+        overflowX: "visible",
+        padding: "1vh",
       }}
     >
       <div

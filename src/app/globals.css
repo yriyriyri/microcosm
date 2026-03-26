@@ -50,6 +50,7 @@ label {
 }
 
 .pix-icon,
+.pix-icon-large,
 .pix-input {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
@@ -61,7 +62,8 @@ label {
   -webkit-tap-highlight-color: transparent;
 }
 
-.pix-icon {
+.pix-icon,
+.pix-icon-large {
   display: inline-block;
   cursor: pointer;
 }
@@ -74,5 +76,14 @@ label {
 .pix-icon:active,
 .pix-input:active {
   transform: translateZ(0) scale(0.92);
+  transition: transform 60ms ease-in;
+}
+
+.pix-icon-large:hover {
+  transform: translateZ(0) scale(1.04);
+}
+
+.pix-icon-large:active {
+  transform: translateZ(0) scale(0.96);
   transition: transform 60ms ease-in;
 }
