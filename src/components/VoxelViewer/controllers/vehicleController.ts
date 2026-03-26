@@ -29,6 +29,12 @@ const DRIVE_BOOST_MULTIPLIER = 1.5;
 const DRIVE_VISUAL_STEER_ANGLE = Math.PI / 5;
 const DRIVE_VISUAL_BANK_ANGLE = Math.PI / 3;
 const DRIVE_VISUAL_RESPONSE = 1.3;
+const DRIVE_VISUAL_PITCH_ANGLE = Math.PI / 7;
+const DRIVE_VISUAL_PITCH_RESPONSE = 2.6;
+
+const DRIVE_VERTICAL_RESPONSE = 4.5;
+const DRIVE_BOOST_RESPONSE = 3.2;
+const DRIVE_CAMERA_PULLBACK_EXPONENT = 3.0;
 
 export type DriveMoveState = {
   forward: boolean;
@@ -147,6 +153,8 @@ export function enterDriveMode(params: {
   driveState.visualSteerYaw = 0;
   driveState.visualBank = 0;
   driveState.driftAngle = 0;
+  driveState.verticalSpeed = 0;
+  driveState.boostFactor = 1;
   driveState.followOffsetLocal.copy(centerLocal);
   driveState.velocity.set(0, 0, 0);
   driveState.lookTarget.copy(centerWorld);
@@ -169,6 +177,8 @@ export function exitDriveMode(params: {
   driveState.visualSteerYaw = 0;
   driveState.visualBank = 0;
   driveState.driftAngle = 0;
+  driveState.verticalSpeed = 0;
+  driveState.boostFactor = 1;
   driveState.followOffsetLocal.set(0, 0, 0);
   driveState.velocity.set(0, 0, 0);
 
@@ -207,15 +217,23 @@ export function updateDriveCamera(params: {
   if (!vehicleRoot) return;
 
   const steerInput = (moveState.left ? 1 : 0) + (moveState.right ? -1 : 0);
-  const throttleInput = (moveState.forward ? 1 : 0) - (moveState.backward ? 1 : 0);
-  const boostMul = moveState.boost ? DRIVE_BOOST_MULTIPLIER : 1;
+  const throttleInput =
+    (moveState.forward ? 1 : 0) - (moveState.backward ? 1 : 0);
+
+  const targetBoostFactor = moveState.boost ? DRIVE_BOOST_MULTIPLIER : 1;
+  const boostAlpha = 1 - Math.exp(-DRIVE_BOOST_RESPONSE * dt);
+  driveState.boostFactor = THREE.MathUtils.lerp(
+    driveState.boostFactor,
+    targetBoostFactor,
+    boostAlpha
+  );
 
   if (steerInput !== 0 && Math.abs(driveState.speed) > 0.1) {
     driveState.yaw += steerInput * DRIVE_TURN_SPEED * dt;
   }
 
   if (throttleInput > 0) {
-    driveState.speed += DRIVE_ACCEL * boostMul * dt;
+    driveState.speed += DRIVE_ACCEL * driveState.boostFactor * dt;
   } else if (throttleInput < 0) {
     driveState.speed -= DRIVE_BRAKE * dt;
   } else {
@@ -226,11 +244,15 @@ export function updateDriveCamera(params: {
   driveState.speed = clamp(
     driveState.speed,
     -DRIVE_MAX_REVERSE_SPEED,
-    DRIVE_MAX_FORWARD_SPEED * boostMul
+    DRIVE_MAX_FORWARD_SPEED * driveState.boostFactor
   );
 
   const speedAbs = Math.abs(driveState.speed);
-  const speed01 = clamp(speedAbs / (DRIVE_MAX_FORWARD_SPEED * DRIVE_BOOST_MULTIPLIER), 0, 1);
+  const speed01 = clamp(
+    speedAbs / (DRIVE_MAX_FORWARD_SPEED * DRIVE_BOOST_MULTIPLIER),
+    0,
+    1
+  );
 
   let targetDriftAngle = 0;
   if (speedAbs >= DRIVE_MIN_DRIFT_SPEED) {
@@ -265,11 +287,18 @@ export function updateDriveCamera(params: {
   vehicleRoot.position.addScaledVector(driveState.velocity, dt);
 
   const verticalInput = (moveState.up ? 1 : 0) - (moveState.down ? 1 : 0);
-  vehicleRoot.position.y += verticalInput * DRIVE_FLY_SPEED * dt;
+  const targetVerticalSpeed = verticalInput * DRIVE_FLY_SPEED;
+  const verticalAlpha = 1 - Math.exp(-DRIVE_VERTICAL_RESPONSE * dt);
+  driveState.verticalSpeed = THREE.MathUtils.lerp(
+    driveState.verticalSpeed,
+    targetVerticalSpeed,
+    verticalAlpha
+  );
+  vehicleRoot.position.y += driveState.verticalSpeed * dt;
 
   const visualTurnTarget =
-  steerInput * DRIVE_VISUAL_STEER_ANGLE * speed01 -
-  driveState.driftAngle * 0.35;
+    steerInput * DRIVE_VISUAL_STEER_ANGLE * speed01 -
+    driveState.driftAngle * 0.35;
 
   const visualBankTarget =
     -steerInput * DRIVE_VISUAL_BANK_ANGLE * speed01;
@@ -300,8 +329,9 @@ export function updateDriveCamera(params: {
     driveState.followOffsetLocal.clone()
   );
 
+  const pullbackT = Math.pow(speed01, DRIVE_CAMERA_PULLBACK_EXPONENT);
   const dynamicDistance =
-    DRIVE_CAMERA_DISTANCE + DRIVE_CAMERA_SPEED_DISTANCE * speed01;
+    DRIVE_CAMERA_DISTANCE + DRIVE_CAMERA_SPEED_DISTANCE * pullbackT;
 
   const forwardDir = new THREE.Vector3(
     Math.sin(driveState.yaw),
