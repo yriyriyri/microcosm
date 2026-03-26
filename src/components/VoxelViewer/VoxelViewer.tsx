@@ -66,9 +66,9 @@ type Bounds3 = {
   maxZ: number;
 };
 
-const PLAY_SKY_RADIUS_1 = 1200;
-const PLAY_SKY_RADIUS_2 = 1000;
-const PLAY_SKY_RADIUS_3 = 850;
+const PLAY_SKY_RADIUS_1 = 3600;
+const PLAY_SKY_RADIUS_2 = 3000;
+const PLAY_SKY_RADIUS_3 = 2550;
 
 const PLAY_SKY_SEGMENTS_W = 48;
 const PLAY_SKY_SEGMENTS_H = 32;
@@ -126,7 +126,7 @@ export default function VoxelViewer(props: {
       40,
       mount.clientWidth / mount.clientHeight,
       0.1,
-      2000
+      4000
     );
     camera.position.set(172.557, 77.391, 184.354);
     camera.lookAt(0, 0, 0);
