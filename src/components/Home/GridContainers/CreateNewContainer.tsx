@@ -6,8 +6,14 @@ export default function CreateNewContainer(props: {
   label?: string;
   onClick?: () => void;
   size?: "small" | "big";
+  disabled?: boolean;
 }) {
-  const { label = "voxbox", onClick, size = "small" } = props;
+  const {
+    label = "Create New",
+    onClick,
+    size = "small",
+    disabled = false,
+  } = props;
 
   const bg = useMemo(() => {
     const palette = [
@@ -26,20 +32,21 @@ export default function CreateNewContainer(props: {
   return (
     <div
       className={size === "big" ? "pix-icon-large" : "pix-icon"}
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       style={{
         width: "100%",
         height: "100%",
         background: bg,
         borderRadius: 8,
-        cursor: onClick ? "pointer" : "default",
+        cursor: disabled ? "default" : onClick ? "pointer" : "default",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         color: "rgba(255,255,255,0.95)",
-        fontSize: 18,
+        fontSize: 22,
         userSelect: "none",
         overflow: "visible",
+        opacity: disabled ? 0.7 : 1,
       }}
     >
       {label}
