@@ -18,9 +18,9 @@ const DRIVE_CAMERA_LOOK_LERP = 7.5;
 const DRIVE_FLOOR_Y = 0;
 const DRIVE_FOV = 82;
 
-const DRIVE_MIN_TURN_RESPONSE = 0.06;
-const DRIVE_MAX_TURN_RESPONSE = 1.1;
 const DRIVE_MIN_DRIFT_SPEED = 14;
+const DRIVE_MAX_DRIFT_ANGLE = Math.PI / 5; 
+const DRIVE_DRIFT_RESPONSE = 2.8; 
 
 export type DriveMoveState = {
   forward: boolean;
@@ -34,6 +34,7 @@ export type DriveState = {
   vehicleRoot: THREE.Object3D | null;
   speed: number;
   yaw: number;
+  driftAngle: number;
   followOffsetLocal: THREE.Vector3;
   velocity: THREE.Vector3;
   lookTarget: THREE.Vector3;
@@ -54,6 +55,7 @@ export function createDriveState(): DriveState {
     vehicleRoot: null,
     speed: 0,
     yaw: 0,
+    driftAngle: 0,
     followOffsetLocal: new THREE.Vector3(),
     velocity: new THREE.Vector3(),
     lookTarget: new THREE.Vector3(),
@@ -103,6 +105,7 @@ export function enterDriveMode(params: {
   driveState.vehicleRoot = vehicleRoot;
   driveState.speed = 0;
   driveState.yaw = vehicleRoot.rotation.y;
+  driveState.driftAngle = 0;
   driveState.followOffsetLocal.copy(centerLocal);
   driveState.velocity.set(0, 0, 0);
   driveState.lookTarget.copy(centerWorld);
@@ -121,6 +124,8 @@ export function exitDriveMode(params: {
   driveState.active = false;
   driveState.vehicleRoot = null;
   driveState.speed = 0;
+  driveState.yaw = 0;
+  driveState.driftAngle = 0;
   driveState.followOffsetLocal.set(0, 0, 0);
   driveState.velocity.set(0, 0, 0);
 
@@ -135,14 +140,14 @@ export function exitDriveMode(params: {
   }
 }
 
-function signedAngleY(from: THREE.Vector3, to: THREE.Vector3): number {
-  const cross = from.x * to.z - from.z * to.x;
-  const dot = from.x * to.x + from.z * to.z;
-  return Math.atan2(cross, dot);
-}
-
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function moveToward(current: number, target: number, maxDelta: number): number {
+  if (current < target) return Math.min(current + maxDelta, target);
+  if (current > target) return Math.max(current - maxDelta, target);
+  return current;
 }
 
 export function updateDriveCamera(params: {
@@ -163,13 +168,7 @@ export function updateDriveCamera(params: {
     driveState.yaw += steerInput * DRIVE_TURN_SPEED * dt;
   }
 
-  const forwardDir = new THREE.Vector3(
-    Math.sin(driveState.yaw),
-    0,
-    Math.cos(driveState.yaw)
-  ).normalize();
-
-  // engine / braking acts on scalar speed
+  // scalar speed
   if (throttleInput > 0) {
     driveState.speed += DRIVE_ACCEL * dt;
   } else if (throttleInput < 0) {
@@ -185,34 +184,34 @@ export function updateDriveCamera(params: {
     DRIVE_MAX_FORWARD_SPEED
   );
 
-  // if nearly stopped, snap movement direction to facing so low-speed turning stays responsive
-  const planarVelocity = driveState.velocity.clone().setY(0);
-  const planarSpeed = planarVelocity.length();
+  const speedAbs = Math.abs(driveState.speed);
+  const speed01 = clamp(speedAbs / DRIVE_MAX_FORWARD_SPEED, 0, 1);
 
-  if (planarSpeed < DRIVE_MIN_DRIFT_SPEED) {
-    driveState.velocity.copy(forwardDir).multiplyScalar(driveState.speed);
-  } else {
-    const velDir = planarVelocity.normalize();
-
-    // higher speed => lower response => bigger turning radius
-    const speed01 = clamp(planarSpeed / DRIVE_MAX_FORWARD_SPEED, 0, 1);
-    const turnResponse =
-      DRIVE_MAX_TURN_RESPONSE * (1 - speed01) +
-      DRIVE_MIN_TURN_RESPONSE * speed01;
-
-    const angleToForward = signedAngleY(velDir, forwardDir);
-    const maxStep = turnResponse * dt;
-    const appliedAngle = clamp(angleToForward, -maxStep, maxStep);
-
-    const nextVelDir = velDir
-      .clone()
-      .applyAxisAngle(new THREE.Vector3(0, 1, 0), appliedAngle)
-      .normalize();
-
-    driveState.velocity.copy(nextVelDir).multiplyScalar(driveState.speed);
+  // target drift angle:
+  // slow speed => almost none
+  // high speed + steering => bigger sideways movement offset
+  let targetDriftAngle = 0;
+  if (speedAbs >= DRIVE_MIN_DRIFT_SPEED) {
+    targetDriftAngle = -steerInput * DRIVE_MAX_DRIFT_ANGLE * speed01;
   }
 
-  // braking should resist motion direction, not heading
+  // same response rate when entering or recovering
+  driveState.driftAngle = moveToward(
+    driveState.driftAngle,
+    targetDriftAngle,
+    DRIVE_DRIFT_RESPONSE * dt
+  );
+
+  const moveYaw = driveState.yaw + driveState.driftAngle;
+
+  const moveDir = new THREE.Vector3(
+    Math.sin(moveYaw),
+    0,
+    Math.cos(moveYaw)
+  ).normalize();
+
+  driveState.velocity.copy(moveDir).multiplyScalar(driveState.speed);
+
   if (throttleInput < 0 && driveState.velocity.lengthSq() > 0) {
     driveState.velocity.multiplyScalar(DRIVE_BRAKE_DRAG);
   }
@@ -226,9 +225,14 @@ export function updateDriveCamera(params: {
     driveState.followOffsetLocal.clone()
   );
 
-  const speed01 = clamp(Math.abs(driveState.speed) / DRIVE_MAX_FORWARD_SPEED, 0, 1);
   const dynamicDistance =
     DRIVE_CAMERA_DISTANCE + DRIVE_CAMERA_SPEED_DISTANCE * speed01;
+
+  const forwardDir = new THREE.Vector3(
+    Math.sin(driveState.yaw),
+    0,
+    Math.cos(driveState.yaw)
+  ).normalize();
 
   const backDir = forwardDir.clone().multiplyScalar(-dynamicDistance);
   const desiredCamPos = targetWorld

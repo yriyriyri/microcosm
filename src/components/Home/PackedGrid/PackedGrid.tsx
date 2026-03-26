@@ -11,8 +11,9 @@ export type PackedGridItem = {
 export default function PackedGrid(props: {
   items: PackedGridItem[];
   gap?: number;
+  columns?: number;
 }) {
-  const { items, gap = 12 } = props;
+  const { items, gap = 12, columns = 8 } = props;
 
   return (
     <div
@@ -27,7 +28,7 @@ export default function PackedGrid(props: {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(8, minmax(0, 1fr))",
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
           gridAutoRows: "1fr",
           gridAutoFlow: "dense",
           gap,

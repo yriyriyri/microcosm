@@ -1535,7 +1535,7 @@ export default function VoxelWorldEditor(props: {
               }}
             />
 
-            <div
+            {/* <div
               className="pix-icon"
               onClick={toggleMarketplace}
               style={{
@@ -1573,7 +1573,7 @@ export default function VoxelWorldEditor(props: {
               }}
             >
               {publishing ? "publishing..." : "publish"}
-            </div>
+            </div> */}
             
           </div>
         </div>

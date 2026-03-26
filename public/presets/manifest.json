@@ -2,6 +2,24 @@
   "version": 1,
   "presets": [
     {
+      "id": "preset_mini-car",
+      "name": "Mini Car",
+      "json": "/presets/assets/mini-car.json",
+      "thumb": "/presets/thumbs/mini-car.png"
+    },
+    {
+      "id": "preset_mini-checkpoint",
+      "name": "Mini Checkpoint",
+      "json": "/presets/assets/mini-checkpoint.json",
+      "thumb": "/presets/thumbs/mini-checkpoint.png"
+    },
+    {
+      "id": "preset_mini-hovercraft",
+      "name": "Mini Hovercraft",
+      "json": "/presets/assets/mini-hovercraft.json",
+      "thumb": "/presets/thumbs/mini-hovercraft.png"
+    },
+    {
       "id": "preset_small-checkpoint",
       "name": "Small Checkpoint",
       "json": "/presets/assets/small-checkpoint.json",
