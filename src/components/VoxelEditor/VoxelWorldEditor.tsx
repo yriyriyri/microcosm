@@ -21,6 +21,9 @@ import WorldToolPalette, { type WorldToolId } from "./ui/WorldToolPalette";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 import { assetRepository, worldRepository } from "./repositories";
 
+import { useAuthState } from "@/components/Auth/state";
+import { publishWorld } from "@/services/publishedWorlds";
+
 function recenterCameraOnBounds(params: {
   minX: number;
   minY: number;
@@ -71,6 +74,9 @@ export default function VoxelWorldEditor(props: {
 }) {
   const { onFocusGroup, focusOpen } = props;
   const { unlock, play, startLoopAt, setLoopVolume, getTime, startLoop, click } = useSound();
+
+  const { me } = useAuthState();
+  const [publishing, setPublishing] = useState(false);
 
   const mountRef = useRef<HTMLDivElement | null>(null);
 
@@ -128,6 +134,7 @@ export default function VoxelWorldEditor(props: {
 
   const [worldTool, setWorldTool] = useState<WorldToolId>("planemovement");
   const worldToolRef = useRef<WorldToolId>("planemovement");
+
 
   useEffect(() => {
     selectedGroupIdLiveRef.current = selectedGroupId;
@@ -522,6 +529,40 @@ export default function VoxelWorldEditor(props: {
 
   async function onSaveToLibrary() {
     await autosave({ withThumb: true });
+  }
+
+  async function onPublishWorld() {
+    const world = worldRef.current;
+    if (!world) return;
+    if (!me?.user_id) {
+      alert("You must be logged in to publish.");
+      return;
+    }
+
+    const snapshot = world.getPublishedWorldSnapshot();
+    if (!snapshot.groups.length) {
+      alert("World is empty.");
+      return;
+    }
+
+    try {
+      setPublishing(true);
+
+      await publishWorld({
+        publisherUserId: me.user_id,
+        worldName: islandName.trim() || "Untitled World",
+        voxelCount: snapshot.voxelCount,
+        sourceAssetIds: snapshot.sourceAssetIds,
+        groups: snapshot.groups,
+      });
+
+      alert("World published.");
+    } catch (err) {
+      console.error("Publish failed", err);
+      alert("Failed to publish world.");
+    } finally {
+      setPublishing(false);
+    }
   }
 
   async function onOpenFromLibrary(id: string) {
@@ -1492,6 +1533,27 @@ export default function VoxelWorldEditor(props: {
             >
               market
             </div>
+
+            <div
+              className="pix-icon"
+              onClick={publishing ? undefined : onPublishWorld}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 6,
+                background: "rgba(0, 50, 110, 0.5)",
+                color: "white",
+                fontSize: 16,
+                cursor: publishing ? "default" : "pointer",
+                opacity: publishing ? 0.6 : 0.85,
+                transition: "opacity 120ms ease-out",
+                userSelect: "none",
+                textAlign: "center",
+                minWidth: 90,
+              }}
+            >
+              {publishing ? "publishing..." : "publish"}
+            </div>
+            
           </div>
         </div>
       )}

@@ -78,6 +78,34 @@ export type VoxelWorldRenderConfig = {
 
 const DEFAULT_GROUP: GroupId = "default";
 
+//published world
+
+export type PublishedWorldGroupVoxel = {
+  local: VoxelCoord;
+  color: string;
+  isBlueprint: boolean;
+};
+
+export type PublishedWorldGroupSnapshot = {
+  groupId: string;
+  sourceAssetId: string | null;
+  assetKind: AssetKind | null;
+  position: VoxelCoord;
+  rotation: GroupRotation;
+  bounds: {
+    min: VoxelCoord;
+    max: VoxelCoord;
+  } | null;
+  voxelCount: number;
+  voxels: PublishedWorldGroupVoxel[];
+};
+
+export type PublishedWorldSnapshot = {
+  voxelCount: number;
+  sourceAssetIds: string[];
+  groups: PublishedWorldGroupSnapshot[];
+};
+
 //helpers
 
 function makeRuntimeId(): string {
@@ -1091,5 +1119,91 @@ export class VoxelWorld {
 
     this.materialCache.set(key, mat);
     return mat;
+  }
+
+  // publishing
+
+  getPublishedWorldSnapshot(): {
+    voxelCount: number;
+    sourceAssetIds: string[];
+    groups: {
+      groupId: string;
+      sourceAssetId: string | null;
+      assetKind: "draft" | "marketplace" | null;
+      position: { x: number; y: number; z: number };
+      rotation: { x: 0 | 1 | 2 | 3; y: 0 | 1 | 2 | 3; z: 0 | 1 | 2 | 3 };
+      bounds: {
+        min: { x: number; y: number; z: number };
+        max: { x: number; y: number; z: number };
+      } | null;
+      voxelCount: number;
+      voxels: {
+        local: { x: number; y: number; z: number };
+        color: string;
+        isBlueprint: boolean;
+      }[];
+    }[];
+  } {
+    const groups: {
+      groupId: string;
+      sourceAssetId: string | null;
+      assetKind: "draft" | "marketplace" | null;
+      position: { x: number; y: number; z: number };
+      rotation: { x: 0 | 1 | 2 | 3; y: 0 | 1 | 2 | 3; z: 0 | 1 | 2 | 3 };
+      bounds: {
+        min: { x: number; y: number; z: number };
+        max: { x: number; y: number; z: number };
+      } | null;
+      voxelCount: number;
+      voxels: {
+        local: { x: number; y: number; z: number };
+        color: string;
+        isBlueprint: boolean;
+      }[];
+    }[] = [];
+
+    const sourceAssetIdsSet = new Set<string>();
+    let voxelCount = 0;
+
+    for (const [groupId, g] of this.groups.entries()) {
+      if (groupId === DEFAULT_GROUP) continue;
+      if (!g.voxels.size) continue;
+
+      const voxels = Array.from(g.voxels.values()).map((v) => ({
+        local: { ...v.local },
+        color: v.color,
+        isBlueprint: v.isBlueprint,
+      }));
+
+      const bounds = this.getGroupBounds(groupId);
+
+      if (g.source.assetId) {
+        sourceAssetIdsSet.add(g.source.assetId);
+      }
+
+      voxelCount += voxels.length;
+
+      groups.push({
+        groupId,
+        sourceAssetId: g.source.assetId ?? null,
+        assetKind: g.source.assetKind ?? null,
+        position: { ...g.position },
+        rotation: { ...g.rotation },
+        bounds: bounds
+          ? {
+              min: { ...bounds.min },
+              max: { ...bounds.max },
+            }
+          : null,
+        voxelCount: voxels.length,
+        voxels,
+      });
+    }
+
+    return {
+      voxelCount,
+      sourceAssetIds: Array.from(sourceAssetIdsSet),
+      groups,
+    };
   }
 }
