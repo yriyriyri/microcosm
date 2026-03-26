@@ -287,6 +287,10 @@ export default function AdminAssetsPanel(props: {
                       {a.voxelCount.toLocaleString()} voxels
                     </div>
 
+                    <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 6 }}>
+                      id: {a.id}
+                    </div>
+
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <button
                         onClick={() => onRequestPlace(a.id)}

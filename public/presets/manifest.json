@@ -2,10 +2,34 @@
   "version": 1,
   "presets": [
     {
-      "id": "preset_big-fish-4",
-      "name": "Big Fish 4",
-      "json": "/presets/assets/big-fish-4.json",
-      "thumb": "/presets/thumbs/big-fish-4.png"
+      "id": "preset_small-checkpoint",
+      "name": "Small Checkpoint",
+      "json": "/presets/assets/small-checkpoint.json",
+      "thumb": "/presets/thumbs/small-checkpoint.png"
+    },
+    {
+      "id": "preset_medium-checkpoint",
+      "name": "Medium Checkpoint",
+      "json": "/presets/assets/medium-checkpoint.json",
+      "thumb": "/presets/thumbs/medium-checkpoint.png"
+    },
+    {
+      "id": "preset_large-checkpoint",
+      "name": "Large Checkpoint",
+      "json": "/presets/assets/large-checkpoint.json",
+      "thumb": "/presets/thumbs/large-checkpoint.png"
+    },
+    {
+      "id": "preset_hovercraft",
+      "name": "Hovercraft",
+      "json": "/presets/assets/hovercraft.json",
+      "thumb": "/presets/thumbs/hovercraft.png"
+    },
+    {
+      "id": "preset_car",
+      "name": "Car",
+      "json": "/presets/assets/car.json",
+      "thumb": "/presets/thumbs/car.png"
     },
     {
       "id": "preset_big-fish-3",
