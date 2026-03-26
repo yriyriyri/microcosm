@@ -793,6 +793,7 @@ export default function VoxelViewer(props: {
 
           for (const surface of group.surfaces) {
             const geometry = new THREE.BufferGeometry();
+            //TEST TEST TEST
 
             geometry.setAttribute(
               "position",
