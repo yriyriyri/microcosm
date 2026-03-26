@@ -153,18 +153,29 @@ export default function VoxelViewer(props: {
 
     mount.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+    scene.add(new THREE.AmbientLight(0xffffff, 2.8));
+    const hemi = new THREE.HemisphereLight(0xdff4ff, 0x6fa0c8, 1.3);
+    scene.add(hemi);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 3.5);
+    const dir = new THREE.DirectionalLight(0xffffff, 2.0);
     dir.castShadow = true;
-    dir.shadow.bias = -0.0005;
-    dir.shadow.mapSize.set(512, 512);
+    dir.shadow.bias = -0.00035;
+    dir.shadow.normalBias = 0.03;
+    dir.shadow.mapSize.set(2048, 2048);
+    
+    dir.shadow.camera.left = -220;
+    dir.shadow.camera.right = 220;
+    dir.shadow.camera.top = 220;
+    dir.shadow.camera.bottom = -220;
+    dir.shadow.camera.near = 1;
+    dir.shadow.camera.far = 500;
+    
     dir.position.setFromSphericalCoords(
-      150,
-      THREE.MathUtils.degToRad(80),
-      THREE.MathUtils.degToRad(-29)
+      250,
+      THREE.MathUtils.degToRad(60),
+      THREE.MathUtils.degToRad(30)
     );
-    dir.target.position.set(0, 0, 80);
+    dir.target.position.set(0, 0, 50);
     scene.add(dir.target);
     scene.add(dir);
 
@@ -217,9 +228,9 @@ export default function VoxelViewer(props: {
           const applyTo = (mat: THREE.Material) => {
             const m = mat as THREE.MeshStandardMaterial;
             if (!("roughness" in m)) return;
-
-            m.roughness = 1;
-            m.metalness = 0;
+            
+            m.roughness = 0.92;
+            m.metalness = 0.02;
 
             if (scene.environment) {
               (m as any).envMap = scene.environment;
@@ -612,8 +623,14 @@ export default function VoxelViewer(props: {
             const material = new THREE.MeshStandardMaterial({
               color: new THREE.Color(surface.color),
               transparent: surface.isBlueprint,
-              opacity: surface.isBlueprint ? 0.4 : 0.7,
+              opacity: surface.isBlueprint ? 0.4 : 0.78,
+              roughness: 0.9,
+              metalness: 0.02,
             });
+
+            if (scene.environment) {
+              material.envMap = scene.environment;
+            }
 
             if (surface.isBlueprint) {
               material.depthWrite = false;

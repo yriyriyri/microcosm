@@ -798,19 +798,21 @@ export default function VoxelWorldEditor(props: {
     const preventContextMenu = (e: Event) => e.preventDefault();
     renderer.domElement.addEventListener("contextmenu", preventContextMenu);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 2.2));
+    scene.add(new THREE.AmbientLight(0xffffff, 2.4));
+    const hemi = new THREE.HemisphereLight(0xdff4ff, 0x6fa0c8, 1.3);
+    scene.add(hemi);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 3.5);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.7);
     dir.castShadow = true;
     dir.shadow.bias = -0.0005;
     dir.shadow.mapSize.set(512, 512);
 
     dir.position.setFromSphericalCoords(
-      150,
-      THREE.MathUtils.degToRad(80),
-      THREE.MathUtils.degToRad(-29)
+      250,
+      THREE.MathUtils.degToRad(60),
+      THREE.MathUtils.degToRad(30)
     );
-    dir.target.position.set(0, 0, 80);
+    dir.target.position.set(0, 0, 50);
     scene.add(dir.target);
     scene.add(dir);
 
