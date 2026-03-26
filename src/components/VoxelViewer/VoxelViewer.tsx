@@ -32,7 +32,10 @@ import {
   updateDriveCamera,
 } from "./controllers/vehicleController";
 
-const TEMP_WORLD_SCALE = 0.8;
+const TEMP_WORLD_SCALE = 1.0;
+const JEFF_SCALE = 6;
+const JEFF_Y_OFFSET = 1.5;
+const JEFF_ROT_Y = Math.PI;
 
 function recenterCameraOnBounds(params: {
   minX: number;
@@ -100,6 +103,9 @@ export default function VoxelViewer(props: {
 
   const mountRef = useRef<HTMLDivElement | null>(null);
 
+  const jeffTemplateRef = useRef<THREE.Object3D | null>(null);
+  const jeffInstanceRef = useRef<THREE.Object3D | null>(null);
+
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -156,6 +162,53 @@ export default function VoxelViewer(props: {
     helper.renderOrder = 9999;
     scene.add(helper);
     hoveredVehicleBoxRef.current = helper;
+  }
+
+  function detachJeff() {
+    const inst = jeffInstanceRef.current;
+    if (!inst) return;
+  
+    inst.parent?.remove(inst);
+    jeffInstanceRef.current = null;
+  }
+  
+  function attachJeffToVehicle(vehicleRoot: THREE.Object3D) {
+    const template = jeffTemplateRef.current;
+    if (!template) return;
+  
+    detachJeff();
+  
+    vehicleRoot.updateMatrixWorld(true);
+  
+    const worldBox = new THREE.Box3().setFromObject(vehicleRoot);
+    const centerWorld = new THREE.Vector3();
+    const sizeWorld = new THREE.Vector3();
+    worldBox.getCenter(centerWorld);
+    worldBox.getSize(sizeWorld);
+  
+    const localAttach = vehicleRoot.worldToLocal(centerWorld.clone());
+    const vehicleTopLocalY =
+      vehicleRoot.worldToLocal(new THREE.Vector3(0, worldBox.max.y, 0)).y;
+  
+    const jeff = template.clone(true);
+    jeff.name = "jeff-rider";
+    jeff.position.set(
+      localAttach.x,
+      vehicleTopLocalY + JEFF_Y_OFFSET,
+      localAttach.z
+    );
+    jeff.rotation.set(0, JEFF_ROT_Y, 0);
+    jeff.scale.setScalar(JEFF_SCALE);
+  
+    jeff.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!(mesh as any).isMesh) return;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+    });
+  
+    vehicleRoot.add(jeff);
+    jeffInstanceRef.current = jeff;
   }
 
   function findVehicleRootFromObject(obj: THREE.Object3D | null): THREE.Object3D | null {
@@ -347,6 +400,28 @@ export default function VoxelViewer(props: {
       }
     );
 
+    gltfLoader.load(
+      "/Jeff.glb",
+      (gltf) => {
+        const root = gltf.scene;
+        root.name = "jeff-template";
+        root.visible = true;
+
+        root.traverse((obj) => {
+          const mesh = obj as THREE.Mesh;
+          if (!(mesh as any).isMesh) return;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+        });
+
+        jeffTemplateRef.current = root;
+      },
+      undefined,
+      (err) => {
+        console.error("Failed to load /Jeff.glb", err);
+      }
+    );
+
     const publishedWorldRoot = new THREE.Group();
     publishedWorldRoot.name = "published-world-root";
     scene.add(publishedWorldRoot);
@@ -497,7 +572,6 @@ export default function VoxelViewer(props: {
         fpStateRef.current,
         fpStateRef.current.active
       );
-
       if (
         e.code === "KeyE" &&
         playModeRef.current &&
@@ -507,11 +581,15 @@ export default function VoxelViewer(props: {
         const camera = cameraRef.current;
         if (!camera) return;
 
+        const vehicleRoot = hoveredVehicleRootRef.current;
+
         enterDriveMode({
           camera,
-          vehicleRoot: hoveredVehicleRootRef.current,
+          vehicleRoot,
           driveState: driveStateRef.current,
         });
+
+        attachJeffToVehicle(vehicleRoot);
 
         setDriveMode(true);
         fpStateRef.current.active = false;
