@@ -1176,7 +1176,7 @@ export default function VoxelPartEditor(props: {
       >
         <source src="/focus/screen.mp4" type="video/mp4" />
       </video>
-  
+
       <div
         ref={mountRef}
         style={{
@@ -1187,7 +1187,7 @@ export default function VoxelPartEditor(props: {
           zIndex: 1,
         }}
       />
-  
+
       <div
         style={{
           position: "absolute",
@@ -1212,103 +1212,89 @@ export default function VoxelPartEditor(props: {
       <div
         style={{
           position: "absolute",
-          top: 28,
+          top: 40,
           left: "50%",
           transform: "translateX(-50%)",
           zIndex: 2,
+          width: "min(900px, 92vw)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 16,
           pointerEvents: "none",
-          maxWidth: "70vw",
         }}
       >
         <div
-          className="pix-icon"
           style={{
-            padding: "10px 16px",
-            borderRadius: 6,
-            background: "rgba(0, 50, 110, 0.5)",
-            color: "white",
-            fontSize: 20,
+            color: "#00324c",
+            fontSize: 30,
             lineHeight: 1,
             textAlign: "center",
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
             userSelect: "none",
+            maxWidth: "80vw",
           }}
           title={displayAssetName}
         >
-          {displayAssetName}
+          {`> ${displayAssetName} <`}
         </div>
-      </div>
 
-      {hasStructuralChanges && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: 110,
-            transform: "translateX(-50%)",
-            zIndex: 2,
-            pointerEvents: "auto",
-            display: "flex",
-            gap: 10,
-            alignItems: "center",
-          }}
-        >
+        {(showOverwriteButton || showRemixButton) && (
           <div
-            className="pix-icon"
             style={{
-              padding: "10px 14px",
-              borderRadius: 5,
-              background: "rgba(180, 90, 0, 0.65)",
-              color: "white",
-              fontSize: 18,
-              userSelect: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 16,
+              flexWrap: "wrap",
+              pointerEvents: "auto",
             }}
           >
-            structural changes detected
+            {showOverwriteButton && (
+              <div
+                className="pix-icon"
+                onClick={isSavingAsset ? undefined : handleOverwriteAsset}
+                style={{
+                  padding: "5px 5px",
+                  borderRadius: 5,
+                  background: "rgba(0, 50, 110, 0.5)",
+                  color: "white",
+                  fontSize: 19,
+                  userSelect: "none",
+                  cursor: isSavingAsset ? "default" : "pointer",
+                  opacity: isSavingAsset ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                overwrite
+              </div>
+            )}
+
+            {showRemixButton && (
+              <div
+                className="pix-icon"
+                onClick={isSavingAsset ? undefined : handleRemixAsset}
+                style={{
+                  padding: "5px 8px",
+                  borderRadius: 5,
+                  background: "rgba(0, 50, 110, 0.5)",
+                  color: "white",
+                  fontSize: 19,
+                  userSelect: "none",
+                  cursor: isSavingAsset ? "default" : "pointer",
+                  opacity: isSavingAsset ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                remix
+              </div>
+            )}
           </div>
+        )}
+      </div>
 
-          {showOverwriteButton && (
-            <div
-              className="pix-icon"
-              onClick={isSavingAsset ? undefined : handleOverwriteAsset}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 5,
-                background: "rgba(0, 120, 80, 0.7)",
-                color: "white",
-                fontSize: 18,
-                userSelect: "none",
-                cursor: isSavingAsset ? "default" : "pointer",
-                opacity: isSavingAsset ? 0.6 : 1,
-              }}
-            >
-              overwrite
-            </div>
-          )}
-
-          {showRemixButton && (
-            <div
-              className="pix-icon"
-              onClick={isSavingAsset ? undefined : handleRemixAsset}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 5,
-                background: "rgba(80, 60, 180, 0.75)",
-                color: "white",
-                fontSize: 18,
-                userSelect: "none",
-                cursor: isSavingAsset ? "default" : "pointer",
-                opacity: isSavingAsset ? 0.6 : 1,
-              }}
-            >
-              remix
-            </div>
-          )}
-        </div>
-      )}
-  
       <div
         style={{
           position: "absolute",
@@ -1330,12 +1316,13 @@ export default function VoxelPartEditor(props: {
             fontSize: 20,
             userSelect: "none",
             cursor: "pointer",
+            whiteSpace: "nowrap",
           }}
         >
           world mode
         </div>
       </div>
-        
+
       <div
         style={{
           position: "absolute",
