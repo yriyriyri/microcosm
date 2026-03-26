@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import VoxelWorldEditor from "./VoxelWorldEditor";
 import VoxelPartEditor from "./VoxelPartEditor";
 import type { VoxelWorld, AssetKind } from "./VoxelWorld";
-import { ensurePresetAssetsInstalled } from "./database/AssetPresets";
 import { useSound, useSoundLoading } from "@/components/VoxelEditor/audio/SoundProvider";
 import LoadingOverlay from "./ui/LoadingOverlay";
 
@@ -38,23 +37,21 @@ export default function VoxelEditor(props: {
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusedGroupId, setFocusedGroupId] = useState<string | null>(null);
 
-  const requestAutosaveRef = useRef<((opts?: { immediate?: boolean; reason?: string }) => void) | null>(null);
+  const requestAutosaveRef = useRef<
+    ((opts?: { immediate?: boolean; reason?: string }) => void) | null
+  >(null);
   const worldRef = useRef<VoxelWorld | null>(null);
 
   const exitTimeoutRef = useRef<number | null>(null);
 
   const [worldReady, setWorldReady] = useState(false);
-  const [presetsReady, setPresetsReady] = useState(false);
-  const [presetProgress, setPresetProgress] = useState(0);
-  const [loadingText, setLoadingText] = useState("booting…");
   const audio = useSoundLoading();
   const [audioReady, audioProgress] = [audio.ready, audio.progress];
-  const fullyReady = worldReady && presetsReady && audioReady;
+  const fullyReady = worldReady && audioReady;
 
   const progress =
-    (worldReady ? 0.34 : 0) +
-    (presetsReady ? 0.33 : 0.33 * Math.max(0, Math.min(1, presetProgress))) +
-    (audioReady ? 0.33 : 0.33 * Math.max(0, Math.min(1, audioProgress)));
+    (worldReady ? 0.5 : 0) +
+    (audioReady ? 0.5 : 0.5 * Math.max(0, Math.min(1, audioProgress)));
 
   const [focusedSource, setFocusedSource] =
     useState<FocusedSourceContext>(EMPTY_FOCUSED_SOURCE);
@@ -101,37 +98,6 @@ export default function VoxelEditor(props: {
     if (!audioReady) return;
     setLoopVolume("amb:focus", focusOpen ? AMBIENCE_FOCUS_VOL : 0.0, AMBIENCE_FADE_MS);
   }, [audioReady, focusOpen, setLoopVolume]);
-
-  const presetsInitRef = useRef(false);
-  useEffect(() => {
-    if (presetsInitRef.current) return;
-    presetsInitRef.current = true;
-
-    (async () => {
-      try {
-        setLoadingText("loading presets…");
-        setPresetProgress(0);
-
-        await ensurePresetAssetsInstalled({
-          onProgress: (p, info) => {
-            setPresetProgress(p);
-            if (info?.name) setLoadingText(`installing: ${info.name}`);
-            else if (info?.done != null && info?.total != null)
-              setLoadingText(`installing presets… (${info.done}/${info.total})`);
-            else setLoadingText("installing presets…");
-          },
-        });
-
-        setPresetProgress(1);
-        setPresetsReady(true);
-        setLoadingText("finalizing…");
-      } catch (e) {
-        console.error("Preset install failed", e);
-        setPresetsReady(true);
-        setLoadingText("preset install failed (see console)");
-      }
-    })();
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -191,7 +157,6 @@ export default function VoxelEditor(props: {
           onWorldReady={(w) => {
             worldRef.current = w;
             setWorldReady(true);
-            setLoadingText((t) => (t === "loading world…" ? "loading presets…" : t));
           }}
           onRequestAutosaveRef={(fn) => {
             requestAutosaveRef.current = fn;
@@ -212,7 +177,7 @@ export default function VoxelEditor(props: {
       <LoadingOverlay
         show={!fullyReady}
         progress={progress}
-        text={loadingText}
+        text={worldReady ? "loading audio…" : "loading world…"}
         fadeMs={FADE_MS}
       />
     </div>

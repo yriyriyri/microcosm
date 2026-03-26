@@ -5,23 +5,31 @@ import LoginScreen from "@/components/Auth/LoginScreen";
 import { useAuthState } from "@/components/Auth/state";
 import { Me } from "@/services/auth";
 import { nukeVoxelEditorDatabases } from "@/components/VoxelEditor/database/nukeEditorDatabases";
+import { ensurePresetAssetsInstalled } from "@/components/VoxelEditor/database/AssetPresets";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 import Games from "@/components/Home/Games/Games";
 import Library from "@/components/Home/Library/Library";
 import Marketplace from "@/components/Home/Marketplace/Marketplace";
+import LoadingOverlay from "@/components/VoxelEditor/ui/LoadingOverlay";
 
 type HomeTab = "marketplace" | "library" | "games";
 
 function HomeClientInner() {
   const { auth, setAuth, clearAuth } = useAuthState();
   const [loading, setLoading] = useState(true);
+  const [presetsReady, setPresetsReady] = useState(false);
+  const [presetProgress, setPresetProgress] = useState(0);
+  const [loadingText, setLoadingText] = useState("booting…");
   const [tab, setTab] = useState<HomeTab>("library");
   const { click } = useSound();
 
   useEffect(() => {
     let cancelled = false;
-
+  
     async function boot() {
+      setPresetsReady(false);
+      setPresetProgress(0);
+  
       if (!auth.accessToken) {
         if (!cancelled) {
           setAuth({
@@ -34,31 +42,57 @@ function HomeClientInner() {
         }
         return;
       }
-
+  
+      setLoading(true);
+  
       try {
         const me = await Me();
         if (cancelled) return;
-
+  
         setAuth({
           ...auth,
           isAuthenticated: true,
           me,
           bootstrapped: true,
         });
-      } catch {
+  
+        setLoadingText("loading presets…");
+        setPresetProgress(0);
+  
+        await ensurePresetAssetsInstalled({
+          onProgress: (p, info) => {
+            if (cancelled) return;
+            setPresetProgress(p);
+  
+            if (info?.name) {
+              setLoadingText(`installing: ${info.name}`);
+            } else if (info?.done != null && info?.total != null) {
+              setLoadingText(`installing presets… (${info.done}/${info.total})`);
+            } else {
+              setLoadingText("installing presets…");
+            }
+          },
+        });
+  
+        if (cancelled) return;
+        setPresetProgress(1);
+        setPresetsReady(true);
+        setLoadingText("finalizing…");
+      } catch (e) {
+        console.error("Home boot failed", e);
         if (cancelled) return;
         clearAuth();
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
-
+  
     boot();
-
+  
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [auth.accessToken]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -88,19 +122,30 @@ function HomeClientInner() {
     };
   }, [auth, clearAuth]);
 
-  if (loading || !auth.bootstrapped) {
+  const showBootOverlay = loading || !auth.bootstrapped || (auth.isAuthenticated && !presetsReady);
+
+  if (showBootOverlay) {
     return (
       <main
         style={{
           width: "100vw",
           height: "100vh",
+          position: "relative",
+          overflow: "hidden",
           backgroundColor: "#368fe4",
           backgroundImage: "url('/world/bg.png')",
           backgroundRepeat: "no-repeat",
           backgroundPosition: "center center",
           backgroundSize: "cover",
         }}
-      />
+      >
+        <LoadingOverlay
+          show={true}
+          progress={auth.isAuthenticated ? presetProgress : 0}
+          text={auth.isAuthenticated ? loadingText : "booting…"}
+          fadeMs={120}
+        />
+      </main>
     );
   }
 
