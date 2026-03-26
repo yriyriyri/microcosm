@@ -390,7 +390,7 @@ export default function VoxelViewer(props: {
     mount.appendChild(renderer.domElement);
 
     scene.add(new THREE.AmbientLight(0xffffff, 2.8));
-    const hemi = new THREE.HemisphereLight(0xdff4ff, 0x6fa0c8, 1.3);
+    const hemi = new THREE.HemisphereLight(0xdff4ff, 0x6fa0c8, 2.0);
     scene.add(hemi);
 
     const dir = new THREE.DirectionalLight(0xffffff, 2.0);
@@ -580,7 +580,7 @@ export default function VoxelViewer(props: {
       const material = new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.BackSide,
-        transparent: false,
+        transparent: true,
         depthWrite: false,
         fog: false,
       });
@@ -1001,8 +1001,8 @@ export default function VoxelViewer(props: {
             }
 
             applyHeightMistToStandardMaterial(material, {
-              yBottom: -12,
-              yTop: 1,
+              yBottom: -50,
+              yTop: 200,
               maxOpacity: 0.3,
               color: 0xffffff,
             });
