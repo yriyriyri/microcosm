@@ -621,49 +621,10 @@ export function createVehicleEffectsController(params: {
 
       writeStripGeometry(strip, camera, headOpacity * stripGate, life);
     }
-
-    const handbrakeActive = !!moveState.backward && speed >= SPARK_MIN_SPEED;
-    if (!handbrakeActive) {
-      sparkEmitCarry = 0;
-      return;
-    }
-
-    const rightDir = getRightWorld(vehicleRoot);
-    const upDir = getUpWorld(vehicleRoot);
-    const backwardDir = getForwardWorld(vehicleRoot).multiplyScalar(-1);
-
-    const bank = driveState.visualBank;
-    const emitLeft = bank > SPARK_BANK_DEADZONE ? true : Math.abs(bank) <= SPARK_BANK_DEADZONE;
-    const emitRight = bank < -SPARK_BANK_DEADZONE ? true : Math.abs(bank) <= SPARK_BANK_DEADZONE;
-
-    sparkEmitCarry += SPARK_EMIT_RATE * dt;
-
-    while (sparkEmitCarry >= 1) {
-      sparkEmitCarry -= 1;
-
-      if (emitLeft) {
-        const [lineStart, lineEnd] = preset.leftSparkLine;
-        const localPos = lineStart.clone().lerp(lineEnd, Math.random());
-        const worldPos = vehicleRoot.localToWorld(localPos);
-        emitSpark({
-          worldPos,
-          outwardDir: rightDir.clone().multiplyScalar(-1),
-          backwardDir,
-          upDir,
-        });
-      }
-
-      if (emitRight) {
-        const [lineStart, lineEnd] = preset.rightSparkLine;
-        const localPos = lineStart.clone().lerp(lineEnd, Math.random());
-        const worldPos = vehicleRoot.localToWorld(localPos);
-        emitSpark({
-          worldPos,
-          outwardDir: rightDir.clone(),
-          backwardDir,
-          upDir,
-        });
-      }
+    sparkEmitCarry = 0;
+    for (const s of sparks) {
+      s.active = false;
+      s.sprite.visible = false;
     }
   }
 

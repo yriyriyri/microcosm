@@ -258,21 +258,24 @@ export function updateDriveCamera(params: {
   const throttleInput = moveState.forward ? 1 : 0;
   const handbrake = moveState.backward;
   const boosting = moveState.boost && !handbrake;
-
-  const enteredBoost = boosting && !driveState.wasBoosting && !driveState.wasHandbraking;
-  const enteredHandbrake = handbrake && !driveState.wasHandbraking;
-  const boostToHandbrake = handbrake && driveState.wasBoosting && !driveState.wasHandbraking;
-
+  
+  const wasBoosting = driveState.wasBoosting;
+  const wasHandbraking = driveState.wasHandbraking;
+  
+  const enteredBoost = boosting && !wasBoosting && !wasHandbraking;
+  const enteredHandbrake = handbrake && !wasHandbraking;
+  const enteredHandbrakeFromBoost = enteredHandbrake && wasBoosting;
+  
   if (enteredBoost) {
     triggerCameraShake(driveState.cameraShake, "medium");
   }
-
-  if (boostToHandbrake) {
+  
+  if (enteredHandbrakeFromBoost) {
     triggerCameraShake(driveState.cameraShake, "heavy");
   } else if (enteredHandbrake) {
     triggerCameraShake(driveState.cameraShake, "medium");
   }
-
+  
   if (handbrake) {
     setSustainCameraShake(driveState.cameraShake, "medium");
   } else if (boosting) {

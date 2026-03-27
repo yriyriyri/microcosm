@@ -974,7 +974,7 @@ export default function VoxelViewer(props: {
       
         if (playSkyWarm1Ref.current) {
           const mat = playSkyWarm1Ref.current.material as THREE.MeshBasicMaterial;
-          mat.opacity = eased * 0.1;
+          mat.opacity = eased * 0.12;
         }        
         if (playSkyWarm2Ref.current) {
           const mat = playSkyWarm2Ref.current.material as THREE.MeshBasicMaterial;
