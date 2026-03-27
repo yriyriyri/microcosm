@@ -110,7 +110,7 @@ export function handleDriveKeyDown(
     moveState.down = true;
   }
 
-  if (e.code === "KeyQ") {
+  if (e.code === "Enter" || e.code === "NumpadEnter") {
     moveState.boost = true;
   }
 }
@@ -126,7 +126,7 @@ export function handleDriveKeyUp(
 
   if (e.code === "Space") moveState.up = false;
   if (e.code === "ShiftLeft" || e.code === "ShiftRight") moveState.down = false;
-  if (e.code === "KeyQ") moveState.boost = false;
+  if (e.code === "Enter" || e.code === "NumpadEnter") moveState.boost = false;
 }
 
 export function enterDriveMode(params: {
