@@ -698,7 +698,7 @@ export default function VoxelViewer(props: {
     
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = "play-sky-1-warm";
-      mesh.rotation.y = playSkyPhase1Ref.current;
+      mesh.rotation.y = playSkyCloud1Ref.current?.rotation.y ?? playSkyPhase1Ref.current;
       playSkyRoot.add(mesh);
       playSkyWarm1Ref.current = mesh;
     });
@@ -749,7 +749,7 @@ export default function VoxelViewer(props: {
     
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = "play-sky-2-warm";
-      mesh.rotation.y = playSkyPhase2Ref.current;
+      mesh.rotation.y = playSkyCloud2Ref.current?.rotation.y ?? playSkyPhase2Ref.current;
       playSkyRoot.add(mesh);
       playSkyWarm2Ref.current = mesh;
     });
@@ -799,7 +799,7 @@ export default function VoxelViewer(props: {
     
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = "play-sky-3-warm";
-      mesh.rotation.y = playSkyPhase3Ref.current;
+      mesh.rotation.y = playSkyCloud3Ref.current?.rotation.y ?? playSkyPhase3Ref.current;
       playSkyRoot.add(mesh);
       playSkyWarm3Ref.current = mesh;
     });
