@@ -1,9 +1,17 @@
 import * as THREE from "three";
+import {
+  createCameraShakeState,
+  resetCameraShake,
+  setSustainCameraShake,
+  triggerCameraShake,
+  updateCameraShake,
+  type CameraShakeState,
+} from "./cameraShakeController";
 
-const DRIVE_ACCEL = 130;
+const DRIVE_ACCEL = 70;
 const DRIVE_COAST_DRAG = 0.994;
 
-const DRIVE_MAX_DRIVE_SPEED = 140;
+const DRIVE_MAX_DRIVE_SPEED = 110;
 const DRIVE_MAX_FORWARD_SPEED = 300;
 const DRIVE_TURN_SPEED = 0.6;
 
@@ -19,35 +27,35 @@ const DRIVE_MIN_DRIFT_SPEED = 14;
 const DRIVE_MAX_DRIFT_ANGLE = Math.PI / 5;
 const DRIVE_HANDBRAKE_MAX_DRIFT_ANGLE = Math.PI / 2.9;
 
-const DRIVE_DRIFT_BUILD_RESPONSE = 1.0;
-const DRIVE_DRIFT_RETURN_RESPONSE = 3.2;
+const DRIVE_DRIFT_BUILD_RESPONSE = 1.5;
+const DRIVE_DRIFT_RETURN_RESPONSE = 2.5;
 const DRIVE_HANDBRAKE_DRIFT_BUILD_RESPONSE = 2.8;
 const DRIVE_HANDBRAKE_STEER_CONTROL = 0.72;
 const DRIVE_HANDBRAKE_SPEED_DRAG = 0.996;
 const DRIVE_HANDBRAKE_SPEED_GAIN = 17.0;
 
 const DRIVE_FLY_SPEED = 80;
-const DRIVE_BOOST_MULTIPLIER = 1.5;
+const DRIVE_BOOST_MULTIPLIER = 1.7;
 
-const DRIVE_NORMAL_STEER_CONTROL = 1.7;
-const DRIVE_BOOST_STEER_CONTROL = 0.7;
-const DRIVE_NORMAL_STEER_SPEED_FALLOFF = 0.42;
-const DRIVE_BOOST_STEER_SPEED_FALLOFF = 0.78;
-const DRIVE_BOOST_ACCEL_MULTIPLIER = 1.42;
+const DRIVE_NORMAL_STEER_CONTROL = 1.3; 
+const DRIVE_BOOST_STEER_CONTROL = 1.0;
+const DRIVE_NORMAL_STEER_SPEED_FALLOFF = 0.34;
+const DRIVE_BOOST_STEER_SPEED_FALLOFF = 0.4;
+const DRIVE_BOOST_ACCEL_MULTIPLIER = 1.5;
 const DRIVE_BOOST_OVERSPEED_DRAG = 0.9965;
 const DRIVE_NORMAL_OVERSPEED_DRAG = 0.992;
 
 const DRIVE_VISUAL_STEER_ANGLE = Math.PI / 7;
-const DRIVE_VISUAL_BANK_ANGLE = Math.PI / 7;
+const DRIVE_VISUAL_BANK_ANGLE = Math.PI / 5;
 const DRIVE_HANDBRAKE_VISUAL_BANK_ANGLE = Math.PI / 3;
 
-const DRIVE_NORMAL_VISUAL_STEER_MULTIPLIER = 0.55;
-const DRIVE_BOOST_VISUAL_STEER_MULTIPLIER = 0.82;
-const DRIVE_HANDBRAKE_VISUAL_STEER_MULTIPLIER = 1.28;
+const DRIVE_NORMAL_VISUAL_STEER_MULTIPLIER = 1.1;
+const DRIVE_BOOST_VISUAL_STEER_MULTIPLIER = 1.2;
+const DRIVE_HANDBRAKE_VISUAL_STEER_MULTIPLIER = 0.82;
 
 const DRIVE_BOOST_VISUAL_BANK_MULTIPLIER = 1.18;
 const DRIVE_NORMAL_VISUAL_RESPONSE = 1.0;
-const DRIVE_BOOST_VISUAL_RESPONSE = 1.55;
+const DRIVE_BOOST_VISUAL_RESPONSE = 1.5;
 const DRIVE_HANDBRAKE_VISUAL_RESPONSE = 1.1;
 
 const DRIVE_VERTICAL_RESPONSE = 5.5;
@@ -77,6 +85,9 @@ export type DriveState = {
   visualBank: number;
   verticalSpeed: number;
   boostFactor: number;
+  wasBoosting: boolean;
+  wasHandbraking: boolean;
+  cameraShake: CameraShakeState;
 };
 
 export function createDriveMoveState(): DriveMoveState {
@@ -105,6 +116,9 @@ export function createDriveState(): DriveState {
     visualBank: 0,
     verticalSpeed: 0,
     boostFactor: 1,
+    wasBoosting: false,
+    wasHandbraking: false,
+    cameraShake: createCameraShakeState(),
   };
 }
 
@@ -176,6 +190,9 @@ export function enterDriveMode(params: {
   driveState.followOffsetLocal.copy(centerLocal);
   driveState.velocity.set(0, 0, 0);
   driveState.lookTarget.copy(centerWorld);
+  driveState.wasBoosting = false;
+  driveState.wasHandbraking = false;
+  resetCameraShake(driveState.cameraShake);
 
   camera.fov = DRIVE_FOV;
   camera.updateProjectionMatrix();
@@ -207,6 +224,9 @@ export function exitDriveMode(params: {
   moveState.up = false;
   moveState.down = false;
   moveState.boost = false;
+  driveState.wasBoosting = false;
+  driveState.wasHandbraking = false;
+  resetCameraShake(driveState.cameraShake);
 
   if (camera) {
     camera.fov = 40;
@@ -238,6 +258,28 @@ export function updateDriveCamera(params: {
   const throttleInput = moveState.forward ? 1 : 0;
   const handbrake = moveState.backward;
   const boosting = moveState.boost && !handbrake;
+
+  const enteredBoost = boosting && !driveState.wasBoosting && !driveState.wasHandbraking;
+  const enteredHandbrake = handbrake && !driveState.wasHandbraking;
+  const boostToHandbrake = handbrake && driveState.wasBoosting && !driveState.wasHandbraking;
+
+  if (enteredBoost) {
+    triggerCameraShake(driveState.cameraShake, "medium");
+  }
+
+  if (boostToHandbrake) {
+    triggerCameraShake(driveState.cameraShake, "heavy");
+  } else if (enteredHandbrake) {
+    triggerCameraShake(driveState.cameraShake, "medium");
+  }
+
+  if (handbrake) {
+    setSustainCameraShake(driveState.cameraShake, "medium");
+  } else if (boosting) {
+    setSustainCameraShake(driveState.cameraShake, "small");
+  } else {
+    setSustainCameraShake(driveState.cameraShake, null);
+  }
 
   const targetBoostFactor = boosting ? DRIVE_BOOST_MULTIPLIER : 1;
   const boostAlpha = 1 - Math.exp(-DRIVE_BOOST_RESPONSE * dt);
@@ -423,5 +465,34 @@ export function updateDriveCamera(params: {
   const lookAlpha = 1 - Math.exp(-DRIVE_CAMERA_LOOK_LERP * dt);
   driveState.lookTarget.lerp(desiredLookTarget, lookAlpha);
 
-  camera.lookAt(driveState.lookTarget);
+  const shake = updateCameraShake(driveState.cameraShake, dt);
+
+  const camForward = driveState.lookTarget
+    .clone()
+    .sub(camera.position)
+    .normalize();
+
+  const camRight = new THREE.Vector3()
+    .crossVectors(camForward, new THREE.Vector3(0, 1, 0))
+    .normalize();
+
+  const camUp = new THREE.Vector3()
+    .crossVectors(camRight, camForward)
+    .normalize();
+
+  camera.position
+    .addScaledVector(camRight, shake.positionOffset.x)
+    .addScaledVector(camUp, shake.positionOffset.y)
+    .addScaledVector(camForward, shake.positionOffset.z);
+
+  const shakenLookTarget = driveState.lookTarget
+    .clone()
+    .addScaledVector(camRight, shake.positionOffset.x * 0.35)
+    .addScaledVector(camUp, shake.positionOffset.y * 0.2);
+
+  camera.lookAt(shakenLookTarget);
+  camera.rotateZ(shake.rollOffset);
+  
+  driveState.wasBoosting = boosting;
+  driveState.wasHandbraking = handbrake;
 }

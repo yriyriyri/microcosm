@@ -13,6 +13,8 @@ import { listPublishedWorlds } from "@/services/publishedWorlds";
 import { GetUserProfile } from "@/services/user";
 import type { PublishedWorldDocument } from "@/components/VoxelEditor/domain/publishedWorldTypes";
 
+import { createVehicleEffectsController } from "./controllers/vehicleEffectsController";
+
 import {
   createFpsMoveState,
   createFpsState,
@@ -169,6 +171,8 @@ export default function VoxelViewer(props: {
 
   const jeffTemplateRef = useRef<THREE.Object3D | null>(null);
   const jeffInstanceRef = useRef<THREE.Object3D | null>(null);
+
+  const vehicleEffectsRef = useRef<ReturnType<typeof createVehicleEffectsController> | null>(null);
 
   const jeffClipsRef = useRef<THREE.AnimationClip[]>([]);
   const jeffMixerRef = useRef<THREE.AnimationMixer | null>(null);
@@ -809,6 +813,11 @@ export default function VoxelViewer(props: {
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     };
 
+    vehicleEffectsRef.current = createVehicleEffectsController({
+      scene,
+      camera,
+    });
+
     window.addEventListener("resize", onResize);
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -1036,6 +1045,8 @@ export default function VoxelViewer(props: {
         controls.update();
       }
 
+      vehicleEffectsRef.current?.update(dt, driveStateRef.current, driveMoveStateRef.current);
+
       renderer.render(scene, camera);
     };
 
@@ -1080,6 +1091,11 @@ export default function VoxelViewer(props: {
         playSkyWarm1Ref.current = null;
         playSkyWarm2Ref.current = null;
         playSkyWarm3Ref.current = null;
+      }
+
+      if (vehicleEffectsRef.current) {
+        vehicleEffectsRef.current.dispose();
+        vehicleEffectsRef.current = null;
       }
 
       if (islandRootRef.current) {
@@ -1144,6 +1160,7 @@ export default function VoxelViewer(props: {
       driveMoveStateRef.current.backward = false;
       driveMoveStateRef.current.left = false;
       driveMoveStateRef.current.right = false;
+      vehicleEffectsRef.current?.reset();
 
       disposeObject3D(root);
       root.clear();
@@ -1374,6 +1391,7 @@ export default function VoxelViewer(props: {
 
       detachJeff();
       setDriveMode(false);
+      vehicleEffectsRef.current?.reset();
 
       exitFpsMode({
         renderer,
