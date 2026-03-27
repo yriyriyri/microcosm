@@ -1185,50 +1185,69 @@ export default function VoxelViewer(props: {
         for (const group of world.groups) {
           const groupRoot = new THREE.Group();
           groupRoot.name = `published-group:${group.groupId}`;
-          
+        
           const latestMarketplaceAssetId = group.latestMarketplaceAssetId ?? null;
           const isVehicle =
             latestMarketplaceAssetId === "preset_car" ||
             latestMarketplaceAssetId === "preset_mini-hovercraft";
-          
+        
           const yOffset = isVehicle ? 0 : 20;
-          
+        
           groupRoot.position.set(
             group.position.x,
             group.position.y + yOffset,
             group.position.z
           );
-          
+        
           const euler = quarterTurnsToEuler(group.rotation);
           groupRoot.rotation.set(euler.x, euler.y, euler.z);
           groupRoot.scale.setScalar(TEMP_WORLD_SCALE);
-          
-          
+        
           let meshParent: THREE.Object3D = groupRoot;
-          let pendingDriveRoot: THREE.Group | null = null;
-          let pendingVisualRoot: THREE.Group | null = null;
-          
+          let driveRoot: THREE.Group | null = null;
+          let visualRoot: THREE.Group | null = null;
+        
+          let localMinX = Infinity;
+          let localMinY = Infinity;
+          let localMinZ = Infinity;
+          let localMaxX = -Infinity;
+          let localMaxY = -Infinity;
+          let localMaxZ = -Infinity;
+        
           if (isVehicle) {
-            const driveRoot = new THREE.Group();
+            driveRoot = new THREE.Group();
             driveRoot.name = `vehicle-drive-root:${group.groupId}`;
             driveRoot.userData.latestMarketplaceAssetId = latestMarketplaceAssetId;
-          
-            const visualRoot = new THREE.Group();
+        
+            visualRoot = new THREE.Group();
             visualRoot.name = `vehicle-visual-root:${group.groupId}`;
-          
+        
             driveRoot.add(visualRoot);
             groupRoot.add(driveRoot);
-          
-            pendingDriveRoot = driveRoot;
-            pendingVisualRoot = visualRoot;
+        
             meshParent = visualRoot;
           } else {
             groupRoot.userData.latestMarketplaceAssetId = latestMarketplaceAssetId;
           }
-          
+        
           for (const surface of group.surfaces) {
+            const positions = surface.positions;
+        
+            for (let i = 0; i < positions.length; i += 3) {
+              const x = positions[i];
+              const y = positions[i + 1];
+              const z = positions[i + 2];
+        
+              if (x < localMinX) localMinX = x;
+              if (y < localMinY) localMinY = y;
+              if (z < localMinZ) localMinZ = z;
+              if (x > localMaxX) localMaxX = x;
+              if (y > localMaxY) localMaxY = y;
+              if (z > localMaxZ) localMaxZ = z;
+            }
+        
             const geometry = new THREE.BufferGeometry();
-          
+        
             geometry.setAttribute(
               "position",
               new THREE.Float32BufferAttribute(surface.positions, 3)
@@ -1239,7 +1258,7 @@ export default function VoxelViewer(props: {
             );
             geometry.setIndex(surface.indices);
             geometry.computeBoundingSphere();
-          
+        
             const material = new THREE.MeshStandardMaterial({
               color: new THREE.Color(surface.color),
               transparent: surface.isBlueprint,
@@ -1247,15 +1266,15 @@ export default function VoxelViewer(props: {
               roughness: 0.9,
               metalness: 0.02,
             });
-          
+        
             if (sceneRef.current?.environment) {
               material.envMap = sceneRef.current.environment;
             }
-          
+        
             if (surface.isBlueprint) {
               material.depthWrite = false;
             }
-          
+        
             applyAnimatedHeightMistToStandardMaterial(material, {
               yBottom: VIEWER_MIST_Y_BOTTOM,
               yTop: VIEWER_MIST_Y_TOP,
@@ -1265,34 +1284,37 @@ export default function VoxelViewer(props: {
               noiseStrength: SHARED_MIST_NOISE_STRENGTH,
               noiseScroll: SHARED_MIST_NOISE_SCROLL,
             });
-          
+        
             material.needsUpdate = true;
-          
+        
             const mesh = new THREE.Mesh(geometry, material);
             mesh.castShadow = !surface.isBlueprint;
             mesh.receiveShadow = true;
             mesh.renderOrder = surface.isBlueprint ? 1 : 0;
-          
+        
             meshParent.add(mesh);
           }
-          
-          if (isVehicle && pendingDriveRoot && pendingVisualRoot) {
-            pendingVisualRoot.updateMatrixWorld(true);
-          
-            const box = new THREE.Box3().setFromObject(pendingVisualRoot);
-          
-            const pivotCenter = new THREE.Vector3(
-              (box.min.x + box.max.x) * 0.5,
-              box.min.y,
-              box.min.z,
+        
+          if (
+            isVehicle &&
+            driveRoot &&
+            visualRoot &&
+            Number.isFinite(localMinX) &&
+            Number.isFinite(localMinY) &&
+            Number.isFinite(localMinZ)
+          ) {
+            const pivotLocal = new THREE.Vector3(
+              (localMinX + localMaxX) * 0.5,
+              localMinY,
+              localMinZ
             );
-          
-            pendingDriveRoot.position.copy(pivotCenter);
-            pendingVisualRoot.position.copy(pivotCenter).multiplyScalar(-1);
+        
+            driveRoot.position.copy(pivotLocal);
+            visualRoot.position.copy(pivotLocal).multiplyScalar(-1);
           }
-
+        
           root.add(groupRoot);
-
+        
           if (group.bounds) {
             minX = Math.min(minX, group.bounds.min.x * TEMP_WORLD_SCALE);
             minY = Math.min(minY, group.bounds.min.y * TEMP_WORLD_SCALE);

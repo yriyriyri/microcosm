@@ -1,12 +1,10 @@
 import * as THREE from "three";
 
 const DRIVE_ACCEL = 130;
-const DRIVE_BRAKE = 90;
 const DRIVE_COAST_DRAG = 0.994;
-const DRIVE_BRAKE_DRAG = 0.985;
 
-const DRIVE_MAX_FORWARD_SPEED = 160;
-const DRIVE_MAX_REVERSE_SPEED = 24;
+const DRIVE_MAX_DRIVE_SPEED = 140;
+const DRIVE_MAX_FORWARD_SPEED = 300;
 const DRIVE_TURN_SPEED = 0.6;
 
 const DRIVE_CAMERA_HEIGHT = 24;
@@ -19,16 +17,38 @@ const DRIVE_FOV = 82;
 
 const DRIVE_MIN_DRIFT_SPEED = 14;
 const DRIVE_MAX_DRIFT_ANGLE = Math.PI / 5;
+const DRIVE_HANDBRAKE_MAX_DRIFT_ANGLE = Math.PI / 2.9;
 
 const DRIVE_DRIFT_BUILD_RESPONSE = 1.0;
 const DRIVE_DRIFT_RETURN_RESPONSE = 3.2;
+const DRIVE_HANDBRAKE_DRIFT_BUILD_RESPONSE = 2.8;
+const DRIVE_HANDBRAKE_STEER_CONTROL = 0.72;
+const DRIVE_HANDBRAKE_SPEED_DRAG = 0.996;
+const DRIVE_HANDBRAKE_SPEED_GAIN = 17.0;
 
-const DRIVE_FLY_SPEED = 60;
+const DRIVE_FLY_SPEED = 80;
 const DRIVE_BOOST_MULTIPLIER = 1.5;
 
-const DRIVE_VISUAL_STEER_ANGLE = Math.PI / 5;
-const DRIVE_VISUAL_BANK_ANGLE = Math.PI / 3;
-const DRIVE_VISUAL_RESPONSE = 1.3;
+const DRIVE_NORMAL_STEER_CONTROL = 1.7;
+const DRIVE_BOOST_STEER_CONTROL = 0.7;
+const DRIVE_NORMAL_STEER_SPEED_FALLOFF = 0.42;
+const DRIVE_BOOST_STEER_SPEED_FALLOFF = 0.78;
+const DRIVE_BOOST_ACCEL_MULTIPLIER = 1.42;
+const DRIVE_BOOST_OVERSPEED_DRAG = 0.9965;
+const DRIVE_NORMAL_OVERSPEED_DRAG = 0.992;
+
+const DRIVE_VISUAL_STEER_ANGLE = Math.PI / 7;
+const DRIVE_VISUAL_BANK_ANGLE = Math.PI / 7;
+const DRIVE_HANDBRAKE_VISUAL_BANK_ANGLE = Math.PI / 3;
+
+const DRIVE_NORMAL_VISUAL_STEER_MULTIPLIER = 0.55;
+const DRIVE_BOOST_VISUAL_STEER_MULTIPLIER = 0.82;
+const DRIVE_HANDBRAKE_VISUAL_STEER_MULTIPLIER = 1.28;
+
+const DRIVE_BOOST_VISUAL_BANK_MULTIPLIER = 1.18;
+const DRIVE_NORMAL_VISUAL_RESPONSE = 1.0;
+const DRIVE_BOOST_VISUAL_RESPONSE = 1.55;
+const DRIVE_HANDBRAKE_VISUAL_RESPONSE = 1.1;
 
 const DRIVE_VERTICAL_RESPONSE = 5.5;
 const DRIVE_BOOST_RESPONSE = 3.2;
@@ -107,11 +127,11 @@ export function handleDriveKeyDown(
   }
 
   if (e.code === "ShiftLeft" || e.code === "ShiftRight") {
-    moveState.down = true;
+    moveState.boost = true;
   }
 
-  if (e.code === "Enter" || e.code === "NumpadEnter") {
-    moveState.boost = true;
+  if (e.code === "Enter" || e.code === "KeyQ") {
+    moveState.down = true;
   }
 }
 
@@ -125,8 +145,8 @@ export function handleDriveKeyUp(
   if (e.code === "KeyD") moveState.right = false;
 
   if (e.code === "Space") moveState.up = false;
-  if (e.code === "ShiftLeft" || e.code === "ShiftRight") moveState.down = false;
-  if (e.code === "Enter" || e.code === "NumpadEnter") moveState.boost = false;
+  if (e.code === "ShiftLeft" || e.code === "ShiftRight") moveState.boost = false;
+  if (e.code === "Enter" || e.code === "KeyQ") moveState.down = false;
 }
 
 export function enterDriveMode(params: {
@@ -215,10 +235,11 @@ export function updateDriveCamera(params: {
   if (!vehicleRoot) return;
 
   const steerInput = (moveState.left ? 1 : 0) + (moveState.right ? -1 : 0);
-  const throttleInput =
-    (moveState.forward ? 1 : 0) - (moveState.backward ? 1 : 0);
+  const throttleInput = moveState.forward ? 1 : 0;
+  const handbrake = moveState.backward;
+  const boosting = moveState.boost && !handbrake;
 
-  const targetBoostFactor = moveState.boost ? DRIVE_BOOST_MULTIPLIER : 1;
+  const targetBoostFactor = boosting ? DRIVE_BOOST_MULTIPLIER : 1;
   const boostAlpha = 1 - Math.exp(-DRIVE_BOOST_RESPONSE * dt);
   driveState.boostFactor = THREE.MathUtils.lerp(
     driveState.boostFactor,
@@ -226,39 +247,77 @@ export function updateDriveCamera(params: {
     boostAlpha
   );
 
+  const driveSpeedCap = DRIVE_MAX_DRIVE_SPEED * driveState.boostFactor;
+  const hardSpeedCap = DRIVE_MAX_FORWARD_SPEED;
+
+  const preSpeed01 = clamp(driveState.speed / hardSpeedCap, 0, 1);
+
+  let steerControl = DRIVE_NORMAL_STEER_CONTROL;
+  let steerSpeedFalloff = DRIVE_NORMAL_STEER_SPEED_FALLOFF;
+
+  if (boosting) {
+    steerControl = DRIVE_BOOST_STEER_CONTROL;
+    steerSpeedFalloff = DRIVE_BOOST_STEER_SPEED_FALLOFF;
+  }
+
+  if (handbrake) {
+    steerControl = DRIVE_HANDBRAKE_STEER_CONTROL;
+    steerSpeedFalloff = 0.15;
+  }
+
+  const steerScale = 1 - preSpeed01 * steerSpeedFalloff;
+
   if (steerInput !== 0 && Math.abs(driveState.speed) > 0.1) {
-    driveState.yaw += steerInput * DRIVE_TURN_SPEED * dt;
+    driveState.yaw +=
+      steerInput *
+      DRIVE_TURN_SPEED *
+      steerControl *
+      Math.max(0.18, steerScale) *
+      dt;
   }
 
   if (throttleInput > 0) {
-    driveState.speed += DRIVE_ACCEL * driveState.boostFactor * dt;
-  } else if (throttleInput < 0) {
-    driveState.speed -= DRIVE_BRAKE * dt;
+    const accelMultiplier = boosting ? DRIVE_BOOST_ACCEL_MULTIPLIER : 1;
+    driveState.speed += DRIVE_ACCEL * accelMultiplier * dt;
   } else {
-    driveState.speed *= DRIVE_COAST_DRAG;
+    driveState.speed *= handbrake ? DRIVE_HANDBRAKE_SPEED_DRAG : DRIVE_COAST_DRAG;
     if (Math.abs(driveState.speed) < 0.02) driveState.speed = 0;
   }
 
-  driveState.speed = clamp(
-    driveState.speed,
-    -DRIVE_MAX_REVERSE_SPEED,
-    DRIVE_MAX_FORWARD_SPEED * driveState.boostFactor
-  );
+  const isActivelyHandbrakeDrifting =
+    handbrake &&
+    steerInput !== 0 &&
+    driveState.speed >= DRIVE_MIN_DRIFT_SPEED;
+
+  if (isActivelyHandbrakeDrifting) {
+    driveState.speed += DRIVE_HANDBRAKE_SPEED_GAIN * dt;
+  }
+
+  if (driveState.speed > driveSpeedCap) {
+    driveState.speed *= boosting
+      ? DRIVE_BOOST_OVERSPEED_DRAG
+      : handbrake
+        ? 0.9994
+        : DRIVE_NORMAL_OVERSPEED_DRAG;
+  }
+
+  driveState.speed = clamp(driveState.speed, 0, hardSpeedCap);
 
   const speedAbs = Math.abs(driveState.speed);
-  const speed01 = clamp(
-    speedAbs / (DRIVE_MAX_FORWARD_SPEED * DRIVE_BOOST_MULTIPLIER),
-    0,
-    1
-  );
+  const speed01 = clamp(speedAbs / DRIVE_MAX_FORWARD_SPEED, 0, 1);
 
   let targetDriftAngle = 0;
   if (speedAbs >= DRIVE_MIN_DRIFT_SPEED) {
-    targetDriftAngle = -steerInput * DRIVE_MAX_DRIFT_ANGLE * speed01;
+    const maxDrift = handbrake
+      ? DRIVE_HANDBRAKE_MAX_DRIFT_ANGLE
+      : DRIVE_MAX_DRIFT_ANGLE;
+
+    targetDriftAngle = -steerInput * maxDrift * speed01;
   }
 
-  const driftResponse =
-    steerInput !== 0
+  const driftResponse = handbrake
+    ? DRIVE_HANDBRAKE_DRIFT_BUILD_RESPONSE
+    : steerInput !== 0
       ? DRIVE_DRIFT_BUILD_RESPONSE
       : DRIVE_DRIFT_RETURN_RESPONSE;
 
@@ -277,11 +336,6 @@ export function updateDriveCamera(params: {
   ).normalize();
 
   driveState.velocity.copy(moveDir).multiplyScalar(driveState.speed);
-
-  if (throttleInput < 0 && driveState.velocity.lengthSq() > 0) {
-    driveState.velocity.multiplyScalar(DRIVE_BRAKE_DRAG);
-  }
-
   vehicleRoot.position.addScaledVector(driveState.velocity, dt);
 
   const verticalInput = (moveState.up ? 1 : 0) - (moveState.down ? 1 : 0);
@@ -294,14 +348,30 @@ export function updateDriveCamera(params: {
   );
   vehicleRoot.position.y += driveState.verticalSpeed * dt;
 
+  const visualSteerMultiplier = handbrake
+    ? DRIVE_HANDBRAKE_VISUAL_STEER_MULTIPLIER
+    : boosting
+      ? DRIVE_BOOST_VISUAL_STEER_MULTIPLIER
+      : DRIVE_NORMAL_VISUAL_STEER_MULTIPLIER;
+
   const visualTurnTarget =
-    steerInput * DRIVE_VISUAL_STEER_ANGLE * speed01 -
+    steerInput * DRIVE_VISUAL_STEER_ANGLE * visualSteerMultiplier * speed01 -
     driveState.driftAngle * 0.35;
 
-  const visualBankTarget =
-    -steerInput * DRIVE_VISUAL_BANK_ANGLE * speed01;
+  const visualBankBase = handbrake
+    ? DRIVE_HANDBRAKE_VISUAL_BANK_ANGLE
+    : DRIVE_VISUAL_BANK_ANGLE * (boosting ? DRIVE_BOOST_VISUAL_BANK_MULTIPLIER : 1.0);
 
-  const visualAlpha = 1 - Math.exp(-DRIVE_VISUAL_RESPONSE * dt);
+  const visualBankTarget =
+    -steerInput * visualBankBase * speed01;
+
+  const visualResponse = handbrake
+    ? DRIVE_HANDBRAKE_VISUAL_RESPONSE
+    : boosting
+      ? DRIVE_BOOST_VISUAL_RESPONSE
+      : DRIVE_NORMAL_VISUAL_RESPONSE;
+  
+  const visualAlpha = 1 - Math.exp(-visualResponse * dt);
 
   driveState.visualSteerYaw = THREE.MathUtils.lerp(
     driveState.visualSteerYaw,
