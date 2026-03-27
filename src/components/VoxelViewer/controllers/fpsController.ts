@@ -143,12 +143,9 @@ export function enterFpsMode(params: {
     maxZ: number;
   };
 }) {
-  const { camera, renderer, fpsState, bounds } = params;
+  const { camera, renderer, fpsState } = params;
 
-  const centerX = (bounds.minX + bounds.maxX + 1) / 2;
-  const centerZ = (bounds.minZ + bounds.maxZ + 1) / 2;
-
-  fpsState.position.set(centerX, FPS_FLOOR_Y + FPS_EYE_HEIGHT, centerZ);
+  fpsState.position.set(0, FPS_FLOOR_Y + FPS_EYE_HEIGHT, 0);
   fpsState.velocityY = 0;
   fpsState.grounded = true;
   fpsState.yaw = 0;

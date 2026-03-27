@@ -965,7 +965,7 @@ export default function VoxelViewer(props: {
       
         if (playSkyWarm1Ref.current) {
           const mat = playSkyWarm1Ref.current.material as THREE.MeshBasicMaterial;
-          mat.opacity = eased * 0.15;
+          mat.opacity = eased * 0.1;
         }        
         if (playSkyWarm2Ref.current) {
           const mat = playSkyWarm2Ref.current.material as THREE.MeshBasicMaterial;
@@ -1185,29 +1185,50 @@ export default function VoxelViewer(props: {
         for (const group of world.groups) {
           const groupRoot = new THREE.Group();
           groupRoot.name = `published-group:${group.groupId}`;
-          groupRoot.userData.latestMarketplaceAssetId =
-            group.latestMarketplaceAssetId ?? null;
-
+          
           const latestMarketplaceAssetId = group.latestMarketplaceAssetId ?? null;
           const isVehicle =
             latestMarketplaceAssetId === "preset_car" ||
             latestMarketplaceAssetId === "preset_mini-hovercraft";
-
+          
           const yOffset = isVehicle ? 0 : 20;
-
+          
           groupRoot.position.set(
             group.position.x,
             group.position.y + yOffset,
             group.position.z
           );
-
+          
           const euler = quarterTurnsToEuler(group.rotation);
           groupRoot.rotation.set(euler.x, euler.y, euler.z);
           groupRoot.scale.setScalar(TEMP_WORLD_SCALE);
-
+          
+          
+          let meshParent: THREE.Object3D = groupRoot;
+          let pendingDriveRoot: THREE.Group | null = null;
+          let pendingVisualRoot: THREE.Group | null = null;
+          
+          if (isVehicle) {
+            const driveRoot = new THREE.Group();
+            driveRoot.name = `vehicle-drive-root:${group.groupId}`;
+            driveRoot.userData.latestMarketplaceAssetId = latestMarketplaceAssetId;
+          
+            const visualRoot = new THREE.Group();
+            visualRoot.name = `vehicle-visual-root:${group.groupId}`;
+          
+            driveRoot.add(visualRoot);
+            groupRoot.add(driveRoot);
+          
+            pendingDriveRoot = driveRoot;
+            pendingVisualRoot = visualRoot;
+            meshParent = visualRoot;
+          } else {
+            groupRoot.userData.latestMarketplaceAssetId = latestMarketplaceAssetId;
+          }
+          
           for (const surface of group.surfaces) {
             const geometry = new THREE.BufferGeometry();
-
+          
             geometry.setAttribute(
               "position",
               new THREE.Float32BufferAttribute(surface.positions, 3)
@@ -1218,7 +1239,7 @@ export default function VoxelViewer(props: {
             );
             geometry.setIndex(surface.indices);
             geometry.computeBoundingSphere();
-
+          
             const material = new THREE.MeshStandardMaterial({
               color: new THREE.Color(surface.color),
               transparent: surface.isBlueprint,
@@ -1226,15 +1247,15 @@ export default function VoxelViewer(props: {
               roughness: 0.9,
               metalness: 0.02,
             });
-
+          
             if (sceneRef.current?.environment) {
               material.envMap = sceneRef.current.environment;
             }
-
+          
             if (surface.isBlueprint) {
               material.depthWrite = false;
             }
-
+          
             applyAnimatedHeightMistToStandardMaterial(material, {
               yBottom: VIEWER_MIST_Y_BOTTOM,
               yTop: VIEWER_MIST_Y_TOP,
@@ -1244,15 +1265,30 @@ export default function VoxelViewer(props: {
               noiseStrength: SHARED_MIST_NOISE_STRENGTH,
               noiseScroll: SHARED_MIST_NOISE_SCROLL,
             });
-
+          
             material.needsUpdate = true;
-
+          
             const mesh = new THREE.Mesh(geometry, material);
             mesh.castShadow = !surface.isBlueprint;
             mesh.receiveShadow = true;
             mesh.renderOrder = surface.isBlueprint ? 1 : 0;
-
-            groupRoot.add(mesh);
+          
+            meshParent.add(mesh);
+          }
+          
+          if (isVehicle && pendingDriveRoot && pendingVisualRoot) {
+            pendingVisualRoot.updateMatrixWorld(true);
+          
+            const box = new THREE.Box3().setFromObject(pendingVisualRoot);
+          
+            const pivotCenter = new THREE.Vector3(
+              (box.min.x + box.max.x) * 0.5,
+              box.min.y,
+              box.min.z,
+            );
+          
+            pendingDriveRoot.position.copy(pivotCenter);
+            pendingVisualRoot.position.copy(pivotCenter).multiplyScalar(-1);
           }
 
           root.add(groupRoot);
@@ -1351,6 +1387,7 @@ export default function VoxelViewer(props: {
       fpsState: fpStateRef.current,
       bounds,
     });
+    
   }, [playMode]);
 
   return (
