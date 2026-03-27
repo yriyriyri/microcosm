@@ -60,6 +60,10 @@ const PLAY_SKY_ROT_SPEED_1 = 0.005;
 const PLAY_SKY_ROT_SPEED_2 = 0.01;
 const PLAY_SKY_ROT_SPEED_3 = 0.018;
 
+const CLOUD_LIGHT_START_Y = 50;
+const CLOUD_LIGHT_FULL_Y = 400;
+const CLOUD_LIGHT_MAX_INTENSITY = 25.0;
+
 const DRIVABLE_MARKETPLACE_IDS = new Set([
   "preset_car",
   "preset_mini-hovercraft",
@@ -173,6 +177,10 @@ export default function VoxelViewer(props: {
   const [playMode, setPlayMode] = useState(false);
   const [driveMode, setDriveMode] = useState(false);
 
+  function snapTo(value: number, step: number) {
+    return Math.round(value / step) * step;
+  }
+
   function clearHoveredVehicleBox() {
     const scene = sceneRef.current;
     const helper = hoveredVehicleBoxRef.current;
@@ -266,8 +274,34 @@ export default function VoxelViewer(props: {
     cloned.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!(mesh as any).isMesh) return;
+    
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+    
+      const applyTo = (mat: THREE.Material) => {
+        const m = mat as THREE.MeshStandardMaterial;
+        if (!("roughness" in m)) return;
+    
+        const clonedMat = m.clone();
+        clonedMat.roughness = 0.9;
+        clonedMat.metalness = 0.02;
+    
+        applyHeightMistToStandardMaterial(clonedMat, {
+          yBottom: -60,
+          yTop: 200,
+          maxOpacity: 0.45,
+          color: 0xffffff,
+        });
+    
+        clonedMat.needsUpdate = true;
+        return clonedMat;
+      };
+    
+      if (Array.isArray(mesh.material)) {
+        mesh.material = mesh.material.map((mat) => applyTo(mat) ?? mat);
+      } else {
+        mesh.material = applyTo(mesh.material) ?? mesh.material;
+      }
     });
   
     vehicleRoot.add(cloned);
@@ -389,21 +423,42 @@ export default function VoxelViewer(props: {
 
     mount.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 2.8));
-    const hemi = new THREE.HemisphereLight(0xdff4ff, 0x6fa0c8, 2.0);
+    const ambient = new THREE.AmbientLight(0xffffff, 1.5);
+    scene.add(ambient);
+
+    const cloudSun = new THREE.DirectionalLight(0xffcc88, 0);
+    cloudSun.position.set(300, 1800, -900);
+    cloudSun.target.position.set(0, 200, 0);
+    cloudSun.castShadow = true;
+    cloudSun.shadow.bias = -0.00005;
+    cloudSun.shadow.normalBias = 0.005;
+    cloudSun.shadow.mapSize.set(4096, 4096);
+    cloudSun.shadow.camera.left = -280;
+    cloudSun.shadow.camera.right = 280;
+    cloudSun.shadow.camera.top = 280;
+    cloudSun.shadow.camera.bottom = -280;
+    cloudSun.shadow.camera.near = 50;
+    cloudSun.shadow.camera.far = 2600;
+    scene.add(cloudSun.target);
+    scene.add(cloudSun);
+
+    const cloudWarmHemi = new THREE.HemisphereLight(0xffd6a0, 0x8aa0b8, 0);
+    scene.add(cloudWarmHemi);
+
+    const hemi = new THREE.HemisphereLight(0xdff4ff, 0x6fa0c8, 3.0);
     scene.add(hemi);
 
-    const dir = new THREE.DirectionalLight(0xffffff, 2.0);
+    const dir = new THREE.DirectionalLight(0xfdfbd3, 2.0);
     dir.castShadow = true;
-    dir.shadow.bias = -0.00035;
-    dir.shadow.normalBias = 0.03;
-    dir.shadow.mapSize.set(2048, 2048);
-    dir.shadow.camera.left = -220;
-    dir.shadow.camera.right = 220;
-    dir.shadow.camera.top = 220;
-    dir.shadow.camera.bottom = -220;
-    dir.shadow.camera.near = 1;
-    dir.shadow.camera.far = 500;
+    dir.shadow.bias = -0.00005;
+    dir.shadow.normalBias = 0.005;
+    dir.shadow.mapSize.set(4096, 4096);
+    dir.shadow.camera.left = -280;
+    dir.shadow.camera.right = 280;
+    dir.shadow.camera.top = 280;
+    dir.shadow.camera.bottom = -280;
+    dir.shadow.camera.near = 50;
+    dir.shadow.camera.far = 2600;
     dir.position.setFromSphericalCoords(
       250,
       THREE.MathUtils.degToRad(60),
@@ -412,6 +467,9 @@ export default function VoxelViewer(props: {
     dir.target.position.set(0, 0, 50);
     scene.add(dir.target);
     scene.add(dir);
+
+    const cloudSunOffset = new THREE.Vector3(300, 1800, -900);
+    const dirOffset = dir.position.clone().sub(dir.target.position);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -469,7 +527,7 @@ export default function VoxelViewer(props: {
             const m = mat as THREE.MeshStandardMaterial;
             if (!("roughness" in m)) return;
 
-            m.roughness = 0.92;
+            m.roughness = 0.9;
             m.metalness = 0.02;
 
             if (scene.environment) {
@@ -477,9 +535,9 @@ export default function VoxelViewer(props: {
             }
 
             applyHeightMistToStandardMaterial(m, {
-              yBottom: -12,
-              yTop: 1,
-              maxOpacity: 0.3,
+              yBottom: -40,
+              yTop: -5,
+              maxOpacity: 0.45,
               color: 0xffffff,
             });
 
@@ -769,6 +827,47 @@ export default function VoxelViewer(props: {
         }
       }
 
+      if (cloudSun) {
+        let probeY = camera.position.y;
+      
+        if (driveStateRef.current.active && driveStateRef.current.vehicleRoot) {
+          probeY = driveStateRef.current.vehicleRoot.position.y;
+        }
+      
+        const t = THREE.MathUtils.clamp(
+          (probeY - CLOUD_LIGHT_START_Y) / (CLOUD_LIGHT_FULL_Y - CLOUD_LIGHT_START_Y),
+          0,
+          1
+        );
+      
+        const eased = t * t * (3 - 2 * t);
+      
+        cloudWarmHemi.intensity = eased * 8.2;
+        cloudSun.intensity = eased * CLOUD_LIGHT_MAX_INTENSITY;
+        hemi.intensity = THREE.MathUtils.lerp(3.0, 2.0, eased);
+        renderer.toneMappingExposure = THREE.MathUtils.lerp(1.0, 1.12, eased);
+      }
+
+      const SHADOW_SNAP = 8;
+
+      let shadowFocus = camera.position;
+      
+      if (driveStateRef.current.active && driveStateRef.current.vehicleRoot) {
+        shadowFocus = driveStateRef.current.vehicleRoot.position;
+      }
+      
+      const sx = snapTo(shadowFocus.x, SHADOW_SNAP);
+      const sy = snapTo(shadowFocus.y, SHADOW_SNAP);
+      const sz = snapTo(shadowFocus.z, SHADOW_SNAP);
+      
+      cloudSun.target.position.set(sx, sy, sz);
+      cloudSun.position.copy(cloudSun.target.position).add(cloudSunOffset);
+      cloudSun.target.updateMatrixWorld();
+      
+      dir.target.position.set(sx, sy, sz);
+      dir.position.copy(dir.target.position).add(dirOffset);
+      dir.target.updateMatrixWorld();
+
       if (jeffMixerRef.current) {
         jeffMixerRef.current.update(dt);
       }
@@ -1001,9 +1100,9 @@ export default function VoxelViewer(props: {
             }
 
             applyHeightMistToStandardMaterial(material, {
-              yBottom: -50,
+              yBottom: -60,
               yTop: 200,
-              maxOpacity: 0.3,
+              maxOpacity: 0.45,
               color: 0xffffff,
             });
 

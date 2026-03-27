@@ -29,19 +29,19 @@ export function applyHeightMistToStandardMaterial(
       .replace(
         `#include <common>`,
         `#include <common>
-         varying vec3 vWorldPosition;`
+         varying vec3 vHeightMistWorldPosition;`
       )
       .replace(
         `#include <worldpos_vertex>`,
         `#include <worldpos_vertex>
-         vWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;`
+         vHeightMistWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;`
       );
 
     shader.fragmentShader = shader.fragmentShader
       .replace(
         `#include <common>`,
         `#include <common>
-         varying vec3 vWorldPosition;
+         varying vec3 vHeightMistWorldPosition;
          uniform float uMistYBottom;
          uniform float uMistYTop;
          uniform float uMistMaxOpacity;
@@ -50,7 +50,11 @@ export function applyHeightMistToStandardMaterial(
       .replace(
         `#include <dithering_fragment>`,
         `
-         float mistT = clamp(1.0 - smoothstep(uMistYBottom, uMistYTop, vWorldPosition.y), 0.0, 1.0);
+         float mistT = clamp(
+           1.0 - smoothstep(uMistYBottom, uMistYTop, vHeightMistWorldPosition.y),
+           0.0,
+           1.0
+         );
          float mistAlpha = mistT * uMistMaxOpacity;
          gl_FragColor.rgb = mix(gl_FragColor.rgb, uMistColor, mistAlpha);
          #include <dithering_fragment>
