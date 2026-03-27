@@ -8,7 +8,7 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { RGBELoader } from "three/examples/jsm/Addons.js";
 
-import { applyHeightMistToStandardMaterial } from "@/materials/heightMist";
+import { applyAnimatedHeightMistToStandardMaterial, updateHeightMistMaterialTime, } from "@/materials/animatedHeightMist";
 import { listPublishedWorlds } from "@/services/publishedWorlds";
 import { GetUserProfile } from "@/services/user";
 import type { PublishedWorldDocument } from "@/components/VoxelEditor/domain/publishedWorldTypes";
@@ -63,6 +63,19 @@ const PLAY_SKY_ROT_SPEED_3 = 0.018;
 const CLOUD_LIGHT_START_Y = 125;
 const CLOUD_LIGHT_FULL_Y = 450;
 const CLOUD_LIGHT_MAX_INTENSITY = 25.0;
+
+const VIEWER_MIST_Y_BOTTOM = -200;
+const VIEWER_MIST_Y_TOP = 200;
+const VIEWER_MIST_MAX_OPACITY = 0.7;
+const VIEWER_MIST_COLOR = 0xffffff;
+
+const SHARED_MIST_NOISE_SCALE = 0.01;
+const SHARED_MIST_NOISE_STRENGTH = 0.5;
+const SHARED_MIST_NOISE_SCROLL = { x: 0.5, y: 0.012, z: 0.004 };
+
+const ISLAND_MIST_Y_BOTTOM = -40;
+const ISLAND_MIST_Y_TOP = 10;
+const ISLAND_MIST_MAX_OPACITY = 0.60;
 
 const DRIVABLE_MARKETPLACE_IDS = new Set([
   "preset_car",
@@ -289,11 +302,14 @@ export default function VoxelViewer(props: {
         clonedMat.roughness = 0.9;
         clonedMat.metalness = 0.02;
     
-        applyHeightMistToStandardMaterial(clonedMat, {
-          yBottom: -60,
-          yTop: 200,
-          maxOpacity: 0.7,
-          color: 0xffffff,
+        applyAnimatedHeightMistToStandardMaterial(clonedMat, {
+          yBottom: VIEWER_MIST_Y_BOTTOM,
+          yTop: VIEWER_MIST_Y_TOP,
+          maxOpacity: VIEWER_MIST_MAX_OPACITY,
+          color: VIEWER_MIST_COLOR,
+          noiseScale: SHARED_MIST_NOISE_SCALE,
+          noiseStrength: SHARED_MIST_NOISE_STRENGTH,
+          noiseScroll: SHARED_MIST_NOISE_SCROLL,
         });
     
         clonedMat.needsUpdate = true;
@@ -537,11 +553,14 @@ export default function VoxelViewer(props: {
               (m as any).envMap = scene.environment;
             }
 
-            applyHeightMistToStandardMaterial(m, {
-              yBottom: -40,
-              yTop: -5,
-              maxOpacity: 0.45,
-              color: 0xffffff,
+            applyAnimatedHeightMistToStandardMaterial(m, {
+              yBottom: ISLAND_MIST_Y_BOTTOM,
+              yTop: ISLAND_MIST_Y_TOP,
+              maxOpacity: ISLAND_MIST_MAX_OPACITY,
+              color: VIEWER_MIST_COLOR,
+              noiseScale: SHARED_MIST_NOISE_SCALE,
+              noiseStrength: SHARED_MIST_NOISE_STRENGTH,
+              noiseScroll: SHARED_MIST_NOISE_SCROLL,
             });
 
             m.needsUpdate = true;
@@ -898,6 +917,14 @@ export default function VoxelViewer(props: {
       const dt = Math.min(0.05, (now - lastMs) / 1000);
       lastMs = now;
 
+      const timeSeconds = now * 0.001;
+
+      scene.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (!(mesh as any).isMesh) return;
+        updateHeightMistMaterialTime(mesh.material, timeSeconds);
+      });
+
       if (playModeRef.current) {
         if (playSkyCloud1Ref.current) {
           playSkyCloud1Ref.current.rotation.y += PLAY_SKY_ROT_SPEED_1 * dt;
@@ -1208,11 +1235,14 @@ export default function VoxelViewer(props: {
               material.depthWrite = false;
             }
 
-            applyHeightMistToStandardMaterial(material, {
-              yBottom: -60,
-              yTop: 200,
-              maxOpacity: 0.7,
-              color: 0xffffff,
+            applyAnimatedHeightMistToStandardMaterial(material, {
+              yBottom: VIEWER_MIST_Y_BOTTOM,
+              yTop: VIEWER_MIST_Y_TOP,
+              maxOpacity: VIEWER_MIST_MAX_OPACITY,
+              color: VIEWER_MIST_COLOR,
+              noiseScale: SHARED_MIST_NOISE_SCALE,
+              noiseStrength: SHARED_MIST_NOISE_STRENGTH,
+              noiseScroll: SHARED_MIST_NOISE_SCROLL,
             });
 
             material.needsUpdate = true;

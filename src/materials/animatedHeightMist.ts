@@ -10,6 +10,20 @@ type HeightMistOptions = {
   noiseScroll?: THREE.Vector3 | { x: number; y: number; z: number };
 };
 
+export function updateHeightMistMaterialTime(
+  material: THREE.Material | THREE.Material[],
+  timeSeconds: number
+) {
+  const mats = Array.isArray(material) ? material : [material];
+
+  for (const mat of mats) {
+    const uniforms = (mat as THREE.MeshStandardMaterial).userData?.__heightMistUniforms;
+    if (uniforms?.uMistTime) {
+      uniforms.uMistTime.value = timeSeconds;
+    }
+  }
+}
+
 export function applyAnimatedHeightMistToStandardMaterial(
   material: THREE.MeshStandardMaterial,
   {
