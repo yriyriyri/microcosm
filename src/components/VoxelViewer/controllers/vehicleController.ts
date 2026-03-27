@@ -61,6 +61,8 @@ const DRIVE_HANDBRAKE_VISUAL_RESPONSE = 1.1;
 const DRIVE_VERTICAL_RESPONSE = 5.5;
 const DRIVE_BOOST_RESPONSE = 3.2;
 const DRIVE_CAMERA_PULLBACK_EXPONENT = 5.0;
+const DRIVE_DRIFT_SPEED_REFERENCE = DRIVE_MAX_DRIVE_SPEED * DRIVE_BOOST_MULTIPLIER;
+const DRIVE_HANDBRAKE_BOOST_HOLD = 1.0;
 
 export type DriveMoveState = {
   forward: boolean;
@@ -284,7 +286,11 @@ export function updateDriveCamera(params: {
     setSustainCameraShake(driveState.cameraShake, null);
   }
 
-  const targetBoostFactor = boosting ? DRIVE_BOOST_MULTIPLIER : 1;
+  const targetBoostFactor = boosting
+    ? DRIVE_BOOST_MULTIPLIER
+    : handbrake
+      ? Math.max(driveState.boostFactor, DRIVE_HANDBRAKE_BOOST_HOLD)
+      : 1;
   const boostAlpha = 1 - Math.exp(-DRIVE_BOOST_RESPONSE * dt);
   driveState.boostFactor = THREE.MathUtils.lerp(
     driveState.boostFactor,
@@ -295,7 +301,7 @@ export function updateDriveCamera(params: {
   const driveSpeedCap = DRIVE_MAX_DRIVE_SPEED * driveState.boostFactor;
   const hardSpeedCap = DRIVE_MAX_FORWARD_SPEED;
 
-  const preSpeed01 = clamp(driveState.speed / hardSpeedCap, 0, 1);
+  const preSpeed01 = clamp(driveState.speed / DRIVE_DRIFT_SPEED_REFERENCE, 0, 1);
 
   let steerControl = DRIVE_NORMAL_STEER_CONTROL;
   let steerSpeedFalloff = DRIVE_NORMAL_STEER_SPEED_FALLOFF;
@@ -350,6 +356,7 @@ export function updateDriveCamera(params: {
 
   const speedAbs = Math.abs(driveState.speed);
   const speed01 = clamp(speedAbs / DRIVE_MAX_FORWARD_SPEED, 0, 1);
+  const driftSpeed01 = clamp(speedAbs / DRIVE_DRIFT_SPEED_REFERENCE, 0, 1);
 
   let targetDriftAngle = 0;
   if (speedAbs >= DRIVE_MIN_DRIFT_SPEED) {
@@ -357,7 +364,7 @@ export function updateDriveCamera(params: {
       ? DRIVE_HANDBRAKE_MAX_DRIFT_ANGLE
       : DRIVE_MAX_DRIFT_ANGLE;
 
-    targetDriftAngle = -steerInput * maxDrift * speed01;
+    targetDriftAngle = -steerInput * maxDrift * driftSpeed01;
   }
 
   const driftResponse = handbrake
@@ -400,7 +407,7 @@ export function updateDriveCamera(params: {
       : DRIVE_NORMAL_VISUAL_STEER_MULTIPLIER;
 
   const visualTurnTarget =
-    steerInput * DRIVE_VISUAL_STEER_ANGLE * visualSteerMultiplier * speed01 -
+    steerInput * DRIVE_VISUAL_STEER_ANGLE * visualSteerMultiplier * driftSpeed01 -
     driveState.driftAngle * 0.35;
 
   const visualBankBase = handbrake
@@ -408,7 +415,7 @@ export function updateDriveCamera(params: {
     : DRIVE_VISUAL_BANK_ANGLE * (boosting ? DRIVE_BOOST_VISUAL_BANK_MULTIPLIER : 1.0);
 
   const visualBankTarget =
-    -steerInput * visualBankBase * speed01;
+    -steerInput * visualBankBase * driftSpeed01;
 
   const visualResponse = handbrake
     ? DRIVE_HANDBRAKE_VISUAL_RESPONSE

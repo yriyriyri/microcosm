@@ -41,15 +41,17 @@ type VehicleEffectsController = {
   dispose: () => void;
 };
 
-type TrailMode = "idle" | "drive" | "boost";
+type TrailMode = "idle" | "drive" | "boost" | "handbrake";
 
 const CONTRAIL_LIFE_IDLE = 0.11;
 const CONTRAIL_LIFE_DRIVE = 0.34;
 const CONTRAIL_LIFE_BOOST = 0.48;
+const CONTRAIL_LIFE_HANDBRAKE = 0.44;
 
 const CONTRAIL_WIDTH_IDLE = 2.0;
 const CONTRAIL_WIDTH_DRIVE = 3.0;
 const CONTRAIL_WIDTH_BOOST = 5.0;
+const CONTRAIL_WIDTH_HANDBRAKE = 4.6;
 
 const CONTRAIL_MIN_SPEED_FOR_DRIVE = 8;
 const CONTRAIL_MIN_SPEED_FOR_BOOST = 45;
@@ -176,12 +178,14 @@ function getRightWorld(vehicleRoot: THREE.Object3D): THREE.Vector3 {
 
 function modeWidth(mode: TrailMode): number {
   if (mode === "boost") return CONTRAIL_WIDTH_BOOST;
+  if (mode === "handbrake") return CONTRAIL_WIDTH_HANDBRAKE;
   if (mode === "drive") return CONTRAIL_WIDTH_DRIVE;
   return CONTRAIL_WIDTH_IDLE;
 }
 
 function modeLife(mode: TrailMode): number {
   if (mode === "boost") return CONTRAIL_LIFE_BOOST;
+  if (mode === "handbrake") return CONTRAIL_LIFE_HANDBRAKE;
   if (mode === "drive") return CONTRAIL_LIFE_DRIVE;
   return CONTRAIL_LIFE_IDLE;
 }
@@ -514,12 +518,17 @@ export function createVehicleEffectsController(params: {
     }
 
     const speed = Math.abs(driveState.speed);
+    const handbrakeActive = !!moveState.backward && speed >= CONTRAIL_MIN_SPEED_FOR_DRIVE;
     const boosting =
       !!moveState.boost && !!moveState.forward && speed >= CONTRAIL_MIN_SPEED_FOR_BOOST;
     const driving = !!moveState.forward || speed >= CONTRAIL_MIN_SPEED_FOR_DRIVE;
     const drifting = !!moveState.backward && ((moveState.left ? 1 : 0) + (moveState.right ? 1 : 0)) > 0;
 
-    const nextMode: TrailMode = boosting ? "boost" : driving ? "drive" : "idle";
+    const nextMode: TrailMode = boosting
+      ? "boost"
+      : handbrakeActive
+        ? "handbrake"
+        : "idle";
 
     if (nextMode !== currentMode) {
       previousMode = currentMode;
@@ -597,7 +606,8 @@ export function createVehicleEffectsController(params: {
         1
       );
 
-      const shouldEmit = stripGate > 0.18 || currentMode !== "idle";
+      const shouldEmit =
+        currentMode !== "idle" && (stripGate > 0.18 || currentMode === "boost" || currentMode === "handbrake");
 
       if (shouldEmit) {
         const last = strip.points[strip.points.length - 1];
@@ -622,8 +632,8 @@ export function createVehicleEffectsController(params: {
       writeStripGeometry(strip, camera, headOpacity * stripGate, life);
     }
 
-    const handbrakeActive = !!moveState.backward && speed >= SPARK_MIN_SPEED;
-    if (!handbrakeActive) {
+    const sparksHandbrakeActive = !!moveState.backward && speed >= SPARK_MIN_SPEED;
+    if (!sparksHandbrakeActive) {
       sparkEmitCarry = 0;
       return;
     }
