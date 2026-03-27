@@ -149,6 +149,8 @@ export default function VoxelViewer(props: {
   const playSkyPhase1Ref = useRef(Math.random() * Math.PI * 2);
   const playSkyPhase2Ref = useRef(Math.random() * Math.PI * 2);
   const playSkyPhase3Ref = useRef(Math.random() * Math.PI * 2);
+  const playSkyWarm1Ref = useRef<THREE.Mesh | null>(null);
+  const playSkyWarm2Ref = useRef<THREE.Mesh | null>(null);
   const playSkyWarm3Ref = useRef<THREE.Mesh | null>(null);
   const envRTRef = useRef<THREE.WebGLRenderTarget | null>(null);
 
@@ -650,6 +652,33 @@ export default function VoxelViewer(props: {
       playSkyRoot.add(mesh);
       playSkyCloud1Ref.current = mesh;
     });
+
+    texLoader.load("/player/skybox1-warm.png", (texture) => {
+      setupSkyTexture(texture);
+    
+      const geometry = new THREE.SphereGeometry(
+        PLAY_SKY_RADIUS_1,
+        PLAY_SKY_SEGMENTS_W,
+        PLAY_SKY_SEGMENTS_H
+      );
+    
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+        blending: THREE.AdditiveBlending,
+        opacity: 0,
+        toneMapped: false,
+      });
+    
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = "play-sky-1-warm";
+      mesh.rotation.y = playSkyPhase1Ref.current;
+      playSkyRoot.add(mesh);
+      playSkyWarm1Ref.current = mesh;
+    });
     
     texLoader.load("/player/skybox2.png", (texture) => {
       setupSkyTexture(texture);
@@ -673,6 +702,33 @@ export default function VoxelViewer(props: {
       mesh.rotation.y = playSkyPhase2Ref.current;
       playSkyRoot.add(mesh);
       playSkyCloud2Ref.current = mesh;
+    });
+
+    texLoader.load("/player/skybox2-warm.png", (texture) => {
+      setupSkyTexture(texture);
+    
+      const geometry = new THREE.SphereGeometry(
+        PLAY_SKY_RADIUS_2,
+        PLAY_SKY_SEGMENTS_W,
+        PLAY_SKY_SEGMENTS_H
+      );
+    
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        fog: false,
+        blending: THREE.AdditiveBlending,
+        opacity: 0,
+        toneMapped: false,
+      });
+    
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = "play-sky-2-warm";
+      mesh.rotation.y = playSkyPhase2Ref.current;
+      playSkyRoot.add(mesh);
+      playSkyWarm2Ref.current = mesh;
     });
     
     texLoader.load("/player/skybox3.png", (texture) => {
@@ -845,15 +901,23 @@ export default function VoxelViewer(props: {
       if (playModeRef.current) {
         if (playSkyCloud1Ref.current) {
           playSkyCloud1Ref.current.rotation.y += PLAY_SKY_ROT_SPEED_1 * dt;
+          if (playSkyWarm1Ref.current) {
+            playSkyWarm1Ref.current.rotation.y = playSkyCloud1Ref.current.rotation.y;
+          }
         }
+        
         if (playSkyCloud2Ref.current) {
           playSkyCloud2Ref.current.rotation.y += PLAY_SKY_ROT_SPEED_2 * dt;
+          if (playSkyWarm2Ref.current) {
+            playSkyWarm2Ref.current.rotation.y = playSkyCloud2Ref.current.rotation.y;
+          }
         }
+        
         if (playSkyCloud3Ref.current) {
           playSkyCloud3Ref.current.rotation.y += PLAY_SKY_ROT_SPEED_3 * dt;
-        }
-        if (playSkyWarm3Ref.current) {
-          playSkyWarm3Ref.current.rotation.y += PLAY_SKY_ROT_SPEED_3 * dt;
+          if (playSkyWarm3Ref.current) {
+            playSkyWarm3Ref.current.rotation.y = playSkyCloud3Ref.current.rotation.y;
+          }
         }
       }
 
@@ -872,10 +936,18 @@ export default function VoxelViewer(props: {
       
         const eased = t * t * (3 - 2 * t);
       
-        if (playSkyWarm3Ref.current) {
-          const mat = playSkyWarm3Ref.current.material as THREE.MeshBasicMaterial;
-          mat.opacity = eased * 0.2;
-        }
+        if (playSkyWarm1Ref.current) {
+          const mat = playSkyWarm1Ref.current.material as THREE.MeshBasicMaterial;
+          mat.opacity = eased * 0.12;
+        }        
+        if (playSkyWarm2Ref.current) {
+          const mat = playSkyWarm2Ref.current.material as THREE.MeshBasicMaterial;
+          mat.opacity = eased * 0.16;
+        }        
+        // if (playSkyWarm3Ref.current) {
+        //   const mat = playSkyWarm3Ref.current.material as THREE.MeshBasicMaterial;
+        //   mat.opacity = eased * 0.2;
+        // }
         cloudWarmHemi.intensity = eased * 8.2;
         cloudSun.intensity = eased * CLOUD_LIGHT_MAX_INTENSITY;
         hemi.intensity = THREE.MathUtils.lerp(3.0, 2.0, eased);
@@ -978,6 +1050,8 @@ export default function VoxelViewer(props: {
         playSkyCloud1Ref.current = null;
         playSkyCloud2Ref.current = null;
         playSkyCloud3Ref.current = null;
+        playSkyWarm1Ref.current = null;
+        playSkyWarm2Ref.current = null;
         playSkyWarm3Ref.current = null;
       }
 
