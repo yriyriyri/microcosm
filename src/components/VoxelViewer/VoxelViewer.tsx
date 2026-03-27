@@ -60,8 +60,8 @@ const PLAY_SKY_ROT_SPEED_1 = 0.005;
 const PLAY_SKY_ROT_SPEED_2 = 0.01;
 const PLAY_SKY_ROT_SPEED_3 = 0.018;
 
-const CLOUD_LIGHT_START_Y = 50;
-const CLOUD_LIGHT_FULL_Y = 400;
+const CLOUD_LIGHT_START_Y = 125;
+const CLOUD_LIGHT_FULL_Y = 450;
 const CLOUD_LIGHT_MAX_INTENSITY = 25.0;
 
 const DRIVABLE_MARKETPLACE_IDS = new Set([
@@ -292,7 +292,7 @@ export default function VoxelViewer(props: {
         applyHeightMistToStandardMaterial(clonedMat, {
           yBottom: -60,
           yTop: 200,
-          maxOpacity: 0.45,
+          maxOpacity: 0.7,
           color: 0xffffff,
         });
     
@@ -668,7 +668,7 @@ export default function VoxelViewer(props: {
         transparent: true,
         depthWrite: false,
         fog: false,
-        blending: THREE.AdditiveBlending,
+        blending: THREE.NormalBlending,
         opacity: 0,
         toneMapped: false,
       });
@@ -719,7 +719,7 @@ export default function VoxelViewer(props: {
         transparent: true,
         depthWrite: false,
         fog: false,
-        blending: THREE.AdditiveBlending,
+        blending: THREE.NormalBlending,
         opacity: 0,
         toneMapped: false,
       });
@@ -770,7 +770,7 @@ export default function VoxelViewer(props: {
         transparent: true,
         depthWrite: false,
         fog: false,
-        blending: THREE.AdditiveBlending,
+        blending: THREE.NormalBlending,
         opacity: 0,
       });
     
@@ -938,16 +938,16 @@ export default function VoxelViewer(props: {
       
         if (playSkyWarm1Ref.current) {
           const mat = playSkyWarm1Ref.current.material as THREE.MeshBasicMaterial;
-          mat.opacity = eased * 0.12;
+          mat.opacity = eased * 0.15;
         }        
         if (playSkyWarm2Ref.current) {
           const mat = playSkyWarm2Ref.current.material as THREE.MeshBasicMaterial;
-          mat.opacity = eased * 0.16;
+          mat.opacity = eased * 0.1;
         }        
-        // if (playSkyWarm3Ref.current) {
-        //   const mat = playSkyWarm3Ref.current.material as THREE.MeshBasicMaterial;
-        //   mat.opacity = eased * 0.2;
-        // }
+        if (playSkyWarm3Ref.current) {
+          const mat = playSkyWarm3Ref.current.material as THREE.MeshBasicMaterial;
+          mat.opacity = eased * 0.15;
+        }
         cloudWarmHemi.intensity = eased * 8.2;
         cloudSun.intensity = eased * CLOUD_LIGHT_MAX_INTENSITY;
         hemi.intensity = THREE.MathUtils.lerp(3.0, 2.0, eased);
@@ -1211,7 +1211,7 @@ export default function VoxelViewer(props: {
             applyHeightMistToStandardMaterial(material, {
               yBottom: -60,
               yTop: 200,
-              maxOpacity: 0.45,
+              maxOpacity: 0.7,
               color: 0xffffff,
             });
 
