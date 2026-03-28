@@ -567,9 +567,6 @@ export function createVehicleEffectsController(params: {
       modeTransitionTimer = CONTRAIL_MODE_SPUTTER_DURATION;
     }
 
-    modeTransitionTimer = Math.max(0, modeTransitionTimer - dt);
-    idleSputterTimer = Math.max(0, idleSputterTimer - dt);
-
     let life = modeLife(currentMode);
     let width = modeWidth(currentMode);
     let headOpacity = CONTRAIL_HEAD_OPACITY;
@@ -580,9 +577,7 @@ export function createVehicleEffectsController(params: {
         0,
         1
       );
-    
-      headOpacity *= fadeT;
-      width = THREE.MathUtils.lerp(CONTRAIL_WIDTH_IDLE, width, fadeT);
+
       life = THREE.MathUtils.lerp(CONTRAIL_LIFE_IDLE, life, fadeT);
     }
 
@@ -610,6 +605,17 @@ export function createVehicleEffectsController(params: {
 
     width *= 1 + sputterBase * sputterStrength * CONTRAIL_SPUTTER_WIDTH_FLICKER;
     headOpacity *= gate;
+
+    if (currentMode === "boostFade") {
+      const fadeT = THREE.MathUtils.clamp(
+        boostFadeTimer / CONTRAIL_BOOST_FADE_DURATION,
+        0,
+        1
+      );
+
+      headOpacity *= fadeT;
+      width = THREE.MathUtils.lerp(CONTRAIL_WIDTH_IDLE, width, fadeT);
+    }
 
     const forward = getForwardWorld(vehicleRoot);
     const backward = forward.clone().multiplyScalar(-1);
@@ -647,11 +653,10 @@ export function createVehicleEffectsController(params: {
       );
 
       const shouldEmit =
-      currentMode !== "idle" &&
-      (stripGate > 0.18 ||
-        currentMode === "boost" ||
-        currentMode === "handbrake" ||
-        currentMode === "boostFade");
+        currentMode !== "idle" &&
+        (currentMode === "boost" || currentMode === "handbrake"
+          ? true
+          : stripGate > 0.18);
 
       if (shouldEmit) {
         const last = strip.points[strip.points.length - 1];
