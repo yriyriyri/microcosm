@@ -991,15 +991,15 @@ export default function VoxelViewer(props: {
       
         if (playSkyWarm1Ref.current) {
           const mat = playSkyWarm1Ref.current.material as THREE.MeshBasicMaterial;
-          mat.opacity = eased * 0.12;
+          mat.opacity = eased * 0.2;
         }        
         if (playSkyWarm2Ref.current) {
           const mat = playSkyWarm2Ref.current.material as THREE.MeshBasicMaterial;
-          mat.opacity = eased * 0.1;
+          mat.opacity = eased * 0.2;
         }        
         if (playSkyWarm3Ref.current) {
           const mat = playSkyWarm3Ref.current.material as THREE.MeshBasicMaterial;
-          mat.opacity = eased * 0.15;
+          mat.opacity = eased * 0.2;
         }
         cloudWarmHemi.intensity = eased * 8.2;
         cloudSun.intensity = eased * CLOUD_LIGHT_MAX_INTENSITY;
