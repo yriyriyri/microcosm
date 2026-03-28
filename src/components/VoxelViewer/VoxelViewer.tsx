@@ -687,7 +687,7 @@ export default function VoxelViewer(props: {
     
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = "play-sky-1";
-      mesh.rotation.y = 0;
+      mesh.rotation.y = 160;
       playSkyRoot.add(mesh);
       playSkyCloud1Ref.current = mesh;
       syncPlaySkyLayerRotation(1);
@@ -715,7 +715,7 @@ export default function VoxelViewer(props: {
     
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = "play-sky-1-warm";
-      mesh.rotation.y = 0;
+      mesh.rotation.y = 160;
       playSkyRoot.add(mesh);
       playSkyWarm1Ref.current = mesh;
       syncPlaySkyLayerRotation(1);
