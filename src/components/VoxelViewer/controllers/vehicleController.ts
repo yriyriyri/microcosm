@@ -30,8 +30,8 @@ const DRIVE_HANDBRAKE_MAX_DRIFT_ANGLE = Math.PI / 2.9;
 const DRIVE_DRIFT_BUILD_RESPONSE = 1.5;
 const DRIVE_DRIFT_RETURN_RESPONSE = 2.5;
 const DRIVE_HANDBRAKE_DRIFT_BUILD_RESPONSE = 2.8;
-const DRIVE_HANDBRAKE_STEER_CONTROL = 0.72;
-const DRIVE_HANDBRAKE_SPEED_DRAG = 0.996;
+const DRIVE_HANDBRAKE_STEER_CONTROL = 0.4;
+const DRIVE_HANDBRAKE_SPEED_DRAG = 0.999;
 const DRIVE_HANDBRAKE_SPEED_GAIN = 17.0;
 
 const DRIVE_FLY_SPEED = 80;
@@ -72,6 +72,8 @@ export type DriveMoveState = {
   up: boolean;
   down: boolean;
   boost: boolean;
+  barrelRollLeft: boolean;
+  barrelRollRight: boolean;
 };
 
 export type DriveState = {
@@ -90,6 +92,11 @@ export type DriveState = {
   wasBoosting: boolean;
   wasHandbraking: boolean;
   cameraShake: CameraShakeState;
+  barrelRollActive: boolean;
+  barrelRollDir: number;
+  barrelRollTime: number;
+  barrelRollDuration: number;
+  barrelRollVisual: number;
 };
 
 export function createDriveMoveState(): DriveMoveState {
@@ -101,6 +108,8 @@ export function createDriveMoveState(): DriveMoveState {
     up: false,
     down: false,
     boost: false,
+    barrelRollLeft: false,
+    barrelRollRight: false,
   };
 }
 
@@ -121,6 +130,11 @@ export function createDriveState(): DriveState {
     wasBoosting: false,
     wasHandbraking: false,
     cameraShake: createCameraShakeState(),
+    barrelRollActive: false,
+    barrelRollDir: 0,
+    barrelRollTime: 0,
+    barrelRollDuration: 2.2,
+    barrelRollVisual: 0,
   };
 }
 
@@ -146,6 +160,14 @@ export function handleDriveKeyDown(
     moveState.boost = true;
   }
 
+  if (e.code === "KeyL") {
+    moveState.barrelRollLeft = true;
+  }
+
+  if (e.code === "KeyK") {
+    moveState.barrelRollRight = true;
+  }
+
   if (e.code === "Enter" || e.code === "KeyQ") {
     moveState.down = true;
   }
@@ -162,6 +184,8 @@ export function handleDriveKeyUp(
 
   if (e.code === "Space") moveState.up = false;
   if (e.code === "ShiftLeft" || e.code === "ShiftRight") moveState.boost = false;
+  if (e.code === "KeyK") moveState.barrelRollLeft = false;
+  if (e.code === "KeyL") moveState.barrelRollRight = false;
   if (e.code === "Enter" || e.code === "KeyQ") moveState.down = false;
 }
 
@@ -194,6 +218,10 @@ export function enterDriveMode(params: {
   driveState.lookTarget.copy(centerWorld);
   driveState.wasBoosting = false;
   driveState.wasHandbraking = false;
+  driveState.barrelRollActive = false;
+  driveState.barrelRollDir = 0;
+  driveState.barrelRollTime = 0;
+  driveState.barrelRollVisual = 0;
   resetCameraShake(driveState.cameraShake);
 
   camera.fov = DRIVE_FOV;
@@ -226,8 +254,14 @@ export function exitDriveMode(params: {
   moveState.up = false;
   moveState.down = false;
   moveState.boost = false;
+  moveState.barrelRollLeft = false;
+  moveState.barrelRollRight = false;
   driveState.wasBoosting = false;
   driveState.wasHandbraking = false;
+  driveState.barrelRollActive = false;
+  driveState.barrelRollDir = 0;
+  driveState.barrelRollTime = 0;
+  driveState.barrelRollVisual = 0;
   resetCameraShake(driveState.cameraShake);
 
   if (camera) {
@@ -246,6 +280,17 @@ function moveToward(current: number, target: number, maxDelta: number): number {
   return current;
 }
 
+function easeOutCubic(t: number): number {
+  const x = 1 - t;
+  return 1 - x * x * x;
+}
+
+function triggerBarrelRoll(driveState: DriveState, dir: number) {
+  driveState.barrelRollActive = true;
+  driveState.barrelRollDir = dir;
+  driveState.barrelRollTime = 0;
+}
+
 export function updateDriveCamera(params: {
   dt: number;
   camera: THREE.PerspectiveCamera;
@@ -260,6 +305,16 @@ export function updateDriveCamera(params: {
   const throttleInput = moveState.forward ? 1 : 0;
   const handbrake = moveState.backward;
   const boosting = moveState.boost && !handbrake;
+
+  if (moveState.barrelRollLeft) {
+    triggerBarrelRoll(driveState, 1);
+    moveState.barrelRollLeft = false;
+  }
+
+  if (moveState.barrelRollRight) {
+    triggerBarrelRoll(driveState, -1);
+    moveState.barrelRollRight = false;
+  }
   
   const wasBoosting = driveState.wasBoosting;
   const wasHandbraking = driveState.wasHandbraking;
@@ -437,10 +492,28 @@ export function updateDriveCamera(params: {
     visualAlpha
   );
 
+  if (driveState.barrelRollActive) {
+    driveState.barrelRollTime += dt;
+    const t = clamp(
+      driveState.barrelRollTime / driveState.barrelRollDuration,
+      0,
+      1
+    );
+    driveState.barrelRollVisual =
+      driveState.barrelRollDir * easeOutCubic(t) * Math.PI * 2;
+
+    if (t >= 1) {
+      driveState.barrelRollActive = false;
+      driveState.barrelRollDir = 0;
+      driveState.barrelRollTime = 0;
+      driveState.barrelRollVisual = 0;
+    }
+  }
+
   vehicleRoot.rotation.set(
     0,
     driveState.yaw + driveState.visualSteerYaw,
-    driveState.visualBank
+    driveState.visualBank + driveState.barrelRollVisual
   );
 
   vehicleRoot.updateMatrixWorld(true);

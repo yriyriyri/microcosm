@@ -41,7 +41,7 @@ type VehicleEffectsController = {
   dispose: () => void;
 };
 
-type TrailMode = "idle" | "drive" | "boost" | "handbrake";
+type TrailMode = "idle" | "drive" | "boost" | "handbrake" | "boostFade";
 
 const CONTRAIL_LIFE_IDLE = 0.11;
 const CONTRAIL_LIFE_DRIVE = 0.34;
@@ -75,6 +75,10 @@ const CONTRAIL_IDLE_SPUTTER_STRENGTH = 0.75;
 const CONTRAIL_SPUTTER_FREQ_A = 30;
 const CONTRAIL_SPUTTER_FREQ_B = 51;
 const CONTRAIL_SPUTTER_WIDTH_FLICKER = 0.28;
+
+const CONTRAIL_LIFE_BOOST_FADE = 0.26;
+const CONTRAIL_WIDTH_BOOST_FADE = 3.8;
+const CONTRAIL_BOOST_FADE_DURATION = 3.8;
 
 const SPARK_MAX_PARTICLES = 240;
 const SPARK_EMIT_RATE = 120.0;
@@ -178,6 +182,7 @@ function getRightWorld(vehicleRoot: THREE.Object3D): THREE.Vector3 {
 
 function modeWidth(mode: TrailMode): number {
   if (mode === "boost") return CONTRAIL_WIDTH_BOOST;
+  if (mode === "boostFade") return CONTRAIL_WIDTH_BOOST_FADE;
   if (mode === "handbrake") return CONTRAIL_WIDTH_HANDBRAKE;
   if (mode === "drive") return CONTRAIL_WIDTH_DRIVE;
   return CONTRAIL_WIDTH_IDLE;
@@ -185,6 +190,7 @@ function modeWidth(mode: TrailMode): number {
 
 function modeLife(mode: TrailMode): number {
   if (mode === "boost") return CONTRAIL_LIFE_BOOST;
+  if (mode === "boostFade") return CONTRAIL_LIFE_BOOST_FADE;
   if (mode === "handbrake") return CONTRAIL_LIFE_HANDBRAKE;
   if (mode === "drive") return CONTRAIL_LIFE_DRIVE;
   return CONTRAIL_LIFE_IDLE;
@@ -358,6 +364,7 @@ export function createVehicleEffectsController(params: {
   let previousMode: TrailMode = "idle";
   let modeTransitionTimer = 0;
   let idleSputterTimer = 0;
+  let boostFadeTimer = 0;
 
   const sparkTexture = new THREE.TextureLoader().load(sparkTexturePath);
   sparkTexture.colorSpace = THREE.SRGBColorSpace;
@@ -464,6 +471,7 @@ export function createVehicleEffectsController(params: {
     currentMode = "idle";
     previousMode = "idle";
     sparkEmitCarry = 0;
+    boostFadeTimer = 0;
 
     for (const strip of strips) {
       strip.points.length = 0;
@@ -521,23 +529,42 @@ export function createVehicleEffectsController(params: {
     const handbrakeActive = !!moveState.backward && speed >= CONTRAIL_MIN_SPEED_FOR_DRIVE;
     const boosting =
       !!moveState.boost && !!moveState.forward && speed >= CONTRAIL_MIN_SPEED_FOR_BOOST;
-    const driving = !!moveState.forward || speed >= CONTRAIL_MIN_SPEED_FOR_DRIVE;
     const drifting = !!moveState.backward && ((moveState.left ? 1 : 0) + (moveState.right ? 1 : 0)) > 0;
-
-    const nextMode: TrailMode = boosting
+    
+    const rawNextMode: TrailMode = boosting
       ? "boost"
       : handbrakeActive
         ? "handbrake"
         : "idle";
-
+    
+    const nextMode: TrailMode =
+      currentMode === "boost" && rawNextMode === "idle"
+        ? "boostFade"
+        : rawNextMode;
+    
     if (nextMode !== currentMode) {
       previousMode = currentMode;
       currentMode = nextMode;
       modeTransitionTimer = CONTRAIL_MODE_SPUTTER_DURATION;
-
+    
       if (nextMode === "idle") {
         idleSputterTimer = CONTRAIL_IDLE_SPUTTER_DURATION;
       }
+    
+      if (nextMode === "boostFade") {
+        boostFadeTimer = CONTRAIL_BOOST_FADE_DURATION;
+      }
+    }
+    
+    modeTransitionTimer = Math.max(0, modeTransitionTimer - dt);
+    idleSputterTimer = Math.max(0, idleSputterTimer - dt);
+    boostFadeTimer = Math.max(0, boostFadeTimer - dt);
+    
+    if (currentMode === "boostFade" && boostFadeTimer <= 0) {
+      previousMode = currentMode;
+      currentMode = "idle";
+      idleSputterTimer = CONTRAIL_IDLE_SPUTTER_DURATION;
+      modeTransitionTimer = CONTRAIL_MODE_SPUTTER_DURATION;
     }
 
     modeTransitionTimer = Math.max(0, modeTransitionTimer - dt);
@@ -546,6 +573,18 @@ export function createVehicleEffectsController(params: {
     let life = modeLife(currentMode);
     let width = modeWidth(currentMode);
     let headOpacity = CONTRAIL_HEAD_OPACITY;
+    
+    if (currentMode === "boostFade") {
+      const fadeT = THREE.MathUtils.clamp(
+        boostFadeTimer / CONTRAIL_BOOST_FADE_DURATION,
+        0,
+        1
+      );
+    
+      headOpacity *= fadeT;
+      width = THREE.MathUtils.lerp(CONTRAIL_WIDTH_IDLE, width, fadeT);
+      life = THREE.MathUtils.lerp(CONTRAIL_LIFE_IDLE, life, fadeT);
+    }
 
     if (modeTransitionTimer > 0) {
       const t = 1 - modeTransitionTimer / CONTRAIL_MODE_SPUTTER_DURATION;
@@ -563,6 +602,7 @@ export function createVehicleEffectsController(params: {
         CONTRAIL_IDLE_SPUTTER_STRENGTH * (idleSputterTimer / CONTRAIL_IDLE_SPUTTER_DURATION);
     }
     if (drifting) sputterStrength += CONTRAIL_DRIFT_SPUTTER_STRENGTH;
+    if (currentMode === "boostFade") sputterStrength += 0.35;
 
     sputterStrength = Math.min(1, sputterStrength);
 
@@ -607,7 +647,11 @@ export function createVehicleEffectsController(params: {
       );
 
       const shouldEmit =
-        currentMode !== "idle" && (stripGate > 0.18 || currentMode === "boost" || currentMode === "handbrake");
+      currentMode !== "idle" &&
+      (stripGate > 0.18 ||
+        currentMode === "boost" ||
+        currentMode === "handbrake" ||
+        currentMode === "boostFade");
 
       if (shouldEmit) {
         const last = strip.points[strip.points.length - 1];
