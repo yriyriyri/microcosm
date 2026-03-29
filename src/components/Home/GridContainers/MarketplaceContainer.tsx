@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 function colorFromId(id: string): string {
   const palette = [
@@ -24,6 +24,7 @@ function colorFromId(id: string): string {
 
 export default function MarketplaceContainer(props: {
   assetId: string;
+  thumbBlob?: Blob | null;
   size?: "small" | "big";
   title?: string;
   subtitle?: string;
@@ -35,6 +36,7 @@ export default function MarketplaceContainer(props: {
 }) {
   const {
     assetId,
+    thumbBlob = null,
     size = "small",
     title = "voxbox",
     subtitle = "",
@@ -46,25 +48,71 @@ export default function MarketplaceContainer(props: {
   } = props;
 
   const bg = useMemo(() => colorFromId(assetId), [assetId]);
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!thumbBlob) {
+      setThumbUrl(null);
+      return;
+    }
+
+    const url = URL.createObjectURL(thumbBlob);
+    setThumbUrl(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [thumbBlob]);
 
   return (
     <div
       className={size === "big" ? "pix-icon-large" : "pix-icon"}
       style={{
+        position: "relative",
         width: "100%",
         height: "100%",
         background: bg,
         borderRadius: 8,
         color: "rgba(255,255,255,0.95)",
         userSelect: "none",
-        overflow: "visible",
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
         padding: size === "big" ? 16 : 12,
       }}
     >
-      <div style={{ minWidth: 0 }}>
+      {thumbUrl && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        >
+          <img
+            src={thumbUrl}
+            alt=""
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              opacity: 0.92,
+            }}
+          />
+        </div>
+      )}
+
+      <div
+        style={{
+          position: "relative",
+          zIndex: 1,
+          minWidth: 0,
+        }}
+      >
         <div
           style={{
             fontSize: size === "big" ? 24 : 18,
@@ -73,6 +121,7 @@ export default function MarketplaceContainer(props: {
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
+            textShadow: "0 1px 2px rgba(0,0,0,0.35)",
           }}
         >
           {title}
@@ -87,6 +136,7 @@ export default function MarketplaceContainer(props: {
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
+              textShadow: "0 1px 2px rgba(0,0,0,0.35)",
             }}
           >
             {subtitle}
@@ -99,6 +149,7 @@ export default function MarketplaceContainer(props: {
               fontSize: size === "big" ? 13 : 11,
               opacity: 0.78,
               lineHeight: 1.25,
+              textShadow: "0 1px 2px rgba(0,0,0,0.35)",
             }}
           >
             {meta}
@@ -108,6 +159,8 @@ export default function MarketplaceContainer(props: {
 
       <div
         style={{
+          position: "relative",
+          zIndex: 1,
           display: "flex",
           alignItems: "flex-end",
           justifyContent: "space-between",
@@ -121,6 +174,7 @@ export default function MarketplaceContainer(props: {
             opacity: 0.82,
             lineHeight: 1.2,
             minWidth: 0,
+            textShadow: "0 1px 2px rgba(0,0,0,0.35)",
           }}
         >
           {footer}
@@ -147,6 +201,7 @@ export default function MarketplaceContainer(props: {
               padding: "8px 10px",
               cursor: isBusy || alreadyOwned ? "default" : "pointer",
               opacity: isBusy || alreadyOwned ? 0.7 : 1,
+              backdropFilter: "blur(3px)",
             }}
           >
             {isBusy ? "Buying..." : alreadyOwned ? "Owned" : "Buy"}

@@ -96,6 +96,7 @@ export default function Marketplace() {
         content: (
           <MarketplaceContainer
             assetId={asset.id}
+            thumbBlob={asset.thumb ?? null}
             size={size}
             title={asset.name}
             subtitle="by bkvoxel"

@@ -1,5 +1,5 @@
 {
-  "groupId": "shp27",
+  "groupId": "__focus__",
   "position": {
     "x": 0,
     "y": 0,
@@ -512,42 +512,6 @@
     },
     {
       "local": {
-        "x": 18,
-        "y": 1,
-        "z": 84
-      },
-      "color": "#d29920",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 19,
-        "y": 1,
-        "z": 84
-      },
-      "color": "#d29920",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 20,
-        "y": 1,
-        "z": 84
-      },
-      "color": "#d29920",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 21,
-        "y": 1,
-        "z": 84
-      },
-      "color": "#d29920",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 22,
         "y": 1,
         "z": 84
@@ -670,42 +634,6 @@
         "z": 83
       },
       "color": "#d29920",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 18,
-        "y": 1,
-        "z": 83
-      },
-      "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 19,
-        "y": 1,
-        "z": 83
-      },
-      "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 20,
-        "y": 1,
-        "z": 83
-      },
-      "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 21,
-        "y": 1,
-        "z": 83
-      },
-      "color": "#e8b763",
       "isBlueprint": true
     },
     {
@@ -836,42 +764,6 @@
     },
     {
       "local": {
-        "x": 18,
-        "y": 1,
-        "z": 82
-      },
-      "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 19,
-        "y": 1,
-        "z": 82
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 20,
-        "y": 1,
-        "z": 82
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 21,
-        "y": 1,
-        "z": 82
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 22,
         "y": 1,
         "z": 82
@@ -994,42 +886,6 @@
         "z": 81
       },
       "color": "#d29920",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 18,
-        "y": 1,
-        "z": 81
-      },
-      "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 19,
-        "y": 1,
-        "z": 81
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 20,
-        "y": 1,
-        "z": 81
-      },
-      "color": "#4f4d4b",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 21,
-        "y": 1,
-        "z": 81
-      },
-      "color": "#e1ad4d",
       "isBlueprint": true
     },
     {
@@ -63278,15 +63134,6 @@
     },
     {
       "local": {
-        "x": 14,
-        "y": 12,
-        "z": 84
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 31,
         "y": 12,
         "z": 84
@@ -63434,15 +63281,6 @@
         "x": 39,
         "y": 12,
         "z": 82
-      },
-      "color": "#de7c2d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 6,
-        "y": 12,
-        "z": 81
       },
       "color": "#de7c2d",
       "isBlueprint": true
@@ -67976,15 +67814,6 @@
     },
     {
       "local": {
-        "x": 14,
-        "y": 13,
-        "z": 84
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 31,
         "y": 13,
         "z": 84
@@ -68132,15 +67961,6 @@
         "x": 38,
         "y": 13,
         "z": 82
-      },
-      "color": "#de7c2d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 6,
-        "y": 13,
-        "z": 81
       },
       "color": "#de7c2d",
       "isBlueprint": true
@@ -71810,15 +71630,6 @@
     },
     {
       "local": {
-        "x": 14,
-        "y": 14,
-        "z": 84
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 31,
         "y": 14,
         "z": 84
@@ -71860,69 +71671,6 @@
         "z": 82
       },
       "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 7,
-        "y": 14,
-        "z": 81
-      },
-      "color": "#de7c2d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 8,
-        "y": 14,
-        "z": 81
-      },
-      "color": "#e59042",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 9,
-        "y": 14,
-        "z": 81
-      },
-      "color": "#e89a4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 10,
-        "y": 14,
-        "z": 81
-      },
-      "color": "#e89a4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 11,
-        "y": 14,
-        "z": 81
-      },
-      "color": "#e59042",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 12,
-        "y": 14,
-        "z": 81
-      },
-      "color": "#de7c2d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 13,
-        "y": 14,
-        "z": 81
-      },
-      "color": "#de7c2d",
       "isBlueprint": true
     },
     {
@@ -79424,15 +79172,6 @@
     },
     {
       "local": {
-        "x": 14,
-        "y": 15,
-        "z": 84
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 31,
         "y": 15,
         "z": 84
@@ -79472,15 +79211,6 @@
         "x": 31,
         "y": 15,
         "z": 82
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 14,
-        "y": 15,
-        "z": 81
       },
       "color": "#e1ad4d",
       "isBlueprint": true
@@ -81854,33 +81584,6 @@
     },
     {
       "local": {
-        "x": 14,
-        "y": 16,
-        "z": 84
-      },
-      "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 15,
-        "y": 16,
-        "z": 84
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 16,
-        "y": 16,
-        "z": 84
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 29,
         "y": 16,
         "z": 84
@@ -82012,33 +81715,6 @@
         "z": 82
       },
       "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 14,
-        "y": 16,
-        "z": 81
-      },
-      "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 15,
-        "y": 16,
-        "z": 81
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 16,
-        "y": 16,
-        "z": 81
-      },
-      "color": "#e1ad4d",
       "isBlueprint": true
     },
     {
@@ -87470,24 +87146,6 @@
     },
     {
       "local": {
-        "x": 19,
-        "y": 17,
-        "z": 83
-      },
-      "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 20,
-        "y": 17,
-        "z": 83
-      },
-      "color": "#e1ad4d",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 21,
         "y": 17,
         "z": 83
@@ -87574,24 +87232,6 @@
         "z": 82
       },
       "color": "#d29920",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 19,
-        "y": 17,
-        "z": 82
-      },
-      "color": "#e8b763",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 20,
-        "y": 17,
-        "z": 82
-      },
-      "color": "#e1ad4d",
       "isBlueprint": true
     },
     {

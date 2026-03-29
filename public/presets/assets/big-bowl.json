@@ -1,5 +1,5 @@
 {
-  "groupId": "shp:97",
+  "groupId": "__focus__",
   "position": {
     "x": 0,
     "y": 0,
@@ -710,33 +710,6 @@
     },
     {
       "local": {
-        "x": 12,
-        "y": 0,
-        "z": 8
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 13,
-        "y": 0,
-        "z": 8
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 14,
-        "y": 0,
-        "z": 8
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 0,
         "y": 0,
         "z": 7
@@ -809,69 +782,6 @@
     },
     {
       "local": {
-        "x": 8,
-        "y": 0,
-        "z": 7
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 9,
-        "y": 0,
-        "z": 7
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 10,
-        "y": 0,
-        "z": 7
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 11,
-        "y": 0,
-        "z": 7
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 12,
-        "y": 0,
-        "z": 7
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 13,
-        "y": 0,
-        "z": 7
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 14,
-        "y": 0,
-        "z": 7
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 0,
         "y": 0,
         "z": 6
@@ -935,78 +845,6 @@
     },
     {
       "local": {
-        "x": 7,
-        "y": 0,
-        "z": 6
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 8,
-        "y": 0,
-        "z": 6
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 9,
-        "y": 0,
-        "z": 6
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 10,
-        "y": 0,
-        "z": 6
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 11,
-        "y": 0,
-        "z": 6
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 12,
-        "y": 0,
-        "z": 6
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 13,
-        "y": 0,
-        "z": 6
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 14,
-        "y": 0,
-        "z": 6
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 0,
         "y": 0,
         "z": 5
@@ -1061,87 +899,6 @@
     },
     {
       "local": {
-        "x": 6,
-        "y": 0,
-        "z": 5
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 7,
-        "y": 0,
-        "z": 5
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 8,
-        "y": 0,
-        "z": 5
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 9,
-        "y": 0,
-        "z": 5
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 10,
-        "y": 0,
-        "z": 5
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 11,
-        "y": 0,
-        "z": 5
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 12,
-        "y": 0,
-        "z": 5
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 13,
-        "y": 0,
-        "z": 5
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 14,
-        "y": 0,
-        "z": 5
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 1,
         "y": 0,
         "z": 4
@@ -1179,78 +936,6 @@
     {
       "local": {
         "x": 5,
-        "y": 0,
-        "z": 4
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 6,
-        "y": 0,
-        "z": 4
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 7,
-        "y": 0,
-        "z": 4
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 8,
-        "y": 0,
-        "z": 4
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 9,
-        "y": 0,
-        "z": 4
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 10,
-        "y": 0,
-        "z": 4
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 11,
-        "y": 0,
-        "z": 4
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 12,
-        "y": 0,
-        "z": 4
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 13,
         "y": 0,
         "z": 4
       },
@@ -1304,78 +989,6 @@
     },
     {
       "local": {
-        "x": 6,
-        "y": 0,
-        "z": 3
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 7,
-        "y": 0,
-        "z": 3
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 8,
-        "y": 0,
-        "z": 3
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 9,
-        "y": 0,
-        "z": 3
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 10,
-        "y": 0,
-        "z": 3
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 11,
-        "y": 0,
-        "z": 3
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 12,
-        "y": 0,
-        "z": 3
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 13,
-        "y": 0,
-        "z": 3
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 2,
         "y": 0,
         "z": 2
@@ -1430,51 +1043,6 @@
     },
     {
       "local": {
-        "x": 8,
-        "y": 0,
-        "z": 2
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 9,
-        "y": 0,
-        "z": 2
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 10,
-        "y": 0,
-        "z": 2
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 11,
-        "y": 0,
-        "z": 2
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 12,
-        "y": 0,
-        "z": 2
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
         "x": 3,
         "y": 0,
         "z": 1
@@ -1539,15 +1107,6 @@
     {
       "local": {
         "x": 10,
-        "y": 0,
-        "z": 1
-      },
-      "color": "#6e4414",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 11,
         "y": 0,
         "z": 1
       },

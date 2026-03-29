@@ -1,5 +1,5 @@
 {
-  "groupId": "shp:155",
+  "groupId": "__focus__",
   "position": {
     "x": 0,
     "y": 0,
@@ -46188,15 +46188,6 @@
     {
       "local": {
         "x": 29,
-        "y": 20,
-        "z": 2
-      },
-      "color": "#7f643c",
-      "isBlueprint": true
-    },
-    {
-      "local": {
-        "x": 30,
         "y": 20,
         "z": 2
       },
