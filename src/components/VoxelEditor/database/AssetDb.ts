@@ -331,6 +331,25 @@ export async function renameAsset(id: string, name: string): Promise<void> {
   await txDone(tx);
 }
 
+export async function updateAssetThumbnail(params: {
+  assetId: string;
+  thumb: Blob | null;
+}): Promise<void> {
+  const db = await openDb();
+  const meta = await getAssetMeta(params.assetId);
+  if (!meta) throw new Error("Asset not found");
+
+  const next = normalizeAssetMeta({
+    ...meta,
+    thumb: params.thumb,
+    updatedAt: Date.now(),
+  });
+
+  const tx = db.transaction([STORE_META], "readwrite");
+  tx.objectStore(STORE_META).put(next);
+  await txDone(tx);
+}
+
 export async function overwritePrivateAssetContent(params: {
   assetId: string;
   group: GroupState;

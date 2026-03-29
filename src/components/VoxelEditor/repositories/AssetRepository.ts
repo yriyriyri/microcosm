@@ -60,6 +60,11 @@ export interface AssetRepository {
     thumb?: Blob | null;
   }): Promise<AssetId>;
 
+  updateAssetThumbnail(params: {
+    assetId: AssetId;
+    thumb: Blob | null;
+  }): Promise<void>;
+
   loadDraftAssetDocument(
     id: AssetId,
     ownerAccountId?: string | null

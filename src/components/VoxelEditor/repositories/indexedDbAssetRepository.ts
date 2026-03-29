@@ -45,6 +45,7 @@ import {
   saveAsset,
   setAssetLibraryMembership,
   setKv,
+  updateAssetThumbnail,
 } from "../database/AssetDb";
 
 function toAssetMetaRecord(meta: AssetMeta): AssetMetaRecord {
@@ -156,6 +157,13 @@ export class IndexedDbAssetRepository implements AssetRepository {
     thumb?: Blob | null;
   }): Promise<AssetId> {
     return await remixAssetFromSource(params);
+  }
+  
+  async updateAssetThumbnail(params: {
+    assetId: AssetId;
+    thumb: Blob | null;
+  }): Promise<void> {
+    await updateAssetThumbnail(params);
   }
 
   async acquireMarketplaceAssetToLibrary(
