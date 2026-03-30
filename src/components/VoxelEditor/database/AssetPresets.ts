@@ -140,8 +140,8 @@ export async function ensurePresetAssetsInstalled(opts?: {
       const thumbUrl = p.thumb ? resolvePresetUrl(p.thumb) : null;
 
       const [group, thumb] = await Promise.all([
-        fetchJson<GroupState>(jsonUrl, "force-cache", debug),
-        thumbUrl ? fetchBlob(thumbUrl, "force-cache", debug) : Promise.resolve(null),
+        fetchJson<GroupState>(jsonUrl, "no-store", debug),
+        thumbUrl ? fetchBlob(thumbUrl, "no-store", debug) : Promise.resolve(null),
       ]);
 
       await assetRepository.saveAsset({
