@@ -56,7 +56,7 @@ type PendingImport = {
 };
 
 const PRIMARY_WORLD_ID_KEY = "voxbox:primaryWorldId";
-const ADMIN = false;
+const ADMIN = true;
 
 function getPrimaryWorldId(): string | null {
   try { return localStorage.getItem(PRIMARY_WORLD_ID_KEY); } catch { return null; }

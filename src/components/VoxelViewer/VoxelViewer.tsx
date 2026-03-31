@@ -590,7 +590,7 @@ export default function VoxelViewer(props: {
           else applyTo(mesh.material);
         });
 
-        scene.add(root);
+        // scene.add(root);
         islandRootRef.current = root;
       },
       undefined,

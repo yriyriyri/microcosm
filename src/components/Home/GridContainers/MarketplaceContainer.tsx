@@ -4,11 +4,11 @@ import React, { useEffect, useMemo, useState } from "react";
 
 function gradientFromId(id: string): string {
   const palette: [string, string][] = [
-    ["#1f5fff", "#5ea2ff"],
-    ["#0f9f6e", "#41d89c"],
-    ["#c24a1a", "#ff8a4d"],
-    ["#7a2cff", "#b26cff"],
-    ["#cc1f5a", "#ff5f93"],
+    ["#A60D55", "#9D2636"],
+    ["#FF9600", "#D65E0E"],
+    ["#1B55BC", "#3A96E9"],
+    ["#0DA67B", "#329D26"],
+    ["#CC33E7", "#E972C5"],
   ];
 
   let hash = 0;
@@ -106,7 +106,7 @@ export default function MarketplaceContainer(props: {
               maxHeight: "100%",
               objectFit: "contain",
               opacity: 0.95,
-              filter: "drop-shadow(0 8px 14px rgba(0,0,0,0.35))",
+              filter: "drop-shadow(0 8px 14px rgba(255,0,0,0.1))",
             }}
           />
         </div>
@@ -136,7 +136,6 @@ export default function MarketplaceContainer(props: {
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            textShadow: "0 1px 2px rgba(0,0,0,0.35)",
           }}
         >
           {title}
@@ -151,7 +150,6 @@ export default function MarketplaceContainer(props: {
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              textShadow: "0 1px 2px rgba(0,0,0,0.35)",
             }}
           >
             {subtitle}
@@ -164,7 +162,6 @@ export default function MarketplaceContainer(props: {
               fontSize: metaSize,
               opacity: 0.8,
               lineHeight: 1.2,
-              textShadow: "0 1px 2px rgba(0,0,0,0.35)",
             }}
           >
             {meta}
@@ -189,7 +186,6 @@ export default function MarketplaceContainer(props: {
             opacity: 0.84,
             lineHeight: 1.15,
             minWidth: 0,
-            textShadow: "0 1px 2px rgba(0,0,0,0.35)",
           }}
         >
           {footer}
@@ -216,7 +212,6 @@ export default function MarketplaceContainer(props: {
               padding: size === "big" ? "7px 10px" : "6px 9px",
               cursor: isBusy || alreadyOwned ? "default" : "pointer",
               opacity: isBusy || alreadyOwned ? 0.7 : 1,
-              backdropFilter: "blur(3px)",
               fontSize: size === "big" ? 12 : 11,
             }}
           >
