@@ -37,11 +37,34 @@ function floaterVarsFromSeed(seed: string): React.CSSProperties {
   };
 }
 
+function pfpFromUserId(userId: string): string {
+  const pfps = [
+    "/pfp/1.png",
+    "/pfp/2.png",
+    "/pfp/3.png",
+    "/pfp/4.png",
+    "/pfp/5.png",
+    "/pfp/6.png",
+    "/pfp/7.png",
+    "/pfp/8.png",
+  ];
+
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  }
+
+  return pfps[hash % pfps.length];
+}
+
 export default function AtlasContainer(props: {
   title?: string;
   subtitle?: string;
   meta?: string;
   footer?: string;
+  publisherUserId?: string;
+  publisherUsername?: string;
+  createdAt?: number;
   onClick?: () => void;
   size?: "small" | "big";
   gridGap?: number;
@@ -54,6 +77,9 @@ export default function AtlasContainer(props: {
     subtitle = "",
     meta = "",
     footer = "",
+    publisherUserId = "",
+    publisherUsername = "unknown user",
+    createdAt = 0,
     onClick,
     size = "small",
     gridGap = 0,
@@ -64,25 +90,28 @@ export default function AtlasContainer(props: {
 
   const [overlayMounted, setOverlayMounted] = useState(expanded);
   const [overlayVisible, setOverlayVisible] = useState(expanded);
+
   const seed = `${title}|${subtitle}|${meta}|${footer}`;
   const bgImage = useMemo(() => backgroundImageFromSeed(seed), [seed]);
   const floaterVars = useMemo(() => floaterVarsFromSeed(seed), [seed]);
-  
+  const publisherPfp = useMemo(
+    () => pfpFromUserId(publisherUserId || publisherUsername),
+    [publisherUserId, publisherUsername]
+  );
+
   useEffect(() => {
     let raf1 = 0;
     let raf2 = 0;
     let timeoutId = 0;
-  
+
     if (expanded) {
       setOverlayMounted(true);
       setOverlayVisible(false);
-  
+
       raf1 = window.requestAnimationFrame(() => {
         raf2 = window.requestAnimationFrame(() => {
           const el = document.getElementById(`atlas-overlay-${seed}`);
-          if (el) {
-            void el.getBoundingClientRect();
-          }
+          if (el) void el.getBoundingClientRect();
           setOverlayVisible(true);
         });
       });
@@ -92,7 +121,7 @@ export default function AtlasContainer(props: {
         setOverlayMounted(false);
       }, 220);
     }
-  
+
     return () => {
       if (raf1) window.cancelAnimationFrame(raf1);
       if (raf2) window.cancelAnimationFrame(raf2);
@@ -110,10 +139,10 @@ export default function AtlasContainer(props: {
   const nameWidth = "83%";
   const expandGap = 30;
   const expandVisualScale = 2.0;
-
   const collapsedWidth = "100%";
   const expandedWidth = `calc(200% + ${gridGap * 2}px)`;
   const overlayHeight = `calc(100% + ${gridGap}px)`;
+  const profileWidth = "70%";
 
   return (
     <div
@@ -155,8 +184,6 @@ export default function AtlasContainer(props: {
               height: "100%",
               paddingTop: 16,
               paddingBottom: 16,
-              paddingLeft: 0,
-              paddingRight: 0,
               boxSizing: "border-box",
             }}
           >
@@ -172,7 +199,7 @@ export default function AtlasContainer(props: {
                 style={{
                   width: "70%",
                   height: "100%",
-                  background: "#e3f2f8",
+                  background: "#E3F2F8",
                   borderRadius: 6,
                 }}
               />
@@ -181,8 +208,54 @@ export default function AtlasContainer(props: {
                 style={{
                   width: "30%",
                   height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "flex-start",
+                  paddingTop: 0,
+                  boxSizing: "border-box",
                 }}
-              />
+              >
+                <div
+                  style={{
+                    width: profileWidth,
+                    marginTop: 2,
+                    aspectRatio: "1 / 1",
+                    border: "2px solid var(--homepage-dark)",
+                    boxSizing: "border-box",
+                    overflow: "hidden",
+                    flexShrink: 0,
+                  }}
+                >
+                  <img
+                    src={publisherPfp}
+                    alt={publisherUsername}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      imageRendering: "pixelated",
+                      display: "block",
+                    }}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    width: profileWidth,
+                    marginTop: 8,
+                    color: "var(--homepage-dark)",
+                    textAlign: "center",
+                    lineHeight: 1.05,
+                    fontSize: size === "big" ? 20 : 18,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {publisherUsername}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -231,7 +304,7 @@ export default function AtlasContainer(props: {
                 alignItems: "center",
                 justifyContent: "center",
                 pointerEvents: "none",
-                opacity: overlayVisible ? 1.0 : 0,
+                opacity: overlayVisible ? 1 : 0,
                 transition: "opacity 180ms ease-out",
                 willChange: "opacity",
                 transform: "translateX(2%)",

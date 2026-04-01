@@ -27,10 +27,12 @@ type PublishedWorldRow = {
 
 type GameCardData = {
   publishedWorldId: string;
+  publisherUserId: string;
   worldName: string;
   publisherUsername: string;
   assetNames: string[];
   voxelCount: number;
+  createdAt: number;
 };
 
 const OVERLAY_CLOSE_MS = 220;
@@ -166,11 +168,13 @@ export default function Atlas() {
 
           return {
             publishedWorldId: row.publishedWorldId,
+            publisherUserId: row.publisherUserId,
             worldName: row.worldName || "Untitled World",
             publisherUsername:
               usernameByUserId.get(row.publisherUserId) ?? "unknown user",
             assetNames,
             voxelCount: row.voxelCount ?? 0,
+            createdAt: row.createdAt ?? 0,
           };
         });
 
@@ -238,6 +242,9 @@ export default function Atlas() {
             }}
             title={game.worldName}
             subtitle={`by ${game.publisherUsername}`}
+            publisherUserId={game.publisherUserId}
+            publisherUsername={game.publisherUsername}
+            createdAt={game.createdAt}
             meta={
               game.assetNames.length
                 ? game.assetNames.join(", ")
@@ -251,7 +258,7 @@ export default function Atlas() {
         ),
       };
     });
-  }, [games, router, expandedWorldId, closingWorldIds]);
+  }, [games, router, expandedWorldId, closingWorldIds, overlayOrderById]);
 
   return (
     <div
