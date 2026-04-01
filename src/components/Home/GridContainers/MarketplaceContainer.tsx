@@ -62,6 +62,18 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function parseVoxelCount(meta: string): number {
+  const digits = meta.replace(/,/g, "").match(/\d+/);
+  return digits ? parseInt(digits[0], 10) : 0;
+}
+
+function buildTimeFromVoxelCount(voxelCount: number): string {
+  if (voxelCount <= 250) return "15 minute build time";
+  if (voxelCount <= 700) return "30 minute build time";
+  if (voxelCount <= 1400) return "45 minute build time";
+  return "60 minute build time";
+}
+
 export default function MarketplaceContainer(props: {
   assetId: string;
   thumbBlob?: Blob | null;
@@ -80,7 +92,6 @@ export default function MarketplaceContainer(props: {
     thumbBlob = null,
     size = "small",
     title = "voxbox",
-    subtitle = "",
     meta = "",
     footer = "",
     alreadyOwned = false,
@@ -109,12 +120,15 @@ export default function MarketplaceContainer(props: {
     };
   }, [thumbBlob]);
 
-  const titleSize = size === "big" ? 20 : 15;
-  const subtitleSize = size === "big" ? 12 : 10;
-  const metaSize = size === "big" ? 11 : 10;
+  const voxelCount = useMemo(() => parseVoxelCount(meta), [meta]);
+  const buildTime = useMemo(() => buildTimeFromVoxelCount(voxelCount), [voxelCount]);
+
+  const titleSize = size === "big" ? 23 : 15;
+  const metaSize = size === "big" ? 11 : 9;
   const footerSize = size === "big" ? 11 : 10;
   const bottomBandHeight = size === "big" ? "20%" : "25%";
   const sidePadding = size === "big" ? 14 : 10;
+  const statIconSize = size === "big" ? 14 : 12;
 
   return (
     <div
@@ -154,6 +168,8 @@ export default function MarketplaceContainer(props: {
               objectFit: "contain",
               opacity: 0.95,
               filter: "drop-shadow(0 8px 14px rgba(255,0,0,0.1))",
+              transform: size === "small" ? "scale(0.7)" : "scale(1)",
+              transformOrigin: "center center",
             }}
           />
         </div>
@@ -183,7 +199,7 @@ export default function MarketplaceContainer(props: {
           style={{
             fontSize: titleSize,
             lineHeight: 1.02,
-            marginBottom: 4,
+            marginBottom: 6,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -192,32 +208,83 @@ export default function MarketplaceContainer(props: {
           {title}
         </div>
 
-        {!!subtitle && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
           <div
             style={{
-              fontSize: subtitleSize,
-              opacity: 0.84,
-              marginBottom: 4,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {subtitle}
-          </div>
-        )}
-
-        {!!meta && (
-          <div
-            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
               fontSize: metaSize,
-              opacity: 0.8,
+              opacity: 0.86,
               lineHeight: 1.2,
+              minWidth: 0,
             }}
           >
-            {meta}
+            <span
+              style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {meta}
+            </span>
+            <img
+              src="/marketplace/voxel.png"
+              alt=""
+              style={{
+                width: statIconSize,
+                height: statIconSize,
+                objectFit: "contain",
+                imageRendering: "pixelated",
+                flexShrink: 0,
+                opacity: 0.86,
+              }}
+            />
           </div>
-        )}
+
+          {size === "big" && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: metaSize,
+                opacity: 0.86,
+                lineHeight: 1.2,
+                minWidth: 0,
+              }}
+            >
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {buildTime}
+              </span>
+              <img
+                src="/marketplace/hourglass.png"
+                alt=""
+                style={{
+                  width: statIconSize,
+                  height: statIconSize,
+                  objectFit: "contain",
+                  imageRendering: "pixelated",
+                  flexShrink: 0,
+                  opacity: 0.86,
+                }}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div

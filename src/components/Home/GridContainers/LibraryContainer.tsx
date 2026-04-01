@@ -223,7 +223,7 @@ export default function LibraryContainer(props: {
             }}
           >
             <img
-              src="/icons/delete.png"
+              src="/library/delete.png"
               alt="Delete"
               style={{
                 width: `${deleteVisualScale * 100}%`,
