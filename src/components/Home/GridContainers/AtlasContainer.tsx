@@ -2,6 +2,41 @@
 
 import React, { useMemo } from "react";
 
+function backgroundImageFromSeed(seed: string): string {
+  const backgrounds = [
+    "/library/1.png",
+    "/library/2.png",
+    "/library/3.png",
+    "/library/4.png",
+  ];
+
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+
+  return backgrounds[hash % backgrounds.length];
+}
+
+function floaterVarsFromSeed(seed: string): React.CSSProperties {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+
+  const ax = 6 + (hash % 5);
+  const ay = 5 + ((hash >> 3) % 5);
+  const dur = 5900 + ((hash >> 6) % 2500);
+  const delay = -((hash >> 10) % 1800);
+
+  return {
+    ["--floater-ax" as any]: `${ax}px`,
+    ["--floater-ay" as any]: `${ay}px`,
+    ["--floater-dur" as any]: `${dur}ms`,
+    ["--floater-delay" as any]: `${delay}ms`,
+  };
+}
+
 export default function AtlasContainer(props: {
   title?: string;
   subtitle?: string;
@@ -19,95 +54,154 @@ export default function AtlasContainer(props: {
     size = "small",
   } = props;
 
-  const bg = useMemo(() => {
-    const palette = [
-      "#7dd3fc",
-      "#86efac",
-      "#fca5a5",
-      "#fdba74",
-      "#c4b5fd",
-      "#f9a8d4",
-      "#93c5fd",
-      "#67e8f9",
-    ];
-    return palette[Math.floor(Math.random() * palette.length)];
-  }, []);
+  const seed = `${title}|${subtitle}|${meta}|${footer}`;
+  const bgImage = useMemo(() => backgroundImageFromSeed(seed), [seed]);
+  const floaterVars = useMemo(() => floaterVarsFromSeed(seed), [seed]);
+
+  const cellClassName = size === "big" ? "pix-icon-large" : "pix-icon";
+
+  const nameBoxHeight = size === "big" ? 42 : 34;
+  const expandBoxSize = nameBoxHeight;
+  const rowGap = 6;
+  const fontSize = size === "big" ? 22 : 14;
+  const borderRadius = 4;
+  const nameWidth = "83%";
+  const expandGap = 30;
+  const expandVisualScale = 2.0;
 
   return (
     <div
-      className={size === "big" ? "pix-icon-large" : "pix-icon"}
-      onClick={onClick}
       style={{
+        position: "relative",
         width: "100%",
         height: "100%",
-        background: bg,
-        borderRadius: 8,
-        cursor: onClick ? "pointer" : "default",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        color: "rgba(255,255,255,0.95)",
-        userSelect: "none",
         overflow: "visible",
-        padding: 14,
+        userSelect: "none",
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: size === "big" ? 24 : 18,
-            lineHeight: 1.05,
-            marginBottom: 6,
-            wordBreak: "break-word",
-          }}
-        >
-          {title}
+      <div
+        className={cellClassName}
+        onClick={onClick}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          cursor: onClick ? "pointer" : "default",
+          overflow: "hidden",
+        }}
+      >
+        <div className="floater" style={floaterVars}>
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              backgroundImage: `url(${bgImage})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              imageRendering: "pixelated",
+            }}
+          />
         </div>
-
-        {!!subtitle && (
-          <div
-            style={{
-              fontSize: 14,
-              lineHeight: 1.2,
-              opacity: 0.8,
-              marginBottom: 8,
-              wordBreak: "break-word",
-            }}
-          >
-            {subtitle}
-          </div>
-        )}
-
-        {!!meta && (
-          <div
-            style={{
-              fontSize: 12,
-              lineHeight: 1.3,
-              opacity: 0.75,
-              wordBreak: "break-word",
-              overflow: "hidden",
-              display: "-webkit-box",
-              WebkitLineClamp: size === "big" ? 5 : 3,
-              WebkitBoxOrient: "vertical",
-            }}
-          >
-            {meta}
-          </div>
-        )}
       </div>
 
-      {!!footer && (
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: "100%",
+          marginTop: rowGap,
+          height: nameBoxHeight,
+          pointerEvents: "auto",
+          overflow: "visible",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
         <div
           style={{
-            fontSize: 12,
-            lineHeight: 1.2,
-            opacity: 0.8,
-            marginTop: 12,
+            position: "relative",
+            width: nameWidth,
+            height: "100%",
+            overflow: "visible",
           }}
         >
-          {footer}
+          <div
+            className="pix-icon"
+            style={{
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              background: "var(--homepage-dark)",
+              borderRadius,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "2px 8px",
+              boxSizing: "border-box",
+              overflow: "visible",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                color: "var(--homepage-light)",
+                fontSize,
+                lineHeight: 1.05,
+                textAlign: "center",
+                padding: "4px 6px",
+                boxSizing: "border-box",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {title}
+            </div>
+          </div>
+
+          <button
+            className="pix-icon-small"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            style={{
+              appearance: "none",
+              border: "none",
+              background: "transparent",
+              position: "absolute",
+              left: "100%",
+              top: 0,
+              marginLeft: expandGap,
+              width: expandBoxSize,
+              height: expandBoxSize,
+              padding: 0,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "visible",
+            }}
+            aria-label="Delete"
+          >
+            <img
+              src="/atlas/expand.png"
+              alt="Delete"
+              style={{
+                width: `${expandVisualScale * 100}%`,
+                height: `${expandVisualScale * 100}%`,
+                objectFit: "contain",
+                imageRendering: "pixelated",
+                display: "block",
+                pointerEvents: "none",
+              }}
+            />
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -140,10 +140,10 @@ export default function Atlas() {
   const items: PackedGridItem[] = useMemo(() => {
     return games.map((game) => ({
       id: game.publishedWorldId,
-      size: "big",
+      size: "small",
       content: (
         <GamesContainer
-          size="big"
+          size="small"
           title={game.worldName}
           subtitle={`by ${game.publisherUsername}`}
           meta={
@@ -179,20 +179,20 @@ export default function Atlas() {
           className="pix-logo"
           style={{
             fontSize: 24,
-            color: "#DBFAFF",
+            color: "var(--homepage-dark)",
             opacity: 0.9,
           }}
         >
-          Loading games...
+          Loading worlds...
         </div>
       ) : items.length > 0 ? (
-        <PackedGrid items={items} />
+        <PackedGrid items={items} gap={70} columns={5} />
       ) : (
         <div
           className="pix-logo"
           style={{
             fontSize: 24,
-            color: "#DBFAFF",
+            color: "var(--homepage-dark)",
             opacity: 0.9,
           }}
         >
