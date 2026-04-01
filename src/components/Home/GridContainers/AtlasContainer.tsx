@@ -143,8 +143,49 @@ export default function AtlasContainer(props: {
             transition:
               "width 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 120ms ease-out",
             willChange: "width, opacity",
+            overflow: "hidden",
           }}
-        />
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: `calc((100% - ${gridGap * 2}px) / 2)`,
+              top: 0,
+              width: `calc(50% + ${gridGap}px)`,
+              height: "100%",
+              paddingTop: 16,
+              paddingBottom: 16,
+              paddingLeft: 0,
+              paddingRight: 0,
+              boxSizing: "border-box",
+            }}
+          >
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                display: "flex",
+                gap: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: "70%",
+                  height: "100%",
+                  background: "#e3f2f8",
+                  borderRadius: 6,
+                }}
+              />
+
+              <div
+                style={{
+                  width: "30%",
+                  height: "100%",
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       <div
