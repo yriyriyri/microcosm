@@ -113,7 +113,7 @@ export default function MarketplaceContainer(props: {
   const subtitleSize = size === "big" ? 12 : 10;
   const metaSize = size === "big" ? 11 : 10;
   const footerSize = size === "big" ? 11 : 10;
-  const bottomBandHeight = size === "big" ? "15%" : "20%";
+  const bottomBandHeight = size === "big" ? "20%" : "25%";
   const sidePadding = size === "big" ? 14 : 10;
 
   return (
@@ -166,7 +166,7 @@ export default function MarketplaceContainer(props: {
           right: 0,
           bottom: 0,
           height: bottomBandHeight,
-          background: hexToRgba(theme.top, 0.5),
+          background: hexToRgba(theme.top, 0.3),
           pointerEvents: "none",
           zIndex: 0,
         }}

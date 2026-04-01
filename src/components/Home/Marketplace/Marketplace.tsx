@@ -146,7 +146,7 @@ export default function Marketplace() {
             height: "100%",
           }}
         >
-          <PackedGrid items={items} />
+          <PackedGrid items={items} columns={7} />
 
           {/* <div
             style={{
