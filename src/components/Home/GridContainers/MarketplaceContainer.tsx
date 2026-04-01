@@ -2,18 +2,31 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-function gradientFromId(id: string): string {
+function getThemeFromId(
+  id: string,
+  opts?: { forceTheme?: "sky" }
+): { gradient: string; top: string; bottom: string } {
   const palette = [
-    { colors: ["#D74040", "#CD3D3D"] as [string, string], weight: 2 }, // paris
-    { colors: ["#FE9501", "#CC5B0D"] as [string, string], weight: 2 }, // dune
-    { colors: ["#3790E0", "#1C57BD"] as [string, string], weight: 4 }, // sky
-    { colors: ["#A60D55", "#962535"] as [string, string], weight: 1 }, // maya
-    { colors: ["#EF87B7", "#D36397"] as [string, string], weight: 1 }, // pink
-    { colors: ["#04C48C", "#00A071"] as [string, string], weight: 1 }, // green
-    { colors: ["#BA90E3", "#8F68B5"] as [string, string], weight: 1 }, // purple
-    // { colors: ["#00DBE2", "#05AEB4"] as [string, string], weight: 1 }, // cyan
-    { colors: ["#3495C3", "#04547A"] as [string, string], weight: 1 }, // new blue 2
+    { key: "paris", colors: ["#F75050", "#B72828"] as [string, string], weight: 2 },
+    { key: "dune", colors: ["#FE9501", "#CC5B0D"] as [string, string], weight: 2 },
+    { key: "sky", colors: ["#3790E0", "#1C57BD"] as [string, string], weight: 4 },
+    { key: "maya", colors: ["#BE1062", "#962535"] as [string, string], weight: 1 },
+    { key: "pink", colors: ["#EF87B7", "#D36397"] as [string, string], weight: 1 },
+    { key: "green", colors: ["#04C48C", "#00A071"] as [string, string], weight: 1 },
+    { key: "purple", colors: ["#BA90E3", "#8F68B5"] as [string, string], weight: 1 },
   ];
+
+  if (opts?.forceTheme) {
+    const forced = palette.find((p) => p.key === opts.forceTheme);
+    if (forced) {
+      const [top, bottom] = forced.colors;
+      return {
+        top,
+        bottom,
+        gradient: `linear-gradient(to bottom, ${top} 0%, ${bottom} 100%)`,
+      };
+    }
+  }
 
   const weightedPalette: [string, string][] = [];
   for (const entry of palette) {
@@ -28,7 +41,25 @@ function gradientFromId(id: string): string {
   }
 
   const [top, bottom] = weightedPalette[hash % weightedPalette.length];
-  return `linear-gradient(to bottom, ${top} 0%, ${bottom} 100%)`;
+  return {
+    top,
+    bottom,
+    gradient: `linear-gradient(to bottom, ${top} 0%, ${bottom} 100%)`,
+  };
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace("#", "");
+  const value =
+    clean.length === 3
+      ? clean.split("").map((c) => c + c).join("")
+      : clean;
+
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export default function MarketplaceContainer(props: {
@@ -42,6 +73,7 @@ export default function MarketplaceContainer(props: {
   alreadyOwned?: boolean;
   isBusy?: boolean;
   onBuy?: () => void;
+  forceTheme?: "sky";
 }) {
   const {
     assetId,
@@ -54,9 +86,13 @@ export default function MarketplaceContainer(props: {
     alreadyOwned = false,
     isBusy = false,
     onBuy,
+    forceTheme,
   } = props;
 
-  const bg = useMemo(() => gradientFromId(assetId), [assetId]);
+  const theme = useMemo(
+    () => getThemeFromId(assetId, { forceTheme }),
+    [assetId, forceTheme]
+  );
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,6 +113,8 @@ export default function MarketplaceContainer(props: {
   const subtitleSize = size === "big" ? 12 : 10;
   const metaSize = size === "big" ? 11 : 10;
   const footerSize = size === "big" ? 11 : 10;
+  const bottomBandHeight = size === "big" ? "15%" : "20%";
+  const sidePadding = size === "big" ? 14 : 10;
 
   return (
     <div
@@ -85,15 +123,13 @@ export default function MarketplaceContainer(props: {
         position: "relative",
         width: "100%",
         height: "100%",
-        background: bg,
+        background: theme.gradient,
         borderRadius: 0,
         color: "rgba(255,255,255,0.96)",
         userSelect: "none",
         overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
         padding: size === "big" ? 14 : 10,
+        boxSizing: "border-box",
       }}
     >
       {thumbUrl && (
@@ -102,7 +138,7 @@ export default function MarketplaceContainer(props: {
             position: "absolute",
             inset: 0,
             pointerEvents: "none",
-            zIndex: 0,
+            zIndex: 1,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -126,7 +162,11 @@ export default function MarketplaceContainer(props: {
       <div
         style={{
           position: "absolute",
-          inset: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: bottomBandHeight,
+          background: hexToRgba(theme.top, 0.5),
           pointerEvents: "none",
           zIndex: 0,
         }}
@@ -182,13 +222,16 @@ export default function MarketplaceContainer(props: {
 
       <div
         style={{
-          position: "relative",
+          position: "absolute",
+          left: sidePadding,
+          right: sidePadding,
+          bottom: 0,
+          height: bottomBandHeight,
           zIndex: 1,
           display: "flex",
-          alignItems: "flex-end",
+          alignItems: "center",
           justifyContent: "space-between",
           gap: 10,
-          marginTop: 10,
         }}
       >
         <div

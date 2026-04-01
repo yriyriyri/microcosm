@@ -85,7 +85,7 @@ export default function Marketplace() {
   }
 
   const items: PackedGridItem[] = useMemo(() => {
-    return marketplaceAssets.map((asset) => {
+    return marketplaceAssets.map((asset, index) => {
       const owned = ownedByMarketplaceId.get(asset.id);
       const alreadyOwned = !!owned;
       const size: "small" | "big" = asset.voxelCount > 1000 ? "big" : "small";
@@ -96,6 +96,7 @@ export default function Marketplace() {
         content: (
           <MarketplaceContainer
             assetId={asset.id}
+            forceTheme={index === 0 ? "sky" : undefined}
             thumbBlob={asset.thumb ?? null}
             size={size}
             title={asset.name}
@@ -115,14 +116,15 @@ export default function Marketplace() {
     <div
       style={{
         position: "absolute",
-        top: 52,
+        top: 30,
         left: 0,
         right: 0,
         bottom: 0,
         zIndex: 20,
         pointerEvents: "auto",
-        padding: 16,
-        paddingTop: 20,
+        paddingTop: 30,
+        paddingLeft: 4,
+        paddingRight: 4,
       }}
     >
       {loading ? (
@@ -137,7 +139,43 @@ export default function Marketplace() {
           Loading marketplace...
         </div>
       ) : items.length > 0 ? (
-        <PackedGrid items={items} />
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+          }}
+        >
+          <PackedGrid items={items} />
+
+          {/* <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              height: 50,
+              pointerEvents: "none",
+              zIndex: 30,
+              background:
+                "linear-gradient(to top, rgba(234,243,254,0) 0%, rgba(234,243,254,0.03) 35%, rgba(234,243,254,0.12) 60%, rgba(234,243,254,0.3) 82%, rgba(234,243,254,0.4) 100%)",
+            }}
+          />
+
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 70,
+              pointerEvents: "none",
+              zIndex: 30,
+              background:
+                "linear-gradient(to bottom, rgba(234,243,254,0) 0%, rgba(234,243,254,0.03) 35%, rgba(234,243,254,0.12) 60%, rgba(234,243,254,0.45) 82%, rgba(234,243,254,0.8) 100%)",
+            }}
+          /> */}
+        </div>
       ) : (
         <div
           className="pix-logo"

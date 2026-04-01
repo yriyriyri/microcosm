@@ -12,8 +12,16 @@ export default function PackedGrid(props: {
   items: PackedGridItem[];
   gap?: number;
   columns?: number;
+  topSpacer?: boolean;
+  topSpacerHeight?: number;
 }) {
-  const { items, gap = 12, columns = 8 } = props;
+  const {
+    items,
+    gap = 12,
+    columns = 8,
+    topSpacer = false,
+    topSpacerHeight = 50,
+  } = props;
 
   return (
     <div
@@ -23,8 +31,20 @@ export default function PackedGrid(props: {
         overflowY: "auto",
         overflowX: "visible",
         padding: "1vh",
+        boxSizing: "border-box",
       }}
     >
+      {topSpacer && (
+        <div
+          aria-hidden
+          style={{
+            height: topSpacerHeight,
+            pointerEvents: "none",
+            flexShrink: 0,
+          }}
+        />
+      )}
+
       <div
         style={{
           display: "grid",
