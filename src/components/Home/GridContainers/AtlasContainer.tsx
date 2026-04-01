@@ -227,8 +227,35 @@ export default function AtlasContainer(props: {
                   height: "100%",
                   background: "#E3F2F8",
                   borderRadius: 6,
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
                 }}
-              />
+              >
+                <div
+                  style={{
+                    height: "10%",
+                    minHeight: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--homepage-dark)",
+                    fontSize: 25,
+                    lineHeight: 1,
+                    flexShrink: 0,
+                  }}
+                >
+                  assets
+                </div>
+
+                <div
+                  style={{
+                    height: "90%",
+                    minHeight: 0,
+                    flexShrink: 0,
+                  }}
+                />
+              </div>
 
               <div
                 style={{

@@ -2,6 +2,18 @@
   "version": 2,
   "presets": [
     {
+      "id": "preset_car",
+      "name": "Car",
+      "json": "/presets/assets/car.json",
+      "thumb": "/presets/thumbs/car.png"
+    },
+    {
+      "id": "preset_akira-bike",
+      "name": "Akira Bike",
+      "json": "/presets/assets/akira-bike.json",
+      "thumb": "/presets/thumbs/akira-bike.png"
+    },
+    {
       "id": "preset_antenna",
       "name": "Antenna",
       "json": "/presets/assets/antenna.json",
