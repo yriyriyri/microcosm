@@ -238,24 +238,6 @@ function HomeClientInner() {
             className="pix-icon"
             onClick={() => {
               click();
-              setTab("marketplace");
-            }}
-            style={{
-              color: "#20293D",
-              cursor: "pointer",
-              opacity: tab === "marketplace" ? 1 : 0.75,
-              userSelect: "none",
-              fontSize: 25,
-              overflow: "visible",
-            }}
-          >
-            Marketplace
-          </label>
-
-          <label
-            className="pix-icon"
-            onClick={() => {
-              click();
               setTab("library");
             }}
             style={{
@@ -268,6 +250,24 @@ function HomeClientInner() {
             }}
           >
             Library
+          </label>
+
+          <label
+            className="pix-icon"
+            onClick={() => {
+              click();
+              setTab("marketplace");
+            }}
+            style={{
+              color: "#20293D",
+              cursor: "pointer",
+              opacity: tab === "marketplace" ? 1 : 0.75,
+              userSelect: "none",
+              fontSize: 25,
+              overflow: "visible",
+            }}
+          >
+            Marketplace
           </label>
         </div>
 
