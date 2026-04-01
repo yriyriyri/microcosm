@@ -113,6 +113,8 @@ export default function AtlasContainer(props: {
 
   const [overlayMounted, setOverlayMounted] = useState(expanded);
   const [overlayVisible, setOverlayVisible] = useState(expanded);
+  const [contentMounted, setContentMounted] = useState(expanded);
+  const [contentVisible, setContentVisible] = useState(expanded);
   const [thumbUrlsByAssetId, setThumbUrlsByAssetId] = useState<Record<string, string>>({});
 
   const seed = `${title}|${subtitle}|${meta}|${footer}`;
@@ -131,30 +133,49 @@ export default function AtlasContainer(props: {
   useEffect(() => {
     let raf1 = 0;
     let raf2 = 0;
-    let timeoutId = 0;
-
+    let timeoutShell = 0;
+    let timeoutContentIn = 0;
+    let timeoutContentOut = 0;
+  
+    const SHELL_MS = 220;
+    const CONTENT_MS = 140;
+  
     if (expanded) {
       setOverlayMounted(true);
+      setContentMounted(true);
       setOverlayVisible(false);
-
+      setContentVisible(false);
+  
       raf1 = window.requestAnimationFrame(() => {
         raf2 = window.requestAnimationFrame(() => {
           const el = document.getElementById(`atlas-overlay-${seed}`);
           if (el) void el.getBoundingClientRect();
           setOverlayVisible(true);
+  
+          timeoutContentIn = window.setTimeout(() => {
+            setContentVisible(true);
+          }, SHELL_MS);
         });
       });
     } else {
-      setOverlayVisible(false);
-      timeoutId = window.setTimeout(() => {
-        setOverlayMounted(false);
-      }, 220);
+      setContentVisible(false);
+  
+      timeoutContentOut = window.setTimeout(() => {
+        setContentMounted(false);
+        setOverlayVisible(false);
+  
+        timeoutShell = window.setTimeout(() => {
+          setOverlayMounted(false);
+        }, SHELL_MS);
+      }, CONTENT_MS);
     }
-
+  
     return () => {
       if (raf1) window.cancelAnimationFrame(raf1);
       if (raf2) window.cancelAnimationFrame(raf2);
-      if (timeoutId) window.clearTimeout(timeoutId);
+      if (timeoutShell) window.clearTimeout(timeoutShell);
+      if (timeoutContentIn) window.clearTimeout(timeoutContentIn);
+      if (timeoutContentOut) window.clearTimeout(timeoutContentOut);
     };
   }, [expanded, seed]);
 
@@ -276,282 +297,299 @@ export default function AtlasContainer(props: {
               boxSizing: "border-box",
             }}
           >
-            <div
-              style={{
-                width: "100%",
-                height: "100%",
-                display: "flex",
-                gap: 0,
-              }}
-            >
+            {contentMounted && (
               <div
                 style={{
-                  width: "70%",
+                  width: "100%",
                   height: "100%",
-                  background: "#E3F2F8",
-                  borderRadius: 6,
-                  display: "flex",
-                  flexDirection: "column",
-                  overflow: "hidden",
+                  opacity: contentVisible ? 1 : 0,
+                  transition: "opacity 140ms ease-out",
+                  willChange: "opacity",
                 }}
               >
                 <div
                   style={{
-                    height: "13%",
-                    minHeight: 0,
+                    width: "100%",
+                    height: "100%",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--homepage-dark)",
-                    fontSize: 25,
-                    lineHeight: 1,
-                    flexShrink: 0,
-                  }}
-                >
-                  assets
-                </div>
-
-                <div
-                  style={{
-                    height: "87%",
-                    minHeight: 0,
-                    flexShrink: 0,
-                    overflowY: "auto",
-                    overflowX: "hidden",
+                    gap: 0,
                   }}
                 >
                   <div
                     style={{
-                      width: "100%",
-                      minHeight: "100%",
-                      display: "grid",
-                      gridTemplateColumns: "repeat(2, 1fr)",
-                      gridAutoRows: "50%",
-                      gap: 0,
+                      width: "70%",
+                      height: "100%",
+                      background: "#E3F2F8",
+                      borderRadius: 6,
+                      display: "flex",
+                      flexDirection: "column",
+                      overflow: "hidden",
                     }}
                   >
-                    {assetTiles.map((asset, i) => {
-                      const thumbUrl = asset.assetId ? thumbUrlsByAssetId[asset.assetId] : "";
-                      const countMatch = asset.name.match(/\s*x\s*(\d+)$/i);
-                      const assetCount = countMatch ? countMatch[1] : "1";
-                      const displayName = asset.name.replace(/\s*x\s*\d+$/i, "");
-
-                      return (
-                        <div
-                          key={`${asset.assetId || asset.name}-${i}`}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            boxSizing: "border-box",
-                            overflow: "hidden",
-                            position: "relative",
-                            marginRight: "-20px",
-                            marginTop: "-20px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              position: "absolute",
-                              left: 8,
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              color: "var(--homepage-dark)",
-                              fontSize: 15,
-                              lineHeight: 1,
-                              whiteSpace: "nowrap",
-                              pointerEvents: "none",
-                              zIndex: 2,
-                            }}
-                          >
-                            x{assetCount}
-                          </div>
-
-                          {thumbUrl ? (
+                    <div
+                      style={{
+                        height: "13%",
+                        minHeight: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--homepage-dark)",
+                        fontSize: 25,
+                        lineHeight: 1,
+                        flexShrink: 0,
+                      }}
+                    >
+                      assets
+                    </div>
+  
+                    <div
+                      style={{
+                        height: "87%",
+                        minHeight: 0,
+                        flexShrink: 0,
+                        overflowY: "auto",
+                        overflowX: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "100%",
+                          minHeight: "100%",
+                          display: "grid",
+                          gridTemplateColumns: "repeat(2, 1fr)",
+                          gridAutoRows: "50%",
+                          gap: 0,
+                        }}
+                      >
+                        {assetTiles.map((asset, i) => {
+                          const thumbUrl = asset.assetId
+                            ? thumbUrlsByAssetId[asset.assetId]
+                            : "";
+                          const countMatch = asset.name.match(/\s*x\s*(\d+)$/i);
+                          const assetCount = countMatch ? countMatch[1] : "1";
+                          const displayName = asset.name.replace(
+                            /\s*x\s*\d+$/i,
+                            ""
+                          );
+  
+                          return (
                             <div
+                              key={`${asset.assetId || asset.name}-${i}`}
                               style={{
-                                position: "absolute",
-                                top: 0,
-                                right: 0,
+                                width: "100%",
                                 height: "100%",
-                                aspectRatio: "1 / 1",
-                                display: "flex",
-                                alignItems: "flex-end",
-                                justifyContent: "center",
+                                boxSizing: "border-box",
+                                overflow: "hidden",
+                                position: "relative",
+                                marginRight: "-20px",
+                                marginTop: "-20px",
                               }}
                             >
-                              <img
-                                src={thumbUrl}
-                                alt={asset.name}
-                                style={{
-                                  position: "absolute",
-                                  top: 0,
-                                  right: 0,
-                                  height: "100%",
-                                  width: "auto",
-                                  objectFit: "contain",
-                                  imageRendering: "pixelated",
-                                  display: "block",
-                                }}
-                              />
-
                               <div
                                 style={{
-                                  position: "relative",
-                                  marginBottom: 0,
-                                  maxWidth: "90%",
+                                  position: "absolute",
+                                  left: 8,
+                                  top: "50%",
+                                  transform: "translateY(-50%)",
                                   color: "var(--homepage-dark)",
-                                  fontSize: 12,
+                                  fontSize: 19,
                                   lineHeight: 1,
-                                  textAlign: "center",
                                   whiteSpace: "nowrap",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
                                   pointerEvents: "none",
+                                  zIndex: 2,
                                 }}
                               >
-                                {displayName}
+                                x{assetCount}
                               </div>
+  
+                              {thumbUrl ? (
+                                <div
+                                  style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    right: 0,
+                                    height: "100%",
+                                    aspectRatio: "1 / 1",
+                                    display: "flex",
+                                    alignItems: "flex-end",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <img
+                                    src={thumbUrl}
+                                    alt={asset.name}
+                                    style={{
+                                      position: "absolute",
+                                      top: 0,
+                                      right: 0,
+                                      height: "100%",
+                                      width: "auto",
+                                      objectFit: "contain",
+                                      imageRendering: "pixelated",
+                                      display: "block",
+                                    }}
+                                  />
+  
+                                  <div
+                                    style={{
+                                      position: "relative",
+                                      marginBottom: 0,
+                                      maxWidth: "90%",
+                                      color: "var(--homepage-dark)",
+                                      fontSize: 12,
+                                      lineHeight: 1,
+                                      textAlign: "center",
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      pointerEvents: "none",
+                                    }}
+                                  >
+                                    {displayName}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+  
+                  <div
+                    style={{
+                      width: "30%",
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "flex-start",
+                      paddingTop: 0,
+                      boxSizing: "border-box",
+                      position: "relative",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: profileWidth,
+                        marginTop: 2,
+                        aspectRatio: "1 / 1",
+                        border: "2px solid var(--homepage-dark)",
+                        boxSizing: "border-box",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <img
+                        src={publisherPfp}
+                        alt={publisherUsername}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          imageRendering: "pixelated",
+                          display: "block",
+                        }}
+                      />
+                    </div>
+  
+                    <div
+                      style={{
+                        width: profileWidth,
+                        marginTop: 8,
+                        color: "var(--homepage-dark)",
+                        textAlign: "center",
+                        lineHeight: 1.05,
+                        fontSize: usernameFontSize,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {publisherUsername}
+                    </div>
+  
+                    <div
+                      style={{
+                        width: "100%",
+                        marginTop: 8,
+                        color: "rgba(32, 41, 61, 0.8)",
+                        textAlign: "center",
+                        lineHeight: 1.15,
+                        fontSize: metaFontSize,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      created: {createdAtLabel}
+                    </div>
+  
+                    <div
+                      style={{
+                        width: "100%",
+                        marginTop: 4,
+                        color: "rgba(32, 41, 61, 0.8)",
+                        textAlign: "center",
+                        lineHeight: 1.15,
+                        fontSize: metaFontSize,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {voxelCountLabel}
+                    </div>
+  
+                    <button
+                      className="pix-icon-small"
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleExpand?.();
+                      }}
+                      style={{
+                        appearance: "none",
+                        border: "none",
+                        background: "transparent",
+                        outline: "none",
+                        boxShadow: "none",
+                        WebkitTapHighlightColor: "transparent",
+                        marginTop: "auto",
+                        marginBottom: 15,
+                        width: expandBoxSize,
+                        height: expandBoxSize,
+                        padding: 0,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        overflow: "visible",
+                        flexShrink: 0,
+                      }}
+                      aria-label="Close"
+                    >
+                      <img
+                        src="/library/delete.png"
+                        alt="Close"
+                        style={{
+                          width: `${closeIconScale * 100}%`,
+                          height: `${closeIconScale * 100}%`,
+                          objectFit: "contain",
+                          imageRendering: "pixelated",
+                          display: "block",
+                          pointerEvents: "none",
+                        }}
+                      />
+                    </button>
                   </div>
                 </div>
               </div>
-
-              <div
-                style={{
-                  width: "30%",
-                  height: "100%",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "flex-start",
-                  paddingTop: 0,
-                  boxSizing: "border-box",
-                  position: "relative",
-                }}
-              >
-                <div
-                  style={{
-                    width: profileWidth,
-                    marginTop: 2,
-                    aspectRatio: "1 / 1",
-                    border: "2px solid var(--homepage-dark)",
-                    boxSizing: "border-box",
-                    overflow: "hidden",
-                    flexShrink: 0,
-                  }}
-                >
-                  <img
-                    src={publisherPfp}
-                    alt={publisherUsername}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      imageRendering: "pixelated",
-                      display: "block",
-                    }}
-                  />
-                </div>
-
-                <div
-                  style={{
-                    width: profileWidth,
-                    marginTop: 8,
-                    color: "var(--homepage-dark)",
-                    textAlign: "center",
-                    lineHeight: 1.05,
-                    fontSize: usernameFontSize,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {publisherUsername}
-                </div>
-
-                <div
-                  style={{
-                    width: "100%",
-                    marginTop: 8,
-                    color: "rgba(32, 41, 61, 0.8)",
-                    textAlign: "center",
-                    lineHeight: 1.15,
-                    fontSize: metaFontSize,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  created: {createdAtLabel}
-                </div>
-
-                <div
-                  style={{
-                    width: "100%",
-                    marginTop: 4,
-                    color: "rgba(32, 41, 61, 0.8)",
-                    textAlign: "center",
-                    lineHeight: 1.15,
-                    fontSize: metaFontSize,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {voxelCountLabel}
-                </div>
-
-                <button
-                  className="pix-icon-small"
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleExpand?.();
-                  }}
-                  style={{
-                    appearance: "none",
-                    border: "none",
-                    background: "transparent",
-                    outline: "none",
-                    boxShadow: "none",
-                    WebkitTapHighlightColor: "transparent",
-                    marginTop: "auto",
-                    marginBottom: 15,
-                    width: expandBoxSize,
-                    height: expandBoxSize,
-                    padding: 0,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "visible",
-                    flexShrink: 0,
-                  }}
-                  aria-label="Close"
-                >
-                  <img
-                    src="/library/delete.png"
-                    alt="Close"
-                    style={{
-                      width: `${closeIconScale * 100}%`,
-                      height: `${closeIconScale * 100}%`,
-                      objectFit: "contain",
-                      imageRendering: "pixelated",
-                      display: "block",
-                      pointerEvents: "none",
-                    }}
-                  />
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}
-
+  
       <div
         className={cellClassName}
         onClick={onClick}
@@ -586,7 +624,7 @@ export default function AtlasContainer(props: {
                 willChange: "filter",
               }}
             />
-
+  
             <div
               style={{
                 position: "absolute",
@@ -615,7 +653,7 @@ export default function AtlasContainer(props: {
           </div>
         </div>
       </div>
-
+  
       <div
         style={{
           position: "absolute",
@@ -673,7 +711,7 @@ export default function AtlasContainer(props: {
               {title}
             </div>
           </div>
-
+  
           <button
             className="pix-icon-small"
             type="button"
