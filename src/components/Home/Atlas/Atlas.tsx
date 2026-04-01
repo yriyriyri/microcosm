@@ -30,7 +30,7 @@ type GameCardData = {
   publisherUserId: string;
   worldName: string;
   publisherUsername: string;
-  assetNames: string[];
+  assets: { assetId: string; name: string }[];
   voxelCount: number;
   createdAt: number;
 };
@@ -152,27 +152,30 @@ export default function Atlas() {
 
         const next: GameCardData[] = rows.map((row) => {
           const countByAssetId = new Map<string, number>();
-
+        
           for (const group of row.groups ?? []) {
             const assetId = group.latestMarketplaceAssetId;
             if (!assetId) continue;
             countByAssetId.set(assetId, (countByAssetId.get(assetId) ?? 0) + 1);
           }
-
-          const assetNames = Array.from(countByAssetId.entries()).map(
+        
+          const assets = Array.from(countByAssetId.entries()).map(
             ([assetId, count]) => {
-              const name = assetNameById.get(assetId) ?? assetId;
-              return count > 1 ? `${name} x ${count}` : name;
+              const baseName = assetNameById.get(assetId) ?? assetId;
+              return {
+                assetId,
+                name: count > 1 ? `${baseName} x ${count}` : baseName,
+              };
             }
           );
-
+        
           return {
             publishedWorldId: row.publishedWorldId,
             publisherUserId: row.publisherUserId,
             worldName: row.worldName || "Untitled World",
             publisherUsername:
               usernameByUserId.get(row.publisherUserId) ?? "unknown user",
-            assetNames,
+            assets,
             voxelCount: row.voxelCount ?? 0,
             createdAt: row.createdAt ?? 0,
           };
@@ -245,9 +248,11 @@ export default function Atlas() {
             publisherUserId={game.publisherUserId}
             publisherUsername={game.publisherUsername}
             createdAt={game.createdAt}
+            assetNames={game.assets.map((a) => a.name)}
+            assetIds={game.assets.map((a) => a.assetId)}
             meta={
-              game.assetNames.length
-                ? game.assetNames.join(", ")
+              game.assets.length
+                ? game.assets.map((a) => a.name).join(", ")
                 : "No marketplace assets"
             }
             footer={`${game.voxelCount.toLocaleString()} voxels`}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { assetRepository } from "@/components/VoxelEditor/repositories";
 
 function backgroundImageFromSeed(seed: string): string {
   const backgrounds = [
@@ -83,6 +84,8 @@ export default function AtlasContainer(props: {
   publisherUserId?: string;
   publisherUsername?: string;
   createdAt?: number;
+  assetNames?: string[];
+  assetIds?: string[];
   onClick?: () => void;
   size?: "small" | "big";
   gridGap?: number;
@@ -98,6 +101,8 @@ export default function AtlasContainer(props: {
     publisherUserId = "",
     publisherUsername = "unknown user",
     createdAt = 0,
+    assetNames = [],
+    assetIds = [],
     onClick,
     size = "small",
     gridGap = 0,
@@ -108,6 +113,7 @@ export default function AtlasContainer(props: {
 
   const [overlayMounted, setOverlayMounted] = useState(expanded);
   const [overlayVisible, setOverlayVisible] = useState(expanded);
+  const [thumbUrlsByAssetId, setThumbUrlsByAssetId] = useState<Record<string, string>>({});
 
   const seed = `${title}|${subtitle}|${meta}|${footer}`;
   const bgImage = useMemo(() => backgroundImageFromSeed(seed), [seed]);
@@ -152,6 +158,53 @@ export default function AtlasContainer(props: {
     };
   }, [expanded, seed]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const urlsToRevoke: string[] = [];
+
+    async function loadThumbs() {
+      if (!assetIds.length) {
+        setThumbUrlsByAssetId({});
+        return;
+      }
+
+      const uniqueAssetIds = Array.from(new Set(assetIds.filter(Boolean)));
+      const entries = await Promise.all(
+        uniqueAssetIds.map(async (assetId) => {
+          try {
+            const meta = await assetRepository.getAssetMeta(assetId);
+            if (meta?.thumb) {
+              const url = URL.createObjectURL(meta.thumb);
+              urlsToRevoke.push(url);
+              return [assetId, url] as const;
+            }
+          } catch (err) {
+            console.error("Failed to load asset thumbnail", assetId, err);
+          }
+          return [assetId, ""] as const;
+        })
+      );
+
+      if (cancelled) {
+        for (const url of urlsToRevoke) URL.revokeObjectURL(url);
+        return;
+      }
+
+      const next: Record<string, string> = {};
+      for (const [assetId, url] of entries) {
+        if (url) next[assetId] = url;
+      }
+      setThumbUrlsByAssetId(next);
+    }
+
+    loadThumbs();
+
+    return () => {
+      cancelled = true;
+      for (const url of urlsToRevoke) URL.revokeObjectURL(url);
+    };
+  }, [assetIds]);
+
   const cellClassName = size === "big" ? "pix-icon-large" : "pix-icon";
 
   const nameBoxHeight = size === "big" ? 42 : 34;
@@ -169,6 +222,16 @@ export default function AtlasContainer(props: {
   const usernameFontSize = size === "big" ? 20 : 18;
   const metaFontSize = size === "big" ? 12 : 10;
   const closeIconScale = expandVisualScale;
+
+  const assetTiles = useMemo(() => {
+    if (!assetNames.length) {
+      return [{ name: "No assets", assetId: "" }];
+    }
+    return assetNames.map((name, i) => ({
+      name,
+      assetId: assetIds[i] ?? "",
+    }));
+  }, [assetNames, assetIds]);
 
   return (
     <div
@@ -263,29 +326,96 @@ export default function AtlasContainer(props: {
                       minHeight: "100%",
                       display: "grid",
                       gridTemplateColumns: "repeat(2, 1fr)",
-                      gridAutoRows: "calc(50% - 0px)",
+                      gridAutoRows: "50%",
                       gap: 0,
                     }}
                   >
-                    {[
-                      "#ff6b6b",
-                      "#ffd93d",
-                      "#6bcB77",
-                      "#4d96ff",
-                      "#c77dff",
-                      "#ff922b",
-                      "#2ec4b6",
-                      "#f06595",
-                    ].map((color, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          background: color,
-                        }}
-                      />
-                    ))}
+                    {assetTiles.map((asset, i) => {
+                      const thumbUrl = asset.assetId ? thumbUrlsByAssetId[asset.assetId] : "";
+                      const countMatch = asset.name.match(/\s*x\s*(\d+)$/i);
+                      const assetCount = countMatch ? countMatch[1] : "1";
+                      const displayName = asset.name.replace(/\s*x\s*\d+$/i, "");
+
+                      return (
+                        <div
+                          key={`${asset.assetId || asset.name}-${i}`}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            boxSizing: "border-box",
+                            overflow: "hidden",
+                            position: "relative",
+                            marginRight: "-20px",
+                            marginTop: "-20px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: 8,
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              color: "var(--homepage-dark)",
+                              fontSize: 15,
+                              lineHeight: 1,
+                              whiteSpace: "nowrap",
+                              pointerEvents: "none",
+                              zIndex: 2,
+                            }}
+                          >
+                            x{assetCount}
+                          </div>
+
+                          {thumbUrl ? (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 0,
+                                right: 0,
+                                height: "100%",
+                                aspectRatio: "1 / 1",
+                                display: "flex",
+                                alignItems: "flex-end",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <img
+                                src={thumbUrl}
+                                alt={asset.name}
+                                style={{
+                                  position: "absolute",
+                                  top: 0,
+                                  right: 0,
+                                  height: "100%",
+                                  width: "auto",
+                                  objectFit: "contain",
+                                  imageRendering: "pixelated",
+                                  display: "block",
+                                }}
+                              />
+
+                              <div
+                                style={{
+                                  position: "relative",
+                                  marginBottom: 0,
+                                  maxWidth: "90%",
+                                  color: "var(--homepage-dark)",
+                                  fontSize: 12,
+                                  lineHeight: 1,
+                                  textAlign: "center",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  pointerEvents: "none",
+                                }}
+                              >
+                                {displayName}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
