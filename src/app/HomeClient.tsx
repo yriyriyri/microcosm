@@ -12,6 +12,82 @@ import Library from "@/components/Home/Library/Library";
 import Marketplace from "@/components/Home/Marketplace/Marketplace";
 import LoadingOverlay from "@/components/VoxelEditor/ui/LoadingOverlay";
 
+const STATIC_IMAGE_PATHS = [
+  "/pfp/1.png",
+  "/pfp/2.png",
+  "/pfp/3.png",
+  "/pfp/4.png",
+  "/pfp/5.png",
+  "/pfp/6.png",
+  "/pfp/7.png",
+  "/pfp/8.png",
+
+  "/library/1.png",
+  "/library/2.png",
+  "/library/3.png",
+  "/library/4.png",
+
+  "/library/createnew.png",
+  "/library/create.png",
+  "/library/delete.png",
+
+  "/atlas/expand.png",
+  "/atlas/play.png",
+
+  "/marketplace/byte.png",
+  "/marketplace/hourglass.png",
+  "/marketplace/user.png",
+  "/marketplace/voxel.png",
+] as const;
+
+const STATIC_VIDEO_PATHS = ["/focus/screen.mp4"] as const;
+
+function preloadImage(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+}
+
+function preloadVideo(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    let done = false;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      video.onloadeddata = null;
+      video.oncanplay = null;
+      video.onerror = null;
+      resolve();
+    };
+
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadeddata = finish;
+    video.oncanplay = finish;
+    video.onerror = finish;
+    video.src = src;
+    video.load();
+
+    window.setTimeout(finish, 2500);
+  });
+}
+
+async function preloadStaticHomeAssets(onStatus?: (text: string) => void) {
+  onStatus?.("preloading interface…");
+
+  await Promise.all([
+    ...STATIC_IMAGE_PATHS.map((src) => preloadImage(src)),
+    ...STATIC_VIDEO_PATHS.map((src) => preloadVideo(src)),
+  ]);
+}
+
 type HomeTab = "marketplace" | "library" | "games";
 
 function HomeClientInner() {
@@ -58,26 +134,30 @@ function HomeClientInner() {
   
         setLoadingText("loading presets…");
         setPresetProgress(0);
-  
-        await ensurePresetAssetsInstalledOnce({
-          onProgress: (p, info) => {
-            if (cancelled) return;
-            setPresetProgress(p);
-  
-            if (info?.name) {
-              setLoadingText(`installing: ${info.name}`);
-            } else if (info?.done != null && info?.total != null) {
-              setLoadingText(`installing presets… (${info.done}/${info.total})`);
-            } else {
-              setLoadingText("installing presets…");
-            }
-          },
-        });
-  
+        
+        await Promise.all([
+          ensurePresetAssetsInstalledOnce({
+            onProgress: (p, info) => {
+              if (cancelled) return;
+              setPresetProgress(p);
+        
+              if (info?.name) {
+                setLoadingText(`installing: ${info.name}`);
+              } else if (info?.done != null && info?.total != null) {
+                setLoadingText(`installing presets… (${info.done}/${info.total})`);
+              } else {
+                setLoadingText("installing presets…");
+              }
+            },
+          }),
+          preloadStaticHomeAssets(),
+        ]);
+        
         if (cancelled) return;
+        
         setPresetProgress(1);
-        setPresetsReady(true);
         setLoadingText("finalizing…");
+        setPresetsReady(true);
       } catch (e) {
         console.error("Home boot failed", e);
         if (cancelled) return;
