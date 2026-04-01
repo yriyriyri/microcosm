@@ -234,7 +234,7 @@ export default function AtlasContainer(props: {
               >
                 <div
                   style={{
-                    height: "10%",
+                    height: "13%",
                     minHeight: 0,
                     display: "flex",
                     alignItems: "center",
@@ -250,11 +250,44 @@ export default function AtlasContainer(props: {
 
                 <div
                   style={{
-                    height: "90%",
+                    height: "87%",
                     minHeight: 0,
                     flexShrink: 0,
+                    overflowY: "auto",
+                    overflowX: "hidden",
                   }}
-                />
+                >
+                  <div
+                    style={{
+                      width: "100%",
+                      minHeight: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, 1fr)",
+                      gridAutoRows: "calc(50% - 0px)",
+                      gap: 0,
+                    }}
+                  >
+                    {[
+                      "#ff6b6b",
+                      "#ffd93d",
+                      "#6bcB77",
+                      "#4d96ff",
+                      "#c77dff",
+                      "#ff922b",
+                      "#2ec4b6",
+                      "#f06595",
+                    ].map((color, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          background: color,
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div
