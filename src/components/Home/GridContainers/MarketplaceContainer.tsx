@@ -3,12 +3,24 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 function gradientFromId(id: string): string {
-  const palette: [string, string][] = [
-    ["#9D2636", "#A60D55"],
-    ["#D65E0E", "#FF9600"],
-    ["#1B55BC", "#3A96E9"],
-    ["#0DA67B", "#329D26"],
-    ["#CC33E7", "#E972C5"],
+  const weightedPalette: [string, string][] = [
+    ["#D74040", "#CD3D3D"], // paris
+    ["#D74040", "#CD3D3D"], // paris x2
+
+    ["#FE9501", "#CC5B0D"], // dune
+    ["#FE9501", "#CC5B0D"], // dune x2
+
+    ["#3790E0", "#1C57BD"], // sky
+    ["#3790E0", "#1C57BD"], // sky x2
+    ["#3790E0", "#1C57BD"], // sky x3
+    ["#3790E0", "#1C57BD"], // sky x4
+
+    ["#A60D55", "#962535"], // maya
+    ["#EF87B7", "#D36397"], // pink
+    ["#04C48C", "#00A071"], // green
+    ["#BA90E3", "#8F68B5"], // purple
+    // ["#00DBE2", "#05AEB4"], // cyan
+    ["#3495C3", "#04547A"], // new blue 2
   ];
 
   let hash = 0;
@@ -16,8 +28,8 @@ function gradientFromId(id: string): string {
     hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
   }
 
-  const [bottom, top] = palette[hash % palette.length];
-  return `linear-gradient(to top, ${bottom} 0%, ${top} 100%)`;
+  const [top, bottom] = weightedPalette[hash % weightedPalette.length];
+  return `linear-gradient(to bottom, ${top} 0%, ${bottom} 100%)`;
 }
 
 export default function MarketplaceContainer(props: {
