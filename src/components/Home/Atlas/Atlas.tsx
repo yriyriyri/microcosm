@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PackedGrid, { type PackedGridItem } from "@/components/Home/PackedGrid/PackedGrid";
-import GamesContainer from "@/components/Home/GridContainers/AtlasContainer";
 import { listPublishedWorlds } from "@/services/publishedWorlds";
 import { GetUserProfile } from "@/services/user";
 import { assetRepository } from "@/components/VoxelEditor/repositories";
+import AtlasContainer from "@/components/Home/GridContainers/AtlasContainer";
 
 type PublishedWorldGroupRow = {
   groupId: string;
@@ -38,6 +38,9 @@ export default function Atlas() {
 
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<GameCardData[]>([]);
+  const [expandedWorldId, setExpandedWorldId] = useState<string | null>(null);
+
+  const atlasGridGap = 70;
 
   useEffect(() => {
     let cancelled = false;
@@ -137,13 +140,34 @@ export default function Atlas() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!expandedWorldId) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setExpandedWorldId(null);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [expandedWorldId]);
+
   const items: PackedGridItem[] = useMemo(() => {
     return games.map((game) => ({
       id: game.publishedWorldId,
       size: "small",
       content: (
-        <GamesContainer
+        <AtlasContainer
           size="small"
+          gridGap={atlasGridGap}
+          expanded={expandedWorldId === game.publishedWorldId}
+          onToggleExpand={() => {
+            setExpandedWorldId((prev) =>
+              prev === game.publishedWorldId ? null : game.publishedWorldId
+            );
+          }}
           title={game.worldName}
           subtitle={`by ${game.publisherUsername}`}
           meta={
@@ -158,7 +182,7 @@ export default function Atlas() {
         />
       ),
     }));
-  }, [games, router]);
+  }, [games, router, expandedWorldId]);
 
   return (
     <div
@@ -186,7 +210,7 @@ export default function Atlas() {
           Loading worlds...
         </div>
       ) : items.length > 0 ? (
-        <PackedGrid items={items} gap={70} columns={5} />
+        <PackedGrid items={items} gap={atlasGridGap} columns={5} />
       ) : (
         <div
           className="pix-logo"

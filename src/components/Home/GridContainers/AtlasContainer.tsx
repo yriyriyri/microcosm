@@ -44,6 +44,9 @@ export default function AtlasContainer(props: {
   footer?: string;
   onClick?: () => void;
   size?: "small" | "big";
+  gridGap?: number;
+  expanded?: boolean;
+  onToggleExpand?: () => void;
 }) {
   const {
     title = "Untitled World",
@@ -52,6 +55,9 @@ export default function AtlasContainer(props: {
     footer = "",
     onClick,
     size = "small",
+    gridGap = 0,
+    expanded = false,
+    onToggleExpand,
   } = props;
 
   const seed = `${title}|${subtitle}|${meta}|${footer}`;
@@ -77,8 +83,25 @@ export default function AtlasContainer(props: {
         height: "100%",
         overflow: "visible",
         userSelect: "none",
+        zIndex: expanded ? 100 : 0,
       }}
     >
+      {expanded && (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: `calc(200% + ${gridGap * 2}px)`,
+            height: `calc(100% + ${gridGap}px)`,
+            background: "#F4FCFF",
+            borderRadius: 6,
+            zIndex: 1,
+            pointerEvents: "auto",
+          }}
+        />
+      )}
+
       <div
         className={cellClassName}
         onClick={onClick}
@@ -88,6 +111,7 @@ export default function AtlasContainer(props: {
           height: "100%",
           cursor: onClick ? "pointer" : "default",
           overflow: "hidden",
+          zIndex: 2,
         }}
       >
         <div className="floater" style={floaterVars}>
@@ -118,6 +142,7 @@ export default function AtlasContainer(props: {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
+          zIndex: 3,
         }}
       >
         <div
@@ -162,44 +187,47 @@ export default function AtlasContainer(props: {
             </div>
           </div>
 
-          <button
-            className="pix-icon-small"
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-            style={{
-              appearance: "none",
-              border: "none",
-              background: "transparent",
-              position: "absolute",
-              left: "100%",
-              top: 0,
-              marginLeft: expandGap,
-              width: expandBoxSize,
-              height: expandBoxSize,
-              padding: 0,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "visible",
-            }}
-            aria-label="Delete"
-          >
-            <img
-              src="/atlas/expand.png"
-              alt="Delete"
-              style={{
-                width: `${expandVisualScale * 100}%`,
-                height: `${expandVisualScale * 100}%`,
-                objectFit: "contain",
-                imageRendering: "pixelated",
-                display: "block",
-                pointerEvents: "none",
+          {!expanded && (
+            <button
+              className="pix-icon-small"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleExpand?.();
               }}
-            />
-          </button>
+              style={{
+                appearance: "none",
+                border: "none",
+                background: "transparent",
+                position: "absolute",
+                left: "100%",
+                top: 0,
+                marginLeft: expandGap,
+                width: expandBoxSize,
+                height: expandBoxSize,
+                padding: 0,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "visible",
+              }}
+              aria-label="Expand"
+            >
+              <img
+                src="/atlas/expand.png"
+                alt="Expand"
+                style={{
+                  width: `${expandVisualScale * 100}%`,
+                  height: `${expandVisualScale * 100}%`,
+                  objectFit: "contain",
+                  imageRendering: "pixelated",
+                  display: "block",
+                  pointerEvents: "none",
+                }}
+              />
+            </button>
+          )}
         </div>
       </div>
     </div>
