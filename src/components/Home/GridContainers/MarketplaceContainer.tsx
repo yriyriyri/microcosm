@@ -30,9 +30,7 @@ function getThemeFromId(
 
   const weightedPalette: [string, string][] = [];
   for (const entry of palette) {
-    for (let i = 0; i < entry.weight; i++) {
-      weightedPalette.push(entry.colors);
-    }
+    for (let i = 0; i < entry.weight; i++) weightedPalette.push(entry.colors);
   }
 
   let hash = 0;
@@ -46,6 +44,36 @@ function getThemeFromId(
     bottom,
     gradient: `linear-gradient(to bottom, ${top} 0%, ${bottom} 100%)`,
   };
+}
+
+function getCreatorFromId(id: string): { username: string; pfp: string } {
+  const creators = [
+    { username: "bkvoxel", pfp: "/pfp/1.png", weight: 4 },
+    { username: "voxoking", pfp: "/pfp/2.png", weight: 2 },
+    { username: "maxatrillion", pfp: "/pfp/3.png", weight: 2 },
+    { username: "skyBoxer", pfp: "/pfp/4.png", weight: 3 },
+    { username: "T4ZM1N", pfp: "/pfp/5.png", weight: 1 },
+    { username: "3EAU", pfp: "/pfp/6.png", weight: 1 },
+    { username: "_money_", pfp: "/pfp/7.png", weight: 1 },
+    { username: "yriyriyri", pfp: "/pfp/8.png", weight: 1 },
+  ];
+
+  const weightedCreators: { username: string; pfp: string }[] = [];
+  for (const creator of creators) {
+    for (let i = 0; i < creator.weight; i++) {
+      weightedCreators.push({
+        username: creator.username,
+        pfp: creator.pfp,
+      });
+    }
+  }
+
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+
+  return weightedCreators[hash % weightedCreators.length];
 }
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -74,6 +102,13 @@ function buildTimeFromVoxelCount(voxelCount: number): string {
   return "60 minute build time";
 }
 
+function priceFromVoxelCount(voxelCount: number): number {
+  if (voxelCount <= 250) return 100;
+  if (voxelCount <= 700) return 250;
+  if (voxelCount <= 1400) return 500;
+  return 1000;
+}
+
 export default function MarketplaceContainer(props: {
   assetId: string;
   thumbBlob?: Blob | null;
@@ -93,7 +128,6 @@ export default function MarketplaceContainer(props: {
     size = "small",
     title = "voxbox",
     meta = "",
-    footer = "",
     alreadyOwned = false,
     isBusy = false,
     onBuy,
@@ -104,6 +138,7 @@ export default function MarketplaceContainer(props: {
     () => getThemeFromId(assetId, { forceTheme }),
     [assetId, forceTheme]
   );
+  const creator = useMemo(() => getCreatorFromId(assetId), [assetId]);
   const [thumbUrl, setThumbUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -122,13 +157,23 @@ export default function MarketplaceContainer(props: {
 
   const voxelCount = useMemo(() => parseVoxelCount(meta), [meta]);
   const buildTime = useMemo(() => buildTimeFromVoxelCount(voxelCount), [voxelCount]);
+  const price = useMemo(() => priceFromVoxelCount(voxelCount), [voxelCount]);
 
   const titleSize = size === "big" ? 23 : 15;
   const metaSize = size === "big" ? 11 : 9;
-  const footerSize = size === "big" ? 11 : 10;
   const bottomBandHeight = size === "big" ? "20%" : "25%";
   const sidePadding = size === "big" ? 14 : 10;
   const statIconSize = size === "big" ? 14 : 12;
+  const userIconSize = size === "big" ? 13 : 11;
+  const creatorBlockHeight = "90%";
+  const pfpStroke = 2;
+  const pfpOuterSize = size === "big" ? 56 : 36;
+  const buttonHeight = size === "big" ? "50%" : "60%";
+  const buttonStroke = 2;
+  const priceOpacity = alreadyOwned ? 0.42 : 1;
+  const ownedMarkOpacity = alreadyOwned ? 0.6 : 1;
+  const priceFontSize = size === "big" ? 18 : 14;
+  const byteSize = size === "big" ? 22 : 16;
 
   return (
     <div
@@ -303,13 +348,92 @@ export default function MarketplaceContainer(props: {
       >
         <div
           style={{
-            fontSize: footerSize,
-            opacity: 0.84,
-            lineHeight: 1.15,
+            height: creatorBlockHeight,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             minWidth: 0,
           }}
         >
-          {footer}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              minWidth: 0,
+              height: "100%",
+            }}
+          >
+            <div
+              style={{
+                height: pfpOuterSize,
+                aspectRatio: "1 / 1",
+                background: "#ffffff",
+                padding: pfpStroke,
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxSizing: "border-box",
+              }}
+            >
+              <img
+                src={creator.pfp}
+                alt={creator.username}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  imageRendering: "pixelated",
+                  display: "block",
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                minWidth: 0,
+                height: "100%",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 2,
+                  minWidth: 0,
+                }}
+              >
+                <img
+                  src="/marketplace/user.png"
+                  alt=""
+                  style={{
+                    width: userIconSize,
+                    height: userIconSize,
+                    objectFit: "contain",
+                    imageRendering: "pixelated",
+                    flexShrink: 0,
+                    opacity: 1,
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: metaSize,
+                    color: "#ffffff",
+                    lineHeight: 1,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {creator.username}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div
@@ -317,6 +441,8 @@ export default function MarketplaceContainer(props: {
             display: "flex",
             gap: 8,
             flexShrink: 0,
+            height: "100%",
+            alignItems: "center",
           }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -326,17 +452,68 @@ export default function MarketplaceContainer(props: {
             onClick={alreadyOwned ? undefined : onBuy}
             style={{
               appearance: "none",
-              border: "none",
-              background: "rgba(255,255,255,0.16)",
+              border: `${buttonStroke}px solid rgba(255,255,255,${ownedMarkOpacity})`,
+              background: "rgba(255,255,255,0.08)",
               color: "white",
-              borderRadius: 4,
-              padding: size === "big" ? "7px 10px" : "6px 9px",
+              borderRadius: 0,
+              height: buttonHeight,
+              padding: size === "big" ? "0 10px" : "0 8px",
               cursor: isBusy || alreadyOwned ? "default" : "pointer",
-              opacity: isBusy || alreadyOwned ? 0.7 : 1,
-              fontSize: size === "big" ? 12 : 11,
+              opacity: isBusy ? 0.7 : 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxSizing: "border-box",
             }}
           >
-            {isBusy ? "Buying..." : alreadyOwned ? "Owned" : "Buy"}
+            <div
+              style={{
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                opacity: priceOpacity,
+                lineHeight: 1,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: priceFontSize,
+                  color: "#ffffff",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {price}
+              </span>
+
+              <img
+                src="/marketplace/byte.png"
+                alt=""
+                style={{
+                  width: byteSize,
+                  height: byteSize,
+                  objectFit: "contain",
+                  imageRendering: "pixelated",
+                  flexShrink: 0,
+                  display: "block",
+                }}
+              />
+
+              {alreadyOwned && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: -2,
+                    right: -2,
+                    top: "50%",
+                    height: 4,
+                    background: `rgba(255,255,255)`,
+                    transform: "translateY(-50%)",
+                    pointerEvents: "none",
+                  }}
+                />
+              )}
+            </div>
           </button>
         </div>
       </div>
