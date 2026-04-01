@@ -11,6 +11,7 @@ import Atlas from "@/components/Home/Atlas/Atlas";
 import Library from "@/components/Home/Library/Library";
 import Marketplace from "@/components/Home/Marketplace/Marketplace";
 import LoadingOverlay from "@/components/VoxelEditor/ui/LoadingOverlay";
+import PauseSpaceBackground from "@/components/PauseSpace/PauseSpaceBackground";
 
 const STATIC_IMAGE_PATHS = [
   "/pfp/1.png",
@@ -38,6 +39,8 @@ const STATIC_IMAGE_PATHS = [
   "/marketplace/hourglass.png",
   "/marketplace/user.png",
   "/marketplace/voxel.png",
+
+  "/pause/godray.jpeg"
 ] as const;
 
 const STATIC_VIDEO_PATHS = ["/focus/screen.mp4"] as const;
