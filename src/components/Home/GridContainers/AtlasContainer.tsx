@@ -162,18 +162,52 @@ export default function AtlasContainer(props: {
         <div className="floater" style={floaterVars}>
           <div
             style={{
+              position: "relative",
               width: "100%",
               height: "100%",
-              backgroundImage: `url(${bgImage})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
               imageRendering: "pixelated",
-              filter: overlayVisible ? "brightness(0.3)" : "brightness(1)",
-              transition: "filter 180ms ease-out",
-              willChange: "filter",
             }}
-          />
+          >
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                backgroundImage: `url(${bgImage})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat",
+                filter: overlayVisible ? "brightness(0.3)" : "brightness(1)",
+                transition: "filter 180ms ease-out",
+                willChange: "filter",
+              }}
+            />
+
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "none",
+                opacity: overlayVisible ? 1.0 : 0,
+                transition: "opacity 180ms ease-out",
+                willChange: "opacity",
+                transform: "translateX(2%)",
+              }}
+            >
+              <img
+                src="/atlas/play.png"
+                alt="Play"
+                style={{
+                  width: size === "big" ? "50%" : "45%",
+                  height: size === "big" ? "50%" : "43%",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
