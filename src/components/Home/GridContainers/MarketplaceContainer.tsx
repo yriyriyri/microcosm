@@ -3,25 +3,24 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 function gradientFromId(id: string): string {
-  const weightedPalette: [string, string][] = [
-    ["#D74040", "#CD3D3D"], // paris
-    ["#D74040", "#CD3D3D"], // paris x2
-
-    ["#FE9501", "#CC5B0D"], // dune
-    ["#FE9501", "#CC5B0D"], // dune x2
-
-    ["#3790E0", "#1C57BD"], // sky
-    ["#3790E0", "#1C57BD"], // sky x2
-    ["#3790E0", "#1C57BD"], // sky x3
-    ["#3790E0", "#1C57BD"], // sky x4
-
-    ["#A60D55", "#962535"], // maya
-    ["#EF87B7", "#D36397"], // pink
-    ["#04C48C", "#00A071"], // green
-    ["#BA90E3", "#8F68B5"], // purple
-    // ["#00DBE2", "#05AEB4"], // cyan
-    ["#3495C3", "#04547A"], // new blue 2
+  const palette = [
+    { colors: ["#D74040", "#CD3D3D"] as [string, string], weight: 2 }, // paris
+    { colors: ["#FE9501", "#CC5B0D"] as [string, string], weight: 2 }, // dune
+    { colors: ["#3790E0", "#1C57BD"] as [string, string], weight: 4 }, // sky
+    { colors: ["#A60D55", "#962535"] as [string, string], weight: 1 }, // maya
+    { colors: ["#EF87B7", "#D36397"] as [string, string], weight: 1 }, // pink
+    { colors: ["#04C48C", "#00A071"] as [string, string], weight: 1 }, // green
+    { colors: ["#BA90E3", "#8F68B5"] as [string, string], weight: 1 }, // purple
+    // { colors: ["#00DBE2", "#05AEB4"] as [string, string], weight: 1 }, // cyan
+    { colors: ["#3495C3", "#04547A"] as [string, string], weight: 1 }, // new blue 2
   ];
+
+  const weightedPalette: [string, string][] = [];
+  for (const entry of palette) {
+    for (let i = 0; i < entry.weight; i++) {
+      weightedPalette.push(entry.colors);
+    }
+  }
 
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
