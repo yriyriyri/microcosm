@@ -2,6 +2,22 @@
 
 import React, { useMemo } from "react";
 
+function backgroundImageFromWorldId(worldId: string): string {
+  const backgrounds = [
+    "/library/1.png",
+    "/library/2.png",
+    "/library/3.png",
+    "/library/4.png",
+  ];
+
+  let hash = 0;
+  for (let i = 0; i < worldId.length; i++) {
+    hash = (hash * 31 + worldId.charCodeAt(i)) >>> 0;
+  }
+
+  return backgrounds[hash % backgrounds.length];
+}
+
 export default function LibraryContainer(props: {
   worldId: string;
   name: string;
@@ -17,6 +33,7 @@ export default function LibraryContainer(props: {
   onRenameKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }) {
   const {
+    worldId,
     size = "small",
     isBusy = false,
     isRenaming = false,
@@ -29,121 +46,164 @@ export default function LibraryContainer(props: {
     onRenameKeyDown,
   } = props;
 
-  const bg = useMemo(() => {
-    const palette = [
-      "#7dd3fc",
-      "#86efac",
-      "#fca5a5",
-      "#fdba74",
-      "#c4b5fd",
-      "#f9a8d4",
-      "#93c5fd",
-      "#67e8f9",
-    ];
-    return palette[Math.floor(Math.random() * palette.length)];
-  }, []);
+  const bgImage = useMemo(() => backgroundImageFromWorldId(worldId), [worldId]);
+
+  const cellClassName = size === "big" ? "pix-icon-large" : "pix-icon";
+
+  const nameBoxHeight = size === "big" ? 36 : 30;
+  const deleteBoxSize = nameBoxHeight;
+  const rowGap = 6;
+  const fontSize = size === "big" ? 17 : 14;
+  const borderRadius = 4;
+  const nameWidth = "90%";
+  const deleteGap = 12;
+  const deleteVisualScale = 1.5;
 
   return (
     <div
-      className={size === "big" ? "pix-icon-large" : "pix-icon"}
-      onClick={isBusy ? undefined : onOpen}
       style={{
+        position: "relative",
         width: "100%",
         height: "100%",
-        background: bg,
-        borderRadius: 8,
-        cursor: isBusy ? "default" : onOpen ? "pointer" : "default",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "space-between",
-        color: "rgba(255,255,255,0.95)",
-        userSelect: "none",
         overflow: "visible",
-        padding: 12,
-        gap: 10,
+        userSelect: "none",
         opacity: isBusy ? 0.8 : 1,
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <input
-          value={draftName}
-          disabled={isBusy}
-          onChange={(e) => onRenameChange(e.target.value)}
-          onFocus={(e) => {
-            e.stopPropagation();
-            onRenameFocus?.();
-          }}
-          onBlur={() => {
-            onRenameBlur?.();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation();
-          }}
-          onKeyDown={(e) => {
-            onRenameKeyDown?.(e);
-            e.stopPropagation();
-          }}
-          spellCheck={false}
-          style={{
-            width: "100%",
-            color: "white",
-            fontSize: size === "big" ? 22 : 16,
-            lineHeight: 1.1,
-            background: isRenaming ? "rgba(255,255,255,0.08)" : "transparent",
-            border: isRenaming
-              ? "1px solid rgba(255,255,255,0.25)"
-              : "1px solid transparent",
-            borderRadius: 4,
-            outline: "none",
-            padding: "4px 6px",
-            pointerEvents: "auto",
-          }}
-        />
-      </div>
+      <div
+        className={cellClassName}
+        onClick={isBusy ? undefined : onOpen}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          backgroundImage: `url(${bgImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          imageRendering: "pixelated",
+          cursor: isBusy ? "default" : onOpen ? "pointer" : "default",
+          overflow: "hidden",
+        }}
+      />
 
       <div
         style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: "100%",
+          marginTop: rowGap,
+          height: nameBoxHeight,
+          pointerEvents: "auto",
+          overflow: "visible",
           display: "flex",
-          gap: 10,
+          justifyContent: "center",
           alignItems: "center",
-          justifyContent: "space-between",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          disabled={isBusy}
-          onClick={onOpen}
+        <div
           style={{
-            appearance: "none",
-            border: "none",
-            background: "rgba(255,255,255,0.12)",
-            color: "white",
-            borderRadius: 4,
-            padding: "6px 10px",
-            cursor: isBusy ? "default" : "pointer",
+            position: "relative",
+            width: nameWidth,
+            height: "100%",
+            overflow: "visible",
           }}
         >
-          Open
-        </button>
+          <div
+            className="pix-icon"
+            style={{
+              position: "relative",
+              width: "100%",
+              height: "100%",
+              background: "var(--homepage-dark)",
+              borderRadius,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "2px 8px",
+              boxSizing: "border-box",
+              overflow: "visible",
+            }}
+          >
+            <input
+              value={draftName}
+              disabled={isBusy}
+              onChange={(e) => onRenameChange(e.target.value)}
+              onFocus={(e) => {
+                e.stopPropagation();
+                onRenameFocus?.();
+              }}
+              onBlur={() => {
+                onRenameBlur?.();
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
+              onKeyDown={(e) => {
+                onRenameKeyDown?.(e);
+                e.stopPropagation();
+              }}
+              spellCheck={false}
+              style={{
+                width: "100%",
+                color: "var(--homepage-light)",
+                fontSize,
+                lineHeight: 1.05,
+                textAlign: "center",
+                background: isRenaming ? "rgba(255,255,255,0.08)" : "transparent",
+                border: isRenaming
+                  ? "1px solid rgba(234,243,254,0.35)"
+                  : "1px solid transparent",
+                borderRadius: 3,
+                outline: "none",
+                padding: "4px 6px",
+                pointerEvents: "auto",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
 
-        <button
-          disabled={isBusy}
-          onClick={onDelete}
-          style={{
-            appearance: "none",
-            border: "none",
-            background: "rgba(0,0,0,0.18)",
-            color: "white",
-            borderRadius: 4,
-            padding: "6px 10px",
-            cursor: isBusy ? "default" : "pointer",
-          }}
-        >
-          Delete
-        </button>
+          <button
+            className="pix-icon"
+            disabled={isBusy}
+            onClick={onDelete}
+            style={{
+              appearance: "none",
+              border: "none",
+              background: "transparent",
+              position: "absolute",
+              left: "100%",
+              top: 0,
+              marginLeft: deleteGap,
+              width: deleteBoxSize,
+              height: deleteBoxSize,
+              padding: 0,
+              cursor: isBusy ? "default" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "visible",
+            }}
+          >
+            <img
+              src="/icons/delete.png"
+              alt="Delete"
+              style={{
+                width: `${deleteVisualScale * 100}%`,
+                height: `${deleteVisualScale * 100}%`,
+                objectFit: "contain",
+                imageRendering: "pixelated",
+                display: "block",
+                pointerEvents: "none",
+              }}
+            />
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 
-export default function GamesContainer(props: {
+export default function AtlasContainer(props: {
   title?: string;
   subtitle?: string;
   meta?: string;

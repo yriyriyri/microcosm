@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PackedGrid, { type PackedGridItem } from "@/components/Home/PackedGrid/PackedGrid";
-import GamesContainer from "@/components/Home/GridContainers/GamesContainer";
+import GamesContainer from "@/components/Home/GridContainers/AtlasContainer";
 import { listPublishedWorlds } from "@/services/publishedWorlds";
 import { GetUserProfile } from "@/services/user";
 import { assetRepository } from "@/components/VoxelEditor/repositories";
@@ -33,7 +33,7 @@ type GameCardData = {
   voxelCount: number;
 };
 
-export default function Games() {
+export default function Atlas() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);

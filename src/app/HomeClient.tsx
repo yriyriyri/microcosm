@@ -7,7 +7,7 @@ import { Me } from "@/services/auth";
 import { nukeVoxelEditorDatabases } from "@/components/VoxelEditor/database/nukeEditorDatabases";
 import { ensurePresetAssetsInstalledOnce } from "@/components/VoxelEditor/database/AssetPresets";
 import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
-import Games from "@/components/Home/Games/Games";
+import Atlas from "@/components/Home/Atlas/Atlas";
 import Library from "@/components/Home/Library/Library";
 import Marketplace from "@/components/Home/Marketplace/Marketplace";
 import LoadingOverlay from "@/components/VoxelEditor/ui/LoadingOverlay";
@@ -122,7 +122,8 @@ function HomeClientInner() {
     };
   }, [auth, clearAuth]);
 
-  const showBootOverlay = loading || !auth.bootstrapped || (auth.isAuthenticated && !presetsReady);
+  const showBootOverlay =
+    loading || !auth.bootstrapped || (auth.isAuthenticated && !presetsReady);
 
   if (showBootOverlay) {
     return (
@@ -160,95 +161,120 @@ function HomeClientInner() {
         height: "100vh",
         position: "relative",
         overflow: "hidden",
-        backgroundColor: "#368fe4",
-        backgroundImage: "url('/world/bg.png')",
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "center center",
-        backgroundSize: "cover",
+        backgroundColor: "#DBFAFF",
       }}
     >
-      <div
+      <video
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="auto"
         style={{
           position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 52,
-          zIndex: 90,
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
           pointerEvents: "none",
-        }}
-      />
-
-      <div
-        style={{
-          position: "absolute",
-          top: 20,
-          right: 24,
-          zIndex: 100,
-          display: "flex",
-          gap: 20,
-          alignItems: "center",
-          pointerEvents: "auto",
+          zIndex: 0,
+          transform: "scale(1.01)",
+          transformOrigin: "center center",
         }}
       >
-        <label
-          className="pix-icon"
-          onClick={() => {
-            click();
-            setTab("games");
-          }}
-          style={{
-            color: "#DBFAFF",
-            cursor: "pointer",
-            opacity: tab === "games" ? 1 : 0.75,
-            userSelect: "none",
-            fontSize: 25,
-            overflow: "visible",
-          }}
-        >
-          Games
-        </label>
+        <source src="/focus/screen.mp4" type="video/mp4" />
+      </video>
 
-        <label
-          className="pix-icon"
-          onClick={() => {
-            click();
-            setTab("marketplace");
-          }}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 1,
+        }}
+      >
+        <div
           style={{
-            color: "#DBFAFF",
-            cursor: "pointer",
-            opacity: tab === "marketplace" ? 1 : 0.75,
-            userSelect: "none",
-            fontSize: 25,
-            overflow: "visible",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 52,
+            zIndex: 90,
+            pointerEvents: "none",
           }}
-        >
-          Marketplace
-        </label>
+        />
 
-        <label
-          className="pix-icon"
-          onClick={() => {
-            click();
-            setTab("library");
-          }}
+        <div
           style={{
-            color: "#DBFAFF",
-            cursor: "pointer",
-            opacity: tab === "library" ? 1 : 0.75,
-            userSelect: "none",
-            fontSize: 25,
-            overflow: "visible",
+            position: "absolute",
+            top: 20,
+            right: 24,
+            zIndex: 100,
+            display: "flex",
+            gap: 20,
+            alignItems: "center",
+            pointerEvents: "auto",
           }}
         >
-          Library
-        </label>
+          <label
+            className="pix-icon"
+            onClick={() => {
+              click();
+              setTab("games");
+            }}
+            style={{
+              color: "#20293D",
+              cursor: "pointer",
+              opacity: tab === "games" ? 1 : 0.75,
+              userSelect: "none",
+              fontSize: 25,
+              overflow: "visible",
+            }}
+          >
+            Atlas
+          </label>
+
+          <label
+            className="pix-icon"
+            onClick={() => {
+              click();
+              setTab("marketplace");
+            }}
+            style={{
+              color: "#20293D",
+              cursor: "pointer",
+              opacity: tab === "marketplace" ? 1 : 0.75,
+              userSelect: "none",
+              fontSize: 25,
+              overflow: "visible",
+            }}
+          >
+            Marketplace
+          </label>
+
+          <label
+            className="pix-icon"
+            onClick={() => {
+              click();
+              setTab("library");
+            }}
+            style={{
+              color: "#20293D",
+              cursor: "pointer",
+              opacity: tab === "library" ? 1 : 0.75,
+              userSelect: "none",
+              fontSize: 25,
+              overflow: "visible",
+            }}
+          >
+            Library
+          </label>
+        </div>
+
+        {tab === "marketplace" && <Marketplace />}
+        {tab === "library" && <Library />}
+        {tab === "games" && <Atlas />}
       </div>
-
-      {tab === "marketplace" && <Marketplace />}
-      {tab === "library" && <Library />}
-      {tab === "games" && <Games />}
     </main>
   );
 }

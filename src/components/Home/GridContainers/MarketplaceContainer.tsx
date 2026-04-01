@@ -4,8 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 
 function gradientFromId(id: string): string {
   const palette: [string, string][] = [
-    ["#A60D55", "#9D2636"],
-    ["#FF9600", "#D65E0E"],
+    ["#9D2636", "#A60D55"],
+    ["#D65E0E", "#FF9600"],
     ["#1B55BC", "#3A96E9"],
     ["#0DA67B", "#329D26"],
     ["#CC33E7", "#E972C5"],
@@ -75,7 +75,7 @@ export default function MarketplaceContainer(props: {
         width: "100%",
         height: "100%",
         background: bg,
-        borderRadius: 8,
+        borderRadius: 0,
         color: "rgba(255,255,255,0.96)",
         userSelect: "none",
         overflow: "hidden",
