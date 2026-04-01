@@ -40,7 +40,6 @@ const STATIC_IMAGE_PATHS = [
   "/marketplace/user.png",
   "/marketplace/voxel.png",
 
-  "/pause/godray.jpeg"
 ] as const;
 
 const STATIC_VIDEO_PATHS = ["/focus/screen.mp4"] as const;
@@ -294,7 +293,7 @@ function HomeClientInner() {
             right: 24,
             zIndex: 100,
             display: "flex",
-            gap: 20,
+            gap: 30,
             alignItems: "center",
             pointerEvents: "auto",
           }}
@@ -310,7 +309,7 @@ function HomeClientInner() {
               cursor: "pointer",
               opacity: tab === "games" ? 1 : 0.75,
               userSelect: "none",
-              fontSize: 25,
+              fontSize: 28,
               overflow: "visible",
             }}
           >
@@ -328,7 +327,7 @@ function HomeClientInner() {
               cursor: "pointer",
               opacity: tab === "library" ? 1 : 0.75,
               userSelect: "none",
-              fontSize: 25,
+              fontSize: 28,
               overflow: "visible",
             }}
           >
@@ -346,7 +345,7 @@ function HomeClientInner() {
               cursor: "pointer",
               opacity: tab === "marketplace" ? 1 : 0.75,
               userSelect: "none",
-              fontSize: 25,
+              fontSize: 28,
               overflow: "visible",
             }}
           >
