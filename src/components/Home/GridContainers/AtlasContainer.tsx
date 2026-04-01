@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 function backgroundImageFromSeed(seed: string): string {
   const backgrounds = [
@@ -46,6 +46,7 @@ export default function AtlasContainer(props: {
   size?: "small" | "big";
   gridGap?: number;
   expanded?: boolean;
+  overlayZ?: number;
   onToggleExpand?: () => void;
 }) {
   const {
@@ -57,12 +58,47 @@ export default function AtlasContainer(props: {
     size = "small",
     gridGap = 0,
     expanded = false,
+    overlayZ = 0,
     onToggleExpand,
   } = props;
 
+  const [overlayMounted, setOverlayMounted] = useState(expanded);
+  const [overlayVisible, setOverlayVisible] = useState(expanded);
   const seed = `${title}|${subtitle}|${meta}|${footer}`;
   const bgImage = useMemo(() => backgroundImageFromSeed(seed), [seed]);
   const floaterVars = useMemo(() => floaterVarsFromSeed(seed), [seed]);
+  
+  useEffect(() => {
+    let raf1 = 0;
+    let raf2 = 0;
+    let timeoutId = 0;
+  
+    if (expanded) {
+      setOverlayMounted(true);
+      setOverlayVisible(false);
+  
+      raf1 = window.requestAnimationFrame(() => {
+        raf2 = window.requestAnimationFrame(() => {
+          const el = document.getElementById(`atlas-overlay-${seed}`);
+          if (el) {
+            void el.getBoundingClientRect();
+          }
+          setOverlayVisible(true);
+        });
+      });
+    } else {
+      setOverlayVisible(false);
+      timeoutId = window.setTimeout(() => {
+        setOverlayMounted(false);
+      }, 220);
+    }
+  
+    return () => {
+      if (raf1) window.cancelAnimationFrame(raf1);
+      if (raf2) window.cancelAnimationFrame(raf2);
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [expanded, seed]);
 
   const cellClassName = size === "big" ? "pix-icon-large" : "pix-icon";
 
@@ -75,6 +111,10 @@ export default function AtlasContainer(props: {
   const expandGap = 30;
   const expandVisualScale = 2.0;
 
+  const collapsedWidth = "100%";
+  const expandedWidth = `calc(200% + ${gridGap * 2}px)`;
+  const overlayHeight = `calc(100% + ${gridGap}px)`;
+
   return (
     <div
       style={{
@@ -83,21 +123,26 @@ export default function AtlasContainer(props: {
         height: "100%",
         overflow: "visible",
         userSelect: "none",
-        zIndex: expanded ? 100 : 0,
+        zIndex: overlayZ > 0 ? 1000 + overlayZ : 0,
       }}
     >
-      {expanded && (
+      {overlayMounted && (
         <div
+          id={`atlas-overlay-${seed}`}
           style={{
             position: "absolute",
             left: 0,
             top: 0,
-            width: `calc(200% + ${gridGap * 2}px)`,
-            height: `calc(100% + ${gridGap}px)`,
+            width: overlayVisible ? expandedWidth : collapsedWidth,
+            height: overlayHeight,
             background: "#F4FCFF",
             borderRadius: 6,
             zIndex: 1,
-            pointerEvents: "auto",
+            pointerEvents: overlayVisible ? "auto" : "none",
+            opacity: overlayVisible ? 1 : 0,
+            transition:
+              "width 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 120ms ease-out",
+            willChange: "width, opacity",
           }}
         />
       )}
@@ -142,7 +187,6 @@ export default function AtlasContainer(props: {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          zIndex: 3,
         }}
       >
         <div
@@ -167,6 +211,7 @@ export default function AtlasContainer(props: {
               padding: "2px 8px",
               boxSizing: "border-box",
               overflow: "visible",
+              zIndex: 3,
             }}
           >
             <div
@@ -187,47 +232,46 @@ export default function AtlasContainer(props: {
             </div>
           </div>
 
-          {!expanded && (
-            <button
-              className="pix-icon-small"
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleExpand?.();
-              }}
+          <button
+            className="pix-icon-small"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpand?.();
+            }}
+            style={{
+              appearance: "none",
+              border: "none",
+              background: "transparent",
+              position: "absolute",
+              left: "100%",
+              top: 0,
+              marginLeft: expandGap,
+              width: expandBoxSize,
+              height: expandBoxSize,
+              padding: 0,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "visible",
+              zIndex: 0,
+            }}
+            aria-label="Expand"
+          >
+            <img
+              src="/atlas/expand.png"
+              alt="Expand"
               style={{
-                appearance: "none",
-                border: "none",
-                background: "transparent",
-                position: "absolute",
-                left: "100%",
-                top: 0,
-                marginLeft: expandGap,
-                width: expandBoxSize,
-                height: expandBoxSize,
-                padding: 0,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                overflow: "visible",
+                width: `${expandVisualScale * 100}%`,
+                height: `${expandVisualScale * 100}%`,
+                objectFit: "contain",
+                imageRendering: "pixelated",
+                display: "block",
+                pointerEvents: "none",
               }}
-              aria-label="Expand"
-            >
-              <img
-                src="/atlas/expand.png"
-                alt="Expand"
-                style={{
-                  width: `${expandVisualScale * 100}%`,
-                  height: `${expandVisualScale * 100}%`,
-                  objectFit: "contain",
-                  imageRendering: "pixelated",
-                  display: "block",
-                  pointerEvents: "none",
-                }}
-              />
-            </button>
-          )}
+            />
+          </button>
         </div>
       </div>
     </div>

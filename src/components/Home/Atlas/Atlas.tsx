@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PackedGrid, { type PackedGridItem } from "@/components/Home/PackedGrid/PackedGrid";
 import { listPublishedWorlds } from "@/services/publishedWorlds";
@@ -33,14 +33,64 @@ type GameCardData = {
   voxelCount: number;
 };
 
+const OVERLAY_CLOSE_MS = 220;
+
 export default function Atlas() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [games, setGames] = useState<GameCardData[]>([]);
   const [expandedWorldId, setExpandedWorldId] = useState<string | null>(null);
+  const [closingWorldIds, setClosingWorldIds] = useState<Set<string>>(new Set());
 
-  const atlasGridGap = 70;
+  const [overlayOrderById, setOverlayOrderById] = useState<Map<string, number>>(new Map());
+  const nextOverlayOrderRef = useRef(1);
+
+  const closeTimeoutsRef = useRef<Map<string, number>>(new Map());
+
+  const atlasGridGap = 80;
+
+  function bringOverlayToFront(worldId: string) {
+    const nextOrder = nextOverlayOrderRef.current++;
+    setOverlayOrderById((prev) => {
+      const next = new Map(prev);
+      next.set(worldId, nextOrder);
+      return next;
+    });
+  }
+
+  function markClosing(worldId: string | null) {
+    if (!worldId) return;
+  
+    setClosingWorldIds((prev) => {
+      const next = new Set(prev);
+      next.add(worldId);
+      return next;
+    });
+  
+    const prevTimeout = closeTimeoutsRef.current.get(worldId);
+    if (prevTimeout) {
+      window.clearTimeout(prevTimeout);
+    }
+  
+    const timeoutId = window.setTimeout(() => {
+      setClosingWorldIds((prev) => {
+        const next = new Set(prev);
+        next.delete(worldId);
+        return next;
+      });
+  
+      setOverlayOrderById((prev) => {
+        const next = new Map(prev);
+        next.delete(worldId);
+        return next;
+      });
+  
+      closeTimeoutsRef.current.delete(worldId);
+    }, OVERLAY_CLOSE_MS);
+  
+    closeTimeoutsRef.current.set(worldId, timeoutId);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -137,17 +187,21 @@ export default function Atlas() {
 
     return () => {
       cancelled = true;
+      for (const timeoutId of closeTimeoutsRef.current.values()) {
+        window.clearTimeout(timeoutId);
+      }
+      closeTimeoutsRef.current.clear();
     };
   }, []);
 
   useEffect(() => {
-    if (!expandedWorldId) return;
-
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        setExpandedWorldId(null);
-      }
+      if (e.key !== "Escape") return;
+      if (!expandedWorldId) return;
+
+      e.preventDefault();
+      markClosing(expandedWorldId);
+      setExpandedWorldId(null);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -155,34 +209,49 @@ export default function Atlas() {
   }, [expandedWorldId]);
 
   const items: PackedGridItem[] = useMemo(() => {
-    return games.map((game) => ({
-      id: game.publishedWorldId,
-      size: "small",
-      content: (
-        <AtlasContainer
-          size="small"
-          gridGap={atlasGridGap}
-          expanded={expandedWorldId === game.publishedWorldId}
-          onToggleExpand={() => {
-            setExpandedWorldId((prev) =>
-              prev === game.publishedWorldId ? null : game.publishedWorldId
-            );
-          }}
-          title={game.worldName}
-          subtitle={`by ${game.publisherUsername}`}
-          meta={
-            game.assetNames.length
-              ? game.assetNames.join(", ")
-              : "No marketplace assets"
-          }
-          footer={`${game.voxelCount.toLocaleString()} voxels`}
-          onClick={() => {
-            router.push(`/games/${game.publishedWorldId}`);
-          }}
-        />
-      ),
-    }));
-  }, [games, router, expandedWorldId]);
+    return games.map((game) => {
+      const isExpanded = expandedWorldId === game.publishedWorldId;
+
+      return {
+        id: game.publishedWorldId,
+        size: "small",
+        content: (
+          <AtlasContainer
+            size="small"
+            gridGap={atlasGridGap}
+            expanded={isExpanded}
+            overlayZ={overlayOrderById.get(game.publishedWorldId) ?? 0}
+            onToggleExpand={() => {
+              bringOverlayToFront(game.publishedWorldId);
+              setExpandedWorldId((prev) => {
+                if (prev === game.publishedWorldId) {
+                  markClosing(game.publishedWorldId);
+                  return null;
+                }
+
+                if (prev) {
+                  markClosing(prev);
+                }
+
+                return game.publishedWorldId;
+              });
+            }}
+            title={game.worldName}
+            subtitle={`by ${game.publisherUsername}`}
+            meta={
+              game.assetNames.length
+                ? game.assetNames.join(", ")
+                : "No marketplace assets"
+            }
+            footer={`${game.voxelCount.toLocaleString()} voxels`}
+            onClick={() => {
+              router.push(`/games/${game.publishedWorldId}`);
+            }}
+          />
+        ),
+      };
+    });
+  }, [games, router, expandedWorldId, closingWorldIds]);
 
   return (
     <div
