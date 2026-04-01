@@ -57,6 +57,24 @@ function pfpFromUserId(userId: string): string {
   return pfps[hash % pfps.length];
 }
 
+function parseVoxelCountFromFooter(footer: string): string {
+  const match = footer.match(/[\d,]+/);
+  return match ? match[0] : "0";
+}
+
+function formatCreatedAt(createdAt: number): string {
+  if (!createdAt) return "unknown";
+
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return "unknown";
+
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 export default function AtlasContainer(props: {
   title?: string;
   subtitle?: string;
@@ -97,6 +115,11 @@ export default function AtlasContainer(props: {
   const publisherPfp = useMemo(
     () => pfpFromUserId(publisherUserId || publisherUsername),
     [publisherUserId, publisherUsername]
+  );
+  const createdAtLabel = useMemo(() => formatCreatedAt(createdAt), [createdAt]);
+  const voxelCountLabel = useMemo(
+    () => `${parseVoxelCountFromFooter(footer)} voxels`,
+    [footer]
   );
 
   useEffect(() => {
@@ -143,6 +166,8 @@ export default function AtlasContainer(props: {
   const expandedWidth = `calc(200% + ${gridGap * 2}px)`;
   const overlayHeight = `calc(100% + ${gridGap}px)`;
   const profileWidth = "70%";
+  const usernameFontSize = size === "big" ? 20 : 18;
+  const metaFontSize = size === "big" ? 12 : 10;
 
   return (
     <div
@@ -247,13 +272,45 @@ export default function AtlasContainer(props: {
                     color: "var(--homepage-dark)",
                     textAlign: "center",
                     lineHeight: 1.05,
-                    fontSize: size === "big" ? 20 : 18,
+                    fontSize: usernameFontSize,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                   }}
                 >
                   {publisherUsername}
+                </div>
+
+                <div
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    color: "rgba(32, 41, 61, 0.8)",
+                    textAlign: "center",
+                    lineHeight: 1.15,
+                    fontSize: metaFontSize,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  created: {createdAtLabel}
+                </div>
+
+                <div
+                  style={{
+                    width: "100%",
+                    marginTop: 4,
+                    color: "rgba(32, 41, 61, 0.8)",
+                    textAlign: "center",
+                    lineHeight: 1.15,
+                    fontSize: metaFontSize,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {voxelCountLabel}
                 </div>
               </div>
             </div>
