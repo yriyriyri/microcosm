@@ -168,6 +168,7 @@ export default function AtlasContainer(props: {
   const profileWidth = "70%";
   const usernameFontSize = size === "big" ? 20 : 18;
   const metaFontSize = size === "big" ? 12 : 10;
+  const closeIconScale = expandVisualScale;
 
   return (
     <div
@@ -239,6 +240,7 @@ export default function AtlasContainer(props: {
                   justifyContent: "flex-start",
                   paddingTop: 0,
                   boxSizing: "border-box",
+                  position: "relative",
                 }}
               >
                 <div
@@ -312,6 +314,48 @@ export default function AtlasContainer(props: {
                 >
                   {voxelCountLabel}
                 </div>
+
+                <button
+                  className="pix-icon-small"
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleExpand?.();
+                  }}
+                  style={{
+                    appearance: "none",
+                    border: "none",
+                    background: "transparent",
+                    outline: "none",
+                    boxShadow: "none",
+                    WebkitTapHighlightColor: "transparent",
+                    marginTop: "auto",
+                    marginBottom: 15,
+                    width: expandBoxSize,
+                    height: expandBoxSize,
+                    padding: 0,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    overflow: "visible",
+                    flexShrink: 0,
+                  }}
+                  aria-label="Close"
+                >
+                  <img
+                    src="/library/delete.png"
+                    alt="Close"
+                    style={{
+                      width: `${closeIconScale * 100}%`,
+                      height: `${closeIconScale * 100}%`,
+                      objectFit: "contain",
+                      imageRendering: "pixelated",
+                      display: "block",
+                      pointerEvents: "none",
+                    }}
+                  />
+                </button>
               </div>
             </div>
           </div>
