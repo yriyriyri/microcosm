@@ -29,7 +29,7 @@ type AssetData = {
 };
 
 const DB_NAME = "voxel_editor_assets_db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 const STORE_META = "asset_meta";
 const STORE_DATA = "asset_data";
