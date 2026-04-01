@@ -9,13 +9,10 @@ export default function CreateNewContainer(props: {
   disabled?: boolean;
 }) {
   const {
-    label = "Create New",
     onClick,
     size = "small",
     disabled = false,
   } = props;
-
-  const textHeight = size === "big" ? 28 : 22;
 
   return (
     <div
@@ -30,58 +27,66 @@ export default function CreateNewContainer(props: {
         userSelect: "none",
         overflow: "hidden",
         opacity: disabled ? 0.7 : 1,
-        background: "#DBFAFF",
-        boxShadow: `
-        inset 0 0 0 3px rgba(255, 255, 255, 0.15),
-        inset 0 0 0 16px rgba(0, 50, 76, 0.05),
-        inset -16px -16px 0 0 rgba(0, 50, 76, 0.05)
-      `,
       }}
     >
       <div
+        className="floater"
         style={{
           position: "absolute",
-          left: "50%",
-          top: `calc(50% - ${textHeight / 2}px)`,
-          transform: "translate(-50%, -50%)",
-          width: "40%",
-          height: "40%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          inset: 0,
+          ["--floater-ax" as any]: "8px",
+          ["--floater-ay" as any]: "6px",
+          ["--floater-dur" as any]: "6800ms",
+          ["--floater-delay" as any]: "-700ms",
           pointerEvents: "none",
-          zIndex: 1,
         }}
       >
-        <img
-          src="/library/create.png"
-          alt=""
+        <div
           style={{
+            position: "relative",
             width: "100%",
             height: "100%",
-            objectFit: "contain",
-            imageRendering: "pixelated",
-            display: "block",
           }}
-        />
-      </div>
+        >
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage: "url('/library/createnew.png')",
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              imageRendering: "pixelated",
+            }}
+          />
 
-      <div
-        style={{
-          position: "absolute",
-          left: "50%",
-          bottom: size === "big" ? 60 : 40,
-          transform: "translateX(-50%)",
-          fontSize: size === "big" ? 30 : 20,
-          lineHeight: 1.1,
-          textAlign: "center",
-          color: "#00324c",
-          whiteSpace: "nowrap",
-          pointerEvents: "none",
-          zIndex: 1,
-        }}
-      >
-        {label}
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: size === "big" ? "24%" : "28%",
+              height: size === "big" ? "24%" : "28%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1,
+            }}
+          >
+            <img
+              src="/library/create.png"
+              alt=""
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                imageRendering: "pixelated",
+                display: "block",
+              }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

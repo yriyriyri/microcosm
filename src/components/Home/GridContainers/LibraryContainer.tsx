@@ -18,6 +18,25 @@ function backgroundImageFromWorldId(worldId: string): string {
   return backgrounds[hash % backgrounds.length];
 }
 
+function floaterVarsFromWorldId(worldId: string): React.CSSProperties {
+  let hash = 0;
+  for (let i = 0; i < worldId.length; i++) {
+    hash = (hash * 31 + worldId.charCodeAt(i)) >>> 0;
+  }
+
+  const ax = 6 + (hash % 5);               // 6..10
+  const ay = 5 + ((hash >> 3) % 5);        // 5..9
+  const dur = 5900 + ((hash >> 6) % 2500); // 5900..8399
+  const delay = -((hash >> 10) % 1800);    // -0..-1799
+
+  return {
+    ["--floater-ax" as any]: `${ax}px`,
+    ["--floater-ay" as any]: `${ay}px`,
+    ["--floater-dur" as any]: `${dur}ms`,
+    ["--floater-delay" as any]: `${delay}ms`,
+  };
+}
+
 export default function LibraryContainer(props: {
   worldId: string;
   name: string;
@@ -47,6 +66,7 @@ export default function LibraryContainer(props: {
   } = props;
 
   const bgImage = useMemo(() => backgroundImageFromWorldId(worldId), [worldId]);
+  const floaterVars = useMemo(() => floaterVarsFromWorldId(worldId), [worldId]);
 
   const cellClassName = size === "big" ? "pix-icon-large" : "pix-icon";
 
@@ -56,8 +76,8 @@ export default function LibraryContainer(props: {
   const fontSize = size === "big" ? 17 : 14;
   const borderRadius = 4;
   const nameWidth = "90%";
-  const deleteGap = 12;
-  const deleteVisualScale = 1.5;
+  const deleteGap = 14;
+  const deleteVisualScale = 1.6;
 
   return (
     <div
@@ -77,15 +97,27 @@ export default function LibraryContainer(props: {
           position: "relative",
           width: "100%",
           height: "100%",
-          backgroundImage: `url(${bgImage})`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-          imageRendering: "pixelated",
           cursor: isBusy ? "default" : onOpen ? "pointer" : "default",
           overflow: "hidden",
         }}
-      />
+      >
+        <div
+          className="floater"
+          style={floaterVars}
+        >
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              backgroundImage: `url(${bgImage})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              imageRendering: "pixelated",
+            }}
+          />
+        </div>
+      </div>
 
       <div
         style={{
@@ -169,7 +201,7 @@ export default function LibraryContainer(props: {
           </div>
 
           <button
-            className="pix-icon"
+            className="pix-icon-small"
             disabled={isBusy}
             onClick={onDelete}
             style={{

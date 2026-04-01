@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import PackedGrid, { type PackedGridItem } from "@/components/Home/PackedGrid/PackedGrid";
 import CreateNewContainer from "@/components/Home/GridContainers/CreateNewContainer";
@@ -17,19 +17,6 @@ function setPrimaryWorldId(id: string) {
   } catch {}
 }
 
-type LibraryGridItem =
-  | {
-      kind: "create";
-      id: "__create_new__";
-      name: string;
-    }
-  | {
-      kind: "world";
-      id: string;
-      name: string;
-      world: WorldMetaRecord;
-    };
-
 export default function Library() {
   const router = useRouter();
   const { click } = useSound();
@@ -38,6 +25,9 @@ export default function Library() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftNames, setDraftNames] = useState<Record<string, string>>({});
+
+  const [isCreateHovered, setIsCreateHovered] = useState(false);
+  const createTooltipRef = useRef<HTMLDivElement | null>(null);
 
   async function refresh() {
     const rows = await worldRepository.listWorlds();
@@ -54,22 +44,6 @@ export default function Library() {
   useEffect(() => {
     refresh().catch(console.error);
   }, []);
-
-  const items = useMemo<LibraryGridItem[]>(() => {
-    return [
-      {
-        kind: "create",
-        id: "__create_new__",
-        name: "Create New",
-      },
-      ...worlds.map((world) => ({
-        kind: "world" as const,
-        id: world.id,
-        name: world.name,
-        world,
-      })),
-    ];
-  }, [worlds]);
 
   async function handleCreateNew() {
     if (busyId) return;
@@ -132,37 +106,15 @@ export default function Library() {
     }
   }
 
-  const gridItems: PackedGridItem[] = items.map((item, index) => {
-    const size: "small" | "big" = index === 0 ? "big" : "small";
-
-    if (item.kind === "create") {
-      return {
-        id: item.id,
-        size,
-        content: (
-          <CreateNewContainer
-            label={busyId === item.id ? "Creating..." : item.name}
-            size={size}
-            disabled={busyId !== null}
-            onClick={() => {
-              click();
-              void handleCreateNew();
-            }}
-          />
-        ),
-      };
-    }
-
-    const world = item.world;
-
-    return {
-      id: item.id,
-      size,
+  const gridItems: PackedGridItem[] = useMemo(() => {
+    return worlds.map((world) => ({
+      id: world.id,
+      size: "small" as const,
       content: (
         <LibraryContainer
           worldId={world.id}
           name={world.name}
-          size={size}
+          size="small"
           isBusy={busyId === world.id}
           isRenaming={renamingId === world.id}
           draftName={draftNames[world.id] ?? world.name}
@@ -199,8 +151,8 @@ export default function Library() {
           }}
         />
       ),
-    };
-  });
+    }));
+  }, [worlds, busyId, renamingId, draftNames, click]);
 
   return (
     <div
@@ -216,7 +168,85 @@ export default function Library() {
         paddingTop: 20,
       }}
     >
-      <PackedGrid items={gridItems} />
+      <div
+        ref={createTooltipRef}
+        style={{
+          position: "fixed",
+          left: 0,
+          top: 0,
+          background: "var(--homepage-dark)",
+          color: "var(--homepage-light)",
+          borderRadius: 4,
+          padding: "8px 10px",
+          fontSize: 14,
+          lineHeight: 1,
+          pointerEvents: "none",
+          zIndex: 999,
+          whiteSpace: "nowrap",
+          opacity: isCreateHovered ? 1 : 0,
+          transform: isCreateHovered
+            ? "translate3d(0, 0, 0) scale(1)"
+            : "translate3d(0, 0, 0) scale(0.86)",
+          transformOrigin: "top left",
+          transition: "opacity 140ms ease, transform 140ms ease",
+          willChange: "transform, opacity",
+        }}
+      >
+        new world!
+      </div>
+
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          gap: 60,
+          alignItems: "stretch",
+        }}
+      >
+        <div
+          style={{
+            flex: "0 0 20%",
+            minWidth: 0,
+            height: "100%",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              aspectRatio: "1 / 1",
+            }}
+            onMouseEnter={() => setIsCreateHovered(true)}
+            onMouseLeave={() => setIsCreateHovered(false)}
+            onMouseMove={(e) => {
+              const el = createTooltipRef.current;
+              if (!el) return;
+              el.style.left = `${e.clientX + 16}px`;
+              el.style.top = `${e.clientY + 16}px`;
+            }}
+          >
+            <CreateNewContainer
+              label={busyId === "__create_new__" ? "Creating..." : "Create New"}
+              size="big"
+              disabled={busyId !== null}
+              onClick={() => {
+                click();
+                void handleCreateNew();
+              }}
+            />
+          </div>
+        </div>
+
+        <div
+          style={{
+            flex: "1 1 80%",
+            minWidth: 0,
+            height: "100%",
+          }}
+        >
+          <PackedGrid items={gridItems} gap={70} columns={5} />
+        </div>
+      </div>
     </div>
   );
 }
