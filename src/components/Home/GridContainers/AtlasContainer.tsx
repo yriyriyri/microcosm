@@ -169,6 +169,9 @@ export default function AtlasContainer(props: {
               backgroundPosition: "center",
               backgroundRepeat: "no-repeat",
               imageRendering: "pixelated",
+              filter: overlayVisible ? "brightness(0.3)" : "brightness(1)",
+              transition: "filter 180ms ease-out",
+              willChange: "filter",
             }}
           />
         </div>
