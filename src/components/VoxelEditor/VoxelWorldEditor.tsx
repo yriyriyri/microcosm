@@ -125,13 +125,17 @@ export default function VoxelWorldEditor(props: {
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [glyphsOpen, setGlyphsOpen] = useState(false);
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+
+  // derived ui refs
+
+  const glyphsOpenRef = useRef(glyphsOpen);
   
   // placement
   
   const [placingLabel, setPlacingLabel] = useState<string | null>(null);
   const placingAssetRef = useRef<PendingPlacement | null>(null);
   
-  // selection / hover / helpers
+  // selection / hover helpers
   
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
@@ -142,6 +146,12 @@ export default function VoxelWorldEditor(props: {
   const selectedBoxRef = useRef<THREE.Box3Helper | null>(null);
   const hoverBoxRef = useRef<THREE.Box3Helper | null>(null);
   const pendingGroupBoxesSyncRef = useRef(false);
+
+  // glyph visualization
+
+  const glyphTextureCacheRef = useRef<Map<string, THREE.Texture>>(new Map());
+  const glyphSpriteMapRef = useRef<Map<string, THREE.Sprite>>(new Map());
+  const pendingGlyphSpritesSyncRef = useRef(false);
   
   // autosave
   
@@ -196,6 +206,10 @@ export default function VoxelWorldEditor(props: {
   useEffect(() => {
     worldToolRef.current = worldTool;
   }, [worldTool]);
+
+  useEffect(() => {
+    glyphsOpenRef.current = glyphsOpen;
+  }, [glyphsOpen]);
 
   // editor control helpers
 
@@ -265,7 +279,7 @@ export default function VoxelWorldEditor(props: {
     }
   }
 
-  //pointer helpers
+  // pointer helpers
 
   function setMouseFromEvent(e: PointerEvent) {
     const renderer = rendererRef.current;
@@ -416,6 +430,7 @@ export default function VoxelWorldEditor(props: {
     setPrimaryWorldId(id);
   
     pendingGroupBoxesSyncRef.current = true;
+    pendingGlyphSpritesSyncRef.current = true;
   }
 
   async function onOpenFromLibrary(id: string) {
@@ -434,7 +449,8 @@ export default function VoxelWorldEditor(props: {
     setHoveredGroupId(null);
     hoveredGroupIdLiveRef.current = null;
     pendingGroupBoxesSyncRef.current = true;
-  
+    pendingGlyphSpritesSyncRef.current = true;
+
     const bounds = world.getAllGroupBounds();
     if (bounds.size > 0) {
       let minX = Infinity, minY = Infinity, minZ = Infinity;
@@ -582,6 +598,103 @@ export default function VoxelWorldEditor(props: {
     setGlyphsOpen(false);
   }
 
+  // glyph visualization
+
+  function getGlyphTexture(logicTag: string): THREE.Texture {
+    const cache = glyphTextureCacheRef.current;
+    const existing = cache.get(logicTag);
+    if (existing) return existing;
+  
+    const tex = new THREE.TextureLoader().load(`/glyphs/${logicTag}.png`);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.magFilter = THREE.NearestFilter;
+    tex.minFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+  
+    cache.set(logicTag, tex);
+    return tex;
+  }
+
+  function removeGlyphSprite(groupId: string) {
+    const scene = sceneRef.current;
+    const sprite = glyphSpriteMapRef.current.get(groupId);
+    if (!scene || !sprite) return;
+  
+    scene.remove(sprite);
+    (sprite.material as THREE.SpriteMaterial).dispose();
+    glyphSpriteMapRef.current.delete(groupId);
+  }
+
+  function syncGlyphSprites() {
+    const scene = sceneRef.current;
+    const w = worldRef.current;
+    if (!scene || !w) return;
+  
+    const nextVisibleGroups = new Set<string>();
+  
+    for (const groupId of w.listGroupIds()) {
+      const logicTag = w.getGroupLogicTag?.(groupId);
+      if (!logicTag) {
+        removeGlyphSprite(groupId);
+        continue;
+      }
+  
+      const bounds = w.getGroupBounds(groupId);
+      if (!bounds) {
+        removeGlyphSprite(groupId);
+        continue;
+      }
+  
+      nextVisibleGroups.add(groupId);
+  
+      let sprite = glyphSpriteMapRef.current.get(groupId);
+      if (!sprite) {
+        const tex = getGlyphTexture(logicTag);
+        const material = new THREE.SpriteMaterial({
+          map: tex,
+          transparent: true,
+          depthWrite: false,
+          depthTest: true,
+        });
+  
+        sprite = new THREE.Sprite(material);
+        sprite.renderOrder = 1200;
+        scene.add(sprite);
+        glyphSpriteMapRef.current.set(groupId, sprite);
+      } else {
+        const material = sprite.material as THREE.SpriteMaterial;
+        const wanted = getGlyphTexture(logicTag);
+        if (material.map !== wanted) {
+          material.map = wanted;
+          material.needsUpdate = true;
+        }
+      }
+  
+      const boxWidth = bounds.max.x - bounds.min.x + 1;
+      const boxHeight = bounds.max.y - bounds.min.y + 1;
+      const boxDepth = bounds.max.z - bounds.min.z + 1;
+      const maxSpan = Math.max(boxWidth, boxHeight, boxDepth);
+  
+      const size = Math.max(1.25, Math.min(2.5, maxSpan * 0.22));
+      sprite.scale.set(size, size, 1);
+  
+      sprite.position.set(
+        bounds.max.x + 0.85,
+        bounds.max.y + 1.1,
+        bounds.max.z + 0.85
+      );
+  
+      const isSelected = selectedGroupIdLiveRef.current === groupId;
+      sprite.visible = glyphsOpenRef.current || isSelected;
+    }
+  
+    for (const existingGroupId of Array.from(glyphSpriteMapRef.current.keys())) {
+      if (!nextVisibleGroups.has(existingGroupId)) {
+        removeGlyphSprite(existingGroupId);
+      }
+    }
+  }
+
   // import vox file flow
 
   async function onImportVoxFile(file: File) {
@@ -634,6 +747,7 @@ export default function VoxelWorldEditor(props: {
     }
   
     pendingGroupBoxesSyncRef.current = true;
+    pendingGlyphSpritesSyncRef.current = true;
     setImportModal(null);
     requestAutosave({ immediate: true, reason: "import-vox" });
   }
@@ -733,7 +847,8 @@ export default function VoxelWorldEditor(props: {
 
   useEffect(() => {
     pendingGroupBoxesSyncRef.current = true;
-  }, [selectedGroupId, hoveredGroupId, focusOpen]);
+    pendingGlyphSpritesSyncRef.current = true;
+  }, [selectedGroupId, hoveredGroupId, focusOpen, glyphsOpen]);
 
   // transient interaction guards 
 
@@ -786,6 +901,7 @@ export default function VoxelWorldEditor(props: {
       }
       
       pendingGroupBoxesSyncRef.current = true;
+      pendingGlyphSpritesSyncRef.current = true;
       
       requestAutosave({ immediate: true, reason: "delete-group" });
       e.preventDefault();
@@ -1016,6 +1132,7 @@ export default function VoxelWorldEditor(props: {
           setHoveredGroupId(null);
           hoveredGroupIdLiveRef.current = null;
           pendingGroupBoxesSyncRef.current = true;
+          pendingGlyphSpritesSyncRef.current = true;
 
           return;
         }
@@ -1046,6 +1163,7 @@ export default function VoxelWorldEditor(props: {
     // pointer handlers
 
     pendingGroupBoxesSyncRef.current = true;
+    pendingGlyphSpritesSyncRef.current = true;
 
     function onPointerDown(e: PointerEvent) {
       if (focusOpenRef.current) return;
@@ -1085,6 +1203,7 @@ export default function VoxelWorldEditor(props: {
         play("placePart");
         requestAutosave({ reason: "place-asset" });
         pendingGroupBoxesSyncRef.current = true;
+        pendingGlyphSpritesSyncRef.current = true;
     
         cancelPlaceAsset();
     
@@ -1100,6 +1219,7 @@ export default function VoxelWorldEditor(props: {
         selectedGroupIdLiveRef.current = null;
         setSelectedGroupId(null);
         pendingGroupBoxesSyncRef.current = true;
+        pendingGlyphSpritesSyncRef.current = true;
         return;
       }
     
@@ -1111,6 +1231,7 @@ export default function VoxelWorldEditor(props: {
       selectedGroupIdLiveRef.current = gid;
       setSelectedGroupId(gid);
       pendingGroupBoxesSyncRef.current = true;
+      pendingGlyphSpritesSyncRef.current = true;
     
       if (e.button !== 0) return;
     
@@ -1195,6 +1316,7 @@ export default function VoxelWorldEditor(props: {
       
           w.setGroupPosition(d.groupId!, next);
           pendingGroupBoxesSyncRef.current = true;
+          pendingGlyphSpritesSyncRef.current = true;
           requestAutosave({ reason: "move-group-up" });
       
           e.preventDefault();
@@ -1219,6 +1341,7 @@ export default function VoxelWorldEditor(props: {
       
         w.setGroupPosition(d.groupId!, next);
         pendingGroupBoxesSyncRef.current = true;
+        pendingGlyphSpritesSyncRef.current = true;
       
         requestAutosave({ reason: "move-group" });
         e.preventDefault();
@@ -1233,6 +1356,7 @@ export default function VoxelWorldEditor(props: {
         hoveredGroupIdLiveRef.current = gid;
         setHoveredGroupId(gid);
         pendingGroupBoxesSyncRef.current = true;
+        pendingGlyphSpritesSyncRef.current = true;
       }
     }
 
@@ -1252,6 +1376,7 @@ export default function VoxelWorldEditor(props: {
       hoveredGroupIdLiveRef.current = null;
       setHoveredGroupId(null);
       pendingGroupBoxesSyncRef.current = true;
+      pendingGlyphSpritesSyncRef.current = true;
       endDrag();
     }
 
@@ -1295,6 +1420,11 @@ export default function VoxelWorldEditor(props: {
         pendingGroupBoxesSyncRef.current = false;
         syncGroupBoxes();
       }
+      
+      if (pendingGlyphSpritesSyncRef.current) {
+        pendingGlyphSpritesSyncRef.current = false;
+        syncGlyphSprites();
+      }
     
       renderer.render(scene, camera);
     };
@@ -1337,6 +1467,15 @@ export default function VoxelWorldEditor(props: {
 
       clearHelper(selectedBoxRef);
       clearHelper(hoverBoxRef);
+
+      for (const groupId of Array.from(glyphSpriteMapRef.current.keys())) {
+        removeGlyphSprite(groupId);
+      }
+      
+      for (const tex of glyphTextureCacheRef.current.values()) {
+        tex.dispose();
+      }
+      glyphTextureCacheRef.current.clear();
 
       cameraRef.current = null;
       rendererRef.current = null;
@@ -1536,6 +1675,7 @@ export default function VoxelWorldEditor(props: {
                 if (!ok) return;
               
                 pendingGroupBoxesSyncRef.current = true;
+                pendingGlyphSpritesSyncRef.current = true;
                 requestAutosave({ reason: `rotate-group-${axis}` });
                 return;
               }
