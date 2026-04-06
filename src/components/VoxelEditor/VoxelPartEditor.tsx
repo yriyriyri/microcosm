@@ -1,24 +1,23 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RGBELoader } from "three/examples/jsm/Addons.js";
 
-import ColorPalette from "./ui/ColorPalette";
-import ToolPalette, { type ToolId } from "./ui/ToolPalette";
+import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
 
 import { VoxelWorld } from "./VoxelWorld";
 import type { VoxelCoord } from "./Types";
 import { add } from "./Types";
-
 import { assetRepository } from "./repositories";
 import type { AssetMetaRecord } from "./domain/assetTypes";
 
-import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
+import ColorPalette from "./ui/ColorPalette";
+import ToolPalette, { type ToolId } from "./ui/ToolPalette";
 
-const FOCUS_GROUP_ID = "__focus__";
-const SNAPSHOT_SIZE = 1024;
+// file scope types
 
 type LoopCtx = {
   renderer: THREE.WebGLRenderer;
@@ -26,6 +25,51 @@ type LoopCtx = {
   camera: THREE.PerspectiveCamera;
   controls: OrbitControls;
 };
+
+// file scope consts
+
+const FOCUS_GROUP_ID = "__focus__";
+const SNAPSHOT_SIZE = 1024;
+
+// helpers
+
+function computeLocalBounds(voxels: { local: VoxelCoord }[]) {
+  if (!voxels.length) return null;
+
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+  for (const v of voxels) {
+    const { x, y, z } = v.local;
+    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+  }
+
+  return { minX, minY, minZ, maxX, maxY, maxZ };
+}
+
+function recenterCameraOnBounds(params: {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+  controls: OrbitControls | null;
+  camera: THREE.PerspectiveCamera | null;
+}) {
+  const { minX, minY, minZ, maxX, maxY, maxZ, controls, camera } = params;
+  if (!controls || !camera) return;
+
+  const cx = (minX + maxX + 1) / 2;
+  const cy = (minY + maxY + 1) / 2;
+  const cz = (minZ + maxZ + 1) / 2;
+
+  controls.target.set(cx + 0.5, cy + 0.5, cz + 0.5);
+  controls.update();
+  camera.lookAt(controls.target);
+}
 
 function raycastVoxelGrid(
   world: VoxelWorld,
@@ -92,57 +136,6 @@ function raycastVoxelGrid(
   return null;
 }
 
-function getToolHints(tool: ToolId): { left: string; right: string; shortcut: string } {
-  switch (tool) {
-    case "pencil":
-      return { left: "Left click: place", right: "Right click: delete", shortcut: "Q: pencil" };
-    case "eyedropper":
-      return { left: "Left click: pick color", right: "Right click: (none)", shortcut: "E: eyedropper" };
-    case "marquee":
-      return { left: "Left click: set start / confirm fill", right: "Right click: cancel", shortcut: "W: marquee" };
-    default:
-      return { left: "Left click: confirm", right: "Right click: delete", shortcut: "Q / W / E" };
-  }
-}
-
-function computeLocalBounds(voxels: { local: VoxelCoord }[]) {
-  if (!voxels.length) return null;
-
-  let minX = Infinity, minY = Infinity, minZ = Infinity;
-  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-
-  for (const v of voxels) {
-    const { x, y, z } = v.local;
-    minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-    minY = Math.min(minY, y); maxY = Math.max(maxY, y);
-    minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
-  }
-
-  return { minX, minY, minZ, maxX, maxY, maxZ };
-}
-
-function recenterCameraOnBounds(params: {
-  minX: number;
-  minY: number;
-  minZ: number;
-  maxX: number;
-  maxY: number;
-  maxZ: number;
-  controls: OrbitControls | null;
-  camera: THREE.PerspectiveCamera | null;
-}) {
-  const { minX, minY, minZ, maxX, maxY, maxZ, controls, camera } = params;
-  if (!controls || !camera) return;
-
-  const cx = (minX + maxX + 1) / 2;
-  const cy = (minY + maxY + 1) / 2;
-  const cz = (minZ + maxZ + 1) / 2;
-
-  controls.target.set(cx + 0.5, cy + 0.5, cz + 0.5);
-  controls.update();
-  camera.lookAt(controls.target);
-}
-
 export default function VoxelPartEditor(props: {
   open: boolean;
   groupId: string | null;
@@ -162,39 +155,14 @@ export default function VoxelPartEditor(props: {
     onExit,
   } = props;
 
+  // sound
+
   const { play, startLoop, stopLoop, click } = useSound();
 
-  const mountRef = useRef<HTMLDivElement | null>(null);
+  // editor ui state
 
   const [color, setColor] = useState("#34c759");
   const [tool, setTool] = useState<ToolId>("pencil");
-
-  const colorRef = useRef(color);
-  useEffect(() => void (colorRef.current = color), [color]);
-  const toolRef = useRef<ToolId>(tool);
-  useEffect(() => void (toolRef.current = tool), [tool]);
-
-  const marqueeStartRef = useRef<VoxelCoord | null>(null);
-  const marqueePreviewRef = useRef<THREE.Mesh | null>(null);
-  const hoverPlaneRef = useRef<THREE.Mesh | null>(null);
-
-  const raycaster = useMemo(() => new THREE.Raycaster(), []);
-  const mouseNDC = useMemo(() => new THREE.Vector2(), []);
-  const pendingHoverRaycastRef = useRef(false);
-
-  const focusWorldRef = useRef<VoxelWorld | null>(null);
-  const controlsRef = useRef<OrbitControls | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const warmedRef = useRef(false);
-
-  const solidifyFocusRef = useRef<(() => void) | null>(null);
-
-  const initialCoordSetRef = useRef<Set<string>>(new Set());
-  const [hasStructuralChanges, setHasStructuralChanges] = useState(false);
 
   const [sourceAssetMeta, setSourceAssetMeta] = useState<AssetMetaRecord | null>(null);
   const [effectiveAssetMeta, setEffectiveAssetMeta] = useState<AssetMetaRecord | null>(null);
@@ -202,10 +170,58 @@ export default function VoxelPartEditor(props: {
   const [isSavingAsset, setIsSavingAsset] = useState(false);
   const [isSnapshotting, setIsSnapshotting] = useState(false);
 
+  const [hasStructuralChanges, setHasStructuralChanges] = useState(false);
+
+  // derived editor refs
+
+  const colorRef = useRef(color);
+  const toolRef = useRef<ToolId>(tool);
   const openRef = useRef(open);
-  useEffect(() => void (openRef.current = open), [open]);
+
+  // three refs
+
+  const mountRef = useRef<HTMLDivElement | null>(null);
+
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+
+  const raycaster = useMemo(() => new THREE.Raycaster(), []);
+  const mouseNDC = useMemo(() => new THREE.Vector2(), []);
+
+  const pendingHoverRaycastRef = useRef(false);
 
   const rafRef = useRef<number | null>(null);
+
+  // focus editing refs
+
+  const focusWorldRef = useRef<VoxelWorld | null>(null);
+
+  const hoverPlaneRef = useRef<THREE.Mesh | null>(null);
+
+  const marqueePreviewRef = useRef<THREE.Mesh | null>(null);
+  const marqueeStartRef = useRef<VoxelCoord | null>(null);
+  const initialCoordSetRef = useRef<Set<string>>(new Set());
+
+  // media refs
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const warmedRef = useRef(false);
+
+  // dev refs
+
+  const solidifyFocusRef = useRef<(() => void) | null>(null);
+
+  // helpers
+
+  // ref sync helpers
+
+  useEffect(() => void (colorRef.current = color), [color]);
+  useEffect(() => void (toolRef.current = tool), [tool]);
+  useEffect(() => void (openRef.current = open), [open]);
+
+  // view helpers
 
   function hideHover() {
     if (hoverPlaneRef.current) hoverPlaneRef.current.visible = false;
@@ -235,6 +251,8 @@ export default function VoxelPartEditor(props: {
     m.visible = true;
   }
 
+  // voxel edit helpers
+
   function getPlacementCoord(hit: { coord: VoxelCoord; normal: VoxelCoord }, w: VoxelWorld): VoxelCoord | null {
     const rec = w.get(hit.coord);
 
@@ -244,73 +262,6 @@ export default function VoxelPartEditor(props: {
     if (n.x === 0 && n.y === 0 && n.z === 0) return null;
 
     return add(hit.coord, n);
-  }
-
-  function updateHoverFace() {
-    const hp = hoverPlaneRef.current;
-    const w = focusWorldRef.current;
-    if (!hp || !w) return;
-
-    const hit = raycastVoxelGrid(w, raycaster.ray, 2000, 4096);
-
-    if (!hit || (hit.normal.x === 0 && hit.normal.y === 0 && hit.normal.z === 0)) {
-      hideHover();
-      if (toolRef.current === "marquee") hideMarqueePreview();
-      return;
-    }
-
-    const n = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z).normalize();
-    hp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
-
-    hp.position.set(hit.coord.x + 0.5, hit.coord.y + 0.5, hit.coord.z + 0.5);
-    hp.position.addScaledVector(n, 0.501);
-    hp.visible = true;
-
-    if (toolRef.current === "marquee") {
-      const placeAt = getPlacementCoord(hit, w);
-      if (marqueeStartRef.current && placeAt) showMarqueePreview(marqueeStartRef.current, placeAt);
-      else if (!marqueeStartRef.current) hideMarqueePreview();
-    }
-  }
-
-  function stop() {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-  }
-
-  function getLoopCtx(): LoopCtx | null {
-    const renderer = rendererRef.current;
-    const scene = sceneRef.current;
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-
-    if (!renderer || !scene || !camera || !controls) return null;
-
-    return { renderer, scene, camera, controls };
-  }
-
-  function start() {
-    stop();
-
-    const ctx = getLoopCtx();
-    if (!ctx) return;
-
-    const tick = () => {
-      rafRef.current = requestAnimationFrame(tick);
-
-      ctx.controls.update();
-
-      if (pendingHoverRaycastRef.current) {
-        pendingHoverRaycastRef.current = false;
-        updateHoverFace();
-      }
-
-      ctx.renderer.render(ctx.scene, ctx.camera);
-    };
-
-    tick();
   }
 
   function keyOfCoord(c: VoxelCoord): string {
@@ -356,6 +307,79 @@ export default function VoxelPartEditor(props: {
     if (!world || !groupId) return;
     world.setGroupVoxelsLocal(groupId, snapshot?.voxels ?? [], { keepPosition: true });
   }
+
+  // render loop helpers
+
+  function getLoopCtx(): LoopCtx | null {
+    const renderer = rendererRef.current;
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+
+    if (!renderer || !scene || !camera || !controls) return null;
+
+    return { renderer, scene, camera, controls };
+  }
+
+  function start() {
+    stop();
+
+    const ctx = getLoopCtx();
+    if (!ctx) return;
+
+    const tick = () => {
+      rafRef.current = requestAnimationFrame(tick);
+
+      ctx.controls.update();
+
+      if (pendingHoverRaycastRef.current) {
+        pendingHoverRaycastRef.current = false;
+        updateHoverFace();
+      }
+
+      ctx.renderer.render(ctx.scene, ctx.camera);
+    };
+
+    tick();
+  }
+
+  function stop() {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }
+
+  // raycast helpers
+
+  function updateHoverFace() {
+    const hp = hoverPlaneRef.current;
+    const w = focusWorldRef.current;
+    if (!hp || !w) return;
+
+    const hit = raycastVoxelGrid(w, raycaster.ray, 2000, 4096);
+
+    if (!hit || (hit.normal.x === 0 && hit.normal.y === 0 && hit.normal.z === 0)) {
+      hideHover();
+      if (toolRef.current === "marquee") hideMarqueePreview();
+      return;
+    }
+
+    const n = new THREE.Vector3(hit.normal.x, hit.normal.y, hit.normal.z).normalize();
+    hp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+
+    hp.position.set(hit.coord.x + 0.5, hit.coord.y + 0.5, hit.coord.z + 0.5);
+    hp.position.addScaledVector(n, 0.501);
+    hp.visible = true;
+
+    if (toolRef.current === "marquee") {
+      const placeAt = getPlacementCoord(hit, w);
+      if (marqueeStartRef.current && placeAt) showMarqueePreview(marqueeStartRef.current, placeAt);
+      else if (!marqueeStartRef.current) hideMarqueePreview();
+    }
+  }
+
+  // thumbnail snapshot helpers
 
   async function captureCurrentViewSquarePng(size: number): Promise<Blob> {
     const renderer = rendererRef.current;
@@ -525,106 +549,46 @@ export default function VoxelPartEditor(props: {
     }
   }
 
-  const currentGroupSource =
-    world && groupId ? world.getGroupSource(groupId) : null;
+  // asset / save flows
 
-  const currentOverrideAssetId =
-    currentGroupSource?.overrideAssetId ?? overrideAssetId ?? null;
+  async function saveInstanceOnlyStructuralOverride(
+    snapshot: NonNullable<ReturnType<typeof getFocusedSnapshot>>
+  ) {
+    if (!world || !groupId) return;
 
-  const isEditingOverride =
-    !!currentOverrideAssetId;
+    const existingOverrideId = currentOverrideAssetId;
 
-  const effectiveAssetId =
-    currentOverrideAssetId ?? sourceAssetId ?? null;
+    let nextOverrideId: string;
 
-  const effectiveAssetKind =
-    currentGroupSource?.assetKind ?? sourceAssetKind ?? null;
-
-  const sourceAssetIsMutablePrivate =
-    !!sourceAssetMeta &&
-    sourceAssetMeta.visibility === "private" &&
-    !sourceAssetMeta.isImmutable;
-
-  const sourceAssetIsStructurallyOverwritable =
-    !!sourceAssetMeta &&
-    sourceAssetMeta.visibility === "private" &&
-    !sourceAssetMeta.linkedMarketplaceAssetId &&
-    !sourceAssetMeta.isImmutable;
-
-  const effectiveAssetIsMutablePrivate =
-    !!effectiveAssetMeta &&
-    effectiveAssetMeta.visibility === "private" &&
-    !effectiveAssetMeta.isImmutable;
-
-  const showRemixButton =
-    hasStructuralChanges && !!effectiveAssetMeta;
-
-  const showOverwriteButton =
-    hasStructuralChanges && sourceAssetIsStructurallyOverwritable;
-
-  const canonicalRemixBaseMeta =
-    sourceAssetMeta ?? effectiveAssetMeta ?? null;
-
-  const displayAssetName =
-    effectiveAssetMeta?.name ??
-    sourceAssetMeta?.name ??
-    (effectiveAssetId ? "Unknown Asset" : "Untitled Asset");
-
-  async function commitAndExit() {
-    play("whoosh");
-
-    const snapshot = getFocusedSnapshot();
-    commitSnapshotToWorldInstance(snapshot);
-
-    if (!snapshot) {
-      onExit();
-      return;
+    if (existingOverrideId) {
+      nextOverrideId = await assetRepository.overwritePrivateAssetContent({
+        assetId: existingOverrideId,
+        group: snapshot,
+      });
+    } else {
+      nextOverrideId = await assetRepository.saveAsset({
+        name: effectiveAssetMeta?.name
+          ? `${effectiveAssetMeta.name} Instance Override`
+          : sourceAssetMeta?.name
+            ? `${sourceAssetMeta.name} Instance Override`
+            : "Instance Override",
+        group: snapshot,
+        thumb: null,
+        visibility: "private",
+        inLibrary: false,
+        isImmutable: false,
+        sourceAssetId: sourceAssetMeta?.id ?? sourceAssetId ?? null,
+        linkedMarketplaceAssetId: null,
+        lineageAssetIds: effectiveAssetMeta?.lineageAssetIds
+          ?? sourceAssetMeta?.lineageAssetIds
+          ?? [],
+        forceNewId: true,
+      });
     }
 
-    const liveWorld = world;
-    if (!liveWorld) {
-      onExit();
-      return;
-    }
-
-    try {
-      setIsSavingAsset(true);
-
-      if (isEditingOverride) {
-        if (effectiveAssetMeta && effectiveAssetIsMutablePrivate) {
-          await assetRepository.overwritePrivateAssetContent({
-            assetId: effectiveAssetMeta.id,
-            group: snapshot,
-          });
-        }
-      } else {
-        if (!hasStructuralChanges) {
-          if (sourceAssetMeta && sourceAssetIsMutablePrivate) {
-            const sourceId = sourceAssetMeta.id;
-
-            await assetRepository.saveNonStructuralAssetProgress({
-              assetId: sourceId,
-              group: snapshot,
-            });
-
-            await liveWorld.refreshInstancesFromSourceAsset({
-              sourceAssetId: sourceId,
-              nextAssetId: sourceId,
-              nextAssetKind: "draft",
-              includeOverridden: false,
-            });
-          }
-        } else {
-          await saveInstanceOnlyStructuralOverride(snapshot);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSavingAsset(false);
-    }
-
-    onExit();
+    world.setGroupSource(groupId, {
+      overrideAssetId: nextOverrideId,
+    });
   }
 
   async function handleOverwriteAsset() {
@@ -708,59 +672,108 @@ export default function VoxelPartEditor(props: {
     }
   }
 
-  async function saveInstanceOnlyStructuralOverride(
-    snapshot: NonNullable<ReturnType<typeof getFocusedSnapshot>>
-  ) {
-    if (!world || !groupId) return;
+  async function commitAndExit() {
+    play("whoosh");
 
-    const existingOverrideId = currentOverrideAssetId;
+    const snapshot = getFocusedSnapshot();
+    commitSnapshotToWorldInstance(snapshot);
 
-    let nextOverrideId: string;
-
-    if (existingOverrideId) {
-      nextOverrideId = await assetRepository.overwritePrivateAssetContent({
-        assetId: existingOverrideId,
-        group: snapshot,
-      });
-    } else {
-      nextOverrideId = await assetRepository.saveAsset({
-        name: effectiveAssetMeta?.name
-          ? `${effectiveAssetMeta.name} Instance Override`
-          : sourceAssetMeta?.name
-            ? `${sourceAssetMeta.name} Instance Override`
-            : "Instance Override",
-        group: snapshot,
-        thumb: null,
-        visibility: "private",
-        inLibrary: false,
-        isImmutable: false,
-        sourceAssetId: sourceAssetMeta?.id ?? sourceAssetId ?? null,
-        linkedMarketplaceAssetId: null,
-        lineageAssetIds: effectiveAssetMeta?.lineageAssetIds
-          ?? sourceAssetMeta?.lineageAssetIds
-          ?? [],
-        forceNewId: true,
-      });
+    if (!snapshot) {
+      onExit();
+      return;
     }
 
-    world.setGroupSource(groupId, {
-      overrideAssetId: nextOverrideId,
-    });
+    const liveWorld = world;
+    if (!liveWorld) {
+      onExit();
+      return;
+    }
+
+    try {
+      setIsSavingAsset(true);
+
+      if (isEditingOverride) {
+        if (effectiveAssetMeta && effectiveAssetIsMutablePrivate) {
+          await assetRepository.overwritePrivateAssetContent({
+            assetId: effectiveAssetMeta.id,
+            group: snapshot,
+          });
+        }
+      } else {
+        if (!hasStructuralChanges) {
+          if (sourceAssetMeta && sourceAssetIsMutablePrivate) {
+            const sourceId = sourceAssetMeta.id;
+
+            await assetRepository.saveNonStructuralAssetProgress({
+              assetId: sourceId,
+              group: snapshot,
+            });
+
+            await liveWorld.refreshInstancesFromSourceAsset({
+              sourceAssetId: sourceId,
+              nextAssetId: sourceId,
+              nextAssetKind: "draft",
+              includeOverridden: false,
+            });
+          }
+        } else {
+          await saveInstanceOnlyStructuralOverride(snapshot);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingAsset(false);
+    }
+
+    onExit();
   }
 
-  useEffect(() => {
-    if (!open) return;
+  // derived booleans
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        commitAndExit();
-      }
-    };
+  const currentGroupSource =
+    world && groupId ? world.getGroupSource(groupId) : null;
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, groupId, world]);
+  const currentOverrideAssetId =
+    currentGroupSource?.overrideAssetId ?? overrideAssetId ?? null;
+
+  const isEditingOverride =
+    !!currentOverrideAssetId;
+
+  const effectiveAssetId =
+    currentOverrideAssetId ?? sourceAssetId ?? null;
+
+  const sourceAssetIsMutablePrivate =
+    !!sourceAssetMeta &&
+    sourceAssetMeta.visibility === "private" &&
+    !sourceAssetMeta.isImmutable;
+
+  const sourceAssetIsStructurallyOverwritable =
+    !!sourceAssetMeta &&
+    sourceAssetMeta.visibility === "private" &&
+    !sourceAssetMeta.linkedMarketplaceAssetId &&
+    !sourceAssetMeta.isImmutable;
+
+  const effectiveAssetIsMutablePrivate =
+    !!effectiveAssetMeta &&
+    effectiveAssetMeta.visibility === "private" &&
+    !effectiveAssetMeta.isImmutable;
+
+  const showRemixButton =
+    hasStructuralChanges && !!effectiveAssetMeta;
+
+  const showOverwriteButton =
+    hasStructuralChanges && sourceAssetIsStructurallyOverwritable;
+
+  const canonicalRemixBaseMeta =
+    sourceAssetMeta ?? effectiveAssetMeta ?? null;
+
+  const displayAssetName =
+    effectiveAssetMeta?.name ??
+    sourceAssetMeta?.name ??
+    (effectiveAssetId ? "Unknown Asset" : "Untitled Asset");
+
+  // keyboard interaction guards 
 
   useEffect(() => {
     if (!open) return;
@@ -800,8 +813,26 @@ export default function VoxelPartEditor(props: {
   }, [open]);
 
   useEffect(() => {
+    if (!open) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        commitAndExit();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, groupId, world]);
+
+  // main three js boot
+
+  useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+
+    // scene boot
 
     const scene = new THREE.Scene();
     sceneRef.current = scene;
@@ -829,6 +860,8 @@ export default function VoxelPartEditor(props: {
 
     const preventContextMenu = (e: Event) => e.preventDefault();
     renderer.domElement.addEventListener("contextmenu", preventContextMenu);
+
+    // lighting
 
     scene.add(new THREE.AmbientLight(0xffffff, 2.2));
     const dir = new THREE.DirectionalLight(0xffffff, 3.5);
@@ -860,16 +893,22 @@ export default function VoxelPartEditor(props: {
       (err) => console.error("Failed to load HDRI", err)
     );
 
+    // controls 
+
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.target.set(0, 0, 0);
     controls.update();
     controlsRef.current = controls;
 
+    // focused world boot
+
     const fw = new VoxelWorld(scene);
     focusWorldRef.current = fw;
 
     fw.addGroup(FOCUS_GROUP_ID, { x: 0, y: 0, z: 0 });
+
+    // dev helpers 
 
     solidifyFocusRef.current = () => {
       const fw2 = focusWorldRef.current;
@@ -886,6 +925,8 @@ export default function VoxelPartEditor(props: {
 
     (window as any).voxSolidFocus = () => solidifyFocusRef.current?.();
     console.log("[dev] window.voxSolidFocus() ready");
+
+    // hover + marquee preview meshes
 
     const hoverMat = new THREE.MeshBasicMaterial({
       color: new THREE.Color("#7dd3fc"),
@@ -927,6 +968,8 @@ export default function VoxelPartEditor(props: {
     scene.add(previewMesh);
     marqueePreviewRef.current = previewMesh;
 
+    // pointer math helpers
+
     function setMouseFromEvent(e: PointerEvent) {
       const rect = renderer.domElement.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -938,6 +981,8 @@ export default function VoxelPartEditor(props: {
       setMouseFromEvent(e);
       raycaster.setFromCamera(mouseNDC, camera);
     }
+
+    // edit helpers
 
     function fillBox(a: VoxelCoord, b: VoxelCoord, w: VoxelWorld, color: string) {
       const minX = Math.min(a.x, b.x);
@@ -964,6 +1009,8 @@ export default function VoxelPartEditor(props: {
       }
     }
 
+    // pointer handlers
+
     function onPointerMove(e: PointerEvent) {
       if (!openRef.current) return;
       updateRayFromMouse(e);
@@ -973,6 +1020,8 @@ export default function VoxelPartEditor(props: {
     function onPointerLeave() {
       hideHover();
     }
+
+    // pointer tool handlers
 
     function onPointerDown(e: PointerEvent) {
       if (!openRef.current) return;
@@ -1084,6 +1133,8 @@ export default function VoxelPartEditor(props: {
     renderer.domElement.addEventListener("pointerleave", onPointerLeave);
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
 
+    // resize handler
+
     const onResize = () => {
       const m = mountRef.current;
       const cam = cameraRef.current;
@@ -1099,6 +1150,8 @@ export default function VoxelPartEditor(props: {
       pendingHoverRaycastRef.current = true;
     };
     window.addEventListener("resize", onResize);
+
+    // cleanup
 
     return () => {
       window.removeEventListener("resize", onResize);
@@ -1142,6 +1195,8 @@ export default function VoxelPartEditor(props: {
       renderer.dispose();
     };
   }, []);
+
+  // focus group session sync
 
   useEffect(() => {
     if (!open) return;
@@ -1208,6 +1263,8 @@ export default function VoxelPartEditor(props: {
     pendingHoverRaycastRef.current = true;
   }, [open, groupId, world]);
 
+  // asset metadata sync
+
   useEffect(() => {
     let cancelled = false;
 
@@ -1242,6 +1299,8 @@ export default function VoxelPartEditor(props: {
     };
   }, [open, sourceAssetId, effectiveAssetId]);
 
+  // loop lifecycle 
+
   useEffect(() => {
     if (!open) {
       stop();
@@ -1250,6 +1309,8 @@ export default function VoxelPartEditor(props: {
     start();
     return () => stop();
   }, [open]);
+
+  // video lifecycle
 
   useEffect(() => {
     const v = videoRef.current;
@@ -1278,8 +1339,6 @@ export default function VoxelPartEditor(props: {
       v.pause();
     }
   }, [open]);
-
-  const hints = getToolHints(tool);
 
   return (
     <div
@@ -1495,9 +1554,6 @@ export default function VoxelPartEditor(props: {
           zIndex: 2,
         }}
       >
-        {/* <div>{hints.shortcut}</div>
-        <div>{hints.left}</div>
-        <div>{hints.right}</div> */}
       </div>
     </div>
   );

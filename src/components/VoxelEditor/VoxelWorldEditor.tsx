@@ -712,7 +712,7 @@ export default function VoxelWorldEditor(props: {
     }
   }
 
-  //ui toggles
+  // ui toggles
 
   function toggleAssets() {
     click();
@@ -729,9 +729,13 @@ export default function VoxelWorldEditor(props: {
     setMarketplaceOpen((v) => !v);
   }
 
+  // ui selection
+
   useEffect(() => {
     pendingGroupBoxesSyncRef.current = true;
   }, [selectedGroupId, hoveredGroupId, focusOpen]);
+
+  // transient interaction guards 
 
   useEffect(() => {
     if (!placingLabel) return;
@@ -800,6 +804,8 @@ export default function VoxelWorldEditor(props: {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [importModal]);
 
+  // autosave lifecycle
+
   useEffect(() => {
     const onVis = () => {
       if (document.visibilityState === "hidden") flushAutosave();
@@ -824,9 +830,12 @@ export default function VoxelWorldEditor(props: {
   }, []);
 
   // main three js boot
+
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+
+    // scene boot
 
     const scene = new THREE.Scene();
     sceneRef.current = scene;
@@ -909,6 +918,8 @@ export default function VoxelWorldEditor(props: {
       (err) => console.error("Failed to load HDRI /world/DayInTheClouds1K.hdr", err)
     );
 
+    // island load
+
     const dracoLoader = new DRACOLoader();
     dracoLoader.setDecoderPath("/draco/");
     dracoLoader.preload();
@@ -970,6 +981,8 @@ export default function VoxelWorldEditor(props: {
       }
     );
 
+    // world boot
+
     const world = new VoxelWorld(scene, { blueprintOpacity: 0.4 });
     worldRef.current = world;
     props.onWorldReady?.(world);
@@ -1029,6 +1042,8 @@ export default function VoxelWorldEditor(props: {
       setIslandName("My Voxbox");
       setPrimaryWorldId(newId);
     })();
+
+    // pointer handlers
 
     pendingGroupBoxesSyncRef.current = true;
 
@@ -1254,6 +1269,8 @@ export default function VoxelWorldEditor(props: {
     renderer.domElement.addEventListener("pointerleave", onPointerLeave);
     window.addEventListener("pointerup", onPointerUp);
 
+    // resize / raf
+
     const onResize = () => {
       const w = mount.clientWidth;
       const h = mount.clientHeight;
@@ -1282,6 +1299,8 @@ export default function VoxelWorldEditor(props: {
       renderer.render(scene, camera);
     };
     tick();
+
+    // cleanup
 
     return () => {
       cancelAnimationFrame(raf);

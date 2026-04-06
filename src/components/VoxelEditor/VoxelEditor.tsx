@@ -61,7 +61,7 @@ export default function VoxelEditor(props: {
 
   const [worldReady, setWorldReady] = useState(false);
   const audioReady = audio.ready;
-const audioProgress = audio.progress;
+  const audioProgress = audio.progress;
   const fullyReady = worldReady && audioReady;
   const progress =
     (worldReady ? 0.5 : 0) +
