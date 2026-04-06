@@ -1,29 +1,48 @@
 "use client";
 
-//test
 import React, { useEffect, useMemo, useRef, useState } from "react";
+
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader, RGBELoader } from "three/examples/jsm/Addons.js";
+
+import { useAuthState } from "@/components/Auth/state";
+import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
+import { publishWorld } from "@/services/publishedWorlds";
 
 import { applyHeightMistToStandardMaterial } from "@/materials/heightMist";
 
 import { VoxelWorld } from "./VoxelWorld";
 import type { GroupState } from "./VoxelWorld";
 import type { VoxelCoord } from "./Types";
+import { assetRepository, worldRepository } from "./repositories";
+import { parseVox } from "./vox/voxImport";
+
 import LibraryPanel from "./ui/LibraryPanel";
 import AdminAssetsPanel from "./ui/AdminAssetsPanel";
 import AssetsPanel from "./ui/AssetsPanel";
 import GlyphsPanel, { type GlyphRecord } from "./ui/GlyphsPanel";
 import MarketplacePanel from "./ui/MarketplacePanel";
-import { parseVox } from "./vox/voxImport";
 import WorldToolPalette, { type WorldToolId } from "./ui/WorldToolPalette";
-import { useSound } from "@/components/VoxelEditor/audio/SoundProvider";
-import { assetRepository, worldRepository } from "./repositories";
 
-import { useAuthState } from "@/components/Auth/state";
-import { publishWorld } from "@/services/publishedWorlds";
+type PendingImport = {
+  fileName: string;
+  groups: {
+    groupId: string;
+    position: VoxelCoord;
+    voxels: { x: number; y: number; z: number; color: string }[];
+  }[];
+};
+
+type PendingPlacement = {
+  metaId: string;
+  metaName: string;
+  metaKind: "draft" | "marketplace";
+  group: GroupState;
+};
+
+//helpers
 
 function recenterCameraOnBounds(params: {
   minX: number;
@@ -47,18 +66,6 @@ function recenterCameraOnBounds(params: {
   camera.lookAt(controls.target);
 }
 
-type PendingImport = {
-  fileName: string;
-  groups: {
-    groupId: string;
-    position: VoxelCoord;
-    voxels: { x: number; y: number; z: number; color: string }[];
-  }[];
-};
-
-const PRIMARY_WORLD_ID_KEY = "voxbox:primaryWorldId";
-const ADMIN = false;
-
 function getPrimaryWorldId(): string | null {
   try { return localStorage.getItem(PRIMARY_WORLD_ID_KEY); } catch { return null; }
 }
@@ -67,6 +74,11 @@ function setPrimaryWorldId(id: string) {
   try { localStorage.setItem(PRIMARY_WORLD_ID_KEY, id); } catch {}
 }
 
+//file scope consts
+
+const PRIMARY_WORLD_ID_KEY = "voxbox:primaryWorldId";
+const ADMIN = false;
+
 export default function VoxelWorldEditor(props: {
   initialWorldId?: string | null;
   onFocusGroup: (groupId: string) => void;
@@ -74,86 +86,81 @@ export default function VoxelWorldEditor(props: {
   onWorldReady?: (world: VoxelWorld | null) => void;
   onRequestAutosaveRef?: (fn: (opts?: { immediate?: boolean; reason?: string }) => void) => void;
 }) {
+
   const { initialWorldId = null, onFocusGroup, focusOpen } = props;
 
+  // app / auth / sound
+  
   const { unlock, play, startLoopAt, setLoopVolume, getTime, startLoop, click } = useSound();
-
   const { me } = useAuthState();
   const [publishing, setPublishing] = useState(false);
-
+  
+  // three / rendering
+  
   const mountRef = useRef<HTMLDivElement | null>(null);
-
+  
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
   const mouseNDC = useMemo(() => new THREE.Vector2(), []);
-
-  const worldRef = useRef<VoxelWorld | null>(null);
-  const controlsRef = useRef<OrbitControls | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  
   const islandRootRef = useRef<THREE.Object3D | null>(null);
-
   const envMapRef = useRef<THREE.Texture | null>(null);
   const envRTRef = useRef<THREE.WebGLRenderTarget | null>(null);
-
+  
+  // world / session
+  
+  const worldRef = useRef<VoxelWorld | null>(null);
   const currentIslandIdRef = useRef<string | null>(null);
-
-  const [libraryOpen, setLibraryOpen] = useState(false);
+  
   const [islandName, setIslandName] = useState("My Voxbox");
   const [importModal, setImportModal] = useState<PendingImport | null>(null);
-
+  
+  // panel ui
+  
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [assetsOpen, setAssetsOpen] = useState(false);
   const [glyphsOpen, setGlyphsOpen] = useState(false);
-  const [placingLabel, setPlacingLabel] = useState<string | null>(null);
-  const placingAssetRef = useRef<{
-    metaId: string;
-    metaName: string;
-    metaKind: "draft" | "marketplace";
-    group: GroupState;
-  } | null>(null);
-
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
-
+  
+  // placement
+  
+  const [placingLabel, setPlacingLabel] = useState<string | null>(null);
+  const placingAssetRef = useRef<PendingPlacement | null>(null);
+  
+  // selection / hover / helpers
+  
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
-
+  
   const selectedGroupIdLiveRef = useRef<string | null>(null);
   const hoveredGroupIdLiveRef = useRef<string | null>(null);
-
+  
   const selectedBoxRef = useRef<THREE.Box3Helper | null>(null);
   const hoverBoxRef = useRef<THREE.Box3Helper | null>(null);
   const pendingGroupBoxesSyncRef = useRef(false);
-
+  
+  // autosave
+  
+  const AUTOSAVE_DEBOUNCE_MS = 1800;
+  const AUTOSAVE_MAX_INTERVAL_MS = 25000;
+  
   const dirtyRef = useRef(false);
   const autosaveTimerRef = useRef<number | null>(null);
   const lastSaveAtRef = useRef<number>(0);
   const autosaveInFlightRef = useRef(false);
   const autosaveQueuedRef = useRef(false);
-
-  const AUTOSAVE_DEBOUNCE_MS = 1800;
-  const AUTOSAVE_MAX_INTERVAL_MS = 25000;
-
-  const showUI = !focusOpen;
-  const focusCtaVisible = showUI && !!selectedGroupId;
-
+  
+  // editor tools / interaction
+  
   const [worldTool, setWorldTool] = useState<WorldToolId>("planemovement");
   const worldToolRef = useRef<WorldToolId>("planemovement");
-
-
-  useEffect(() => {
-    selectedGroupIdLiveRef.current = selectedGroupId;
-  }, [selectedGroupId]);
-
-  useEffect(() => {
-    hoveredGroupIdLiveRef.current = hoveredGroupId;
-  }, [hoveredGroupId]);
-
-  const focusOpenRef = useRef(focusOpen);
-
-  useEffect(() => {
-    focusOpenRef.current = focusOpen;
-  }, [focusOpen]);
-
+  
+  // drag state
+  
   const dragRef = useRef<{
     active: boolean;
     pointerId: number;
@@ -165,11 +172,39 @@ export default function VoxelWorldEditor(props: {
     startClientY?: number;
     unitsPerPixelY?: number;
   } | null>(null);
+  
+  // derived ui flags
+  
+  const showUI = !focusOpen;
+  const focusCtaVisible = showUI && !!selectedGroupId;
+  const focusOpenRef = useRef(focusOpen);
+
+  // ref sync effects
+
+  useEffect(() => {
+    selectedGroupIdLiveRef.current = selectedGroupId;
+  }, [selectedGroupId]);
+
+  useEffect(() => {
+    hoveredGroupIdLiveRef.current = hoveredGroupId;
+  }, [hoveredGroupId]);
+
+  useEffect(() => {
+    focusOpenRef.current = focusOpen;
+  }, [focusOpen]);
+
+  useEffect(() => {
+    worldToolRef.current = worldTool;
+  }, [worldTool]);
+
+  // editor control helpers
 
   function setOrbitalControlsEnabled(enabled: boolean) {
     const c = controlsRef.current;
     if (c) c.enabled = enabled;
   }
+
+  // helper box utilities
 
   function clearHelper(ref: React.MutableRefObject<THREE.Box3Helper | null>) {
     const scene = sceneRef.current;
@@ -230,6 +265,8 @@ export default function VoxelWorldEditor(props: {
     }
   }
 
+  //pointer helpers
+
   function setMouseFromEvent(e: PointerEvent) {
     const renderer = rendererRef.current;
     if (!renderer) return;
@@ -288,6 +325,64 @@ export default function VoxelWorldEditor(props: {
     return Number.isFinite(d) && d > 0 ? d : 0.02;
   }
 
+  // camera helpers
+
+  function normalizeGroupToOrigin(g: GroupState): GroupState {
+    if (!g.voxels.length) return { ...g, position: { x: 0, y: 0, z: 0 } };
+
+    let minX = Infinity,
+      minY = Infinity,
+      minZ = Infinity;
+    for (const v of g.voxels) {
+      minX = Math.min(minX, v.local.x);
+      minY = Math.min(minY, v.local.y);
+      minZ = Math.min(minZ, v.local.z);
+    }
+
+    const voxels = g.voxels.map((v) => ({
+      ...v,
+      local: { x: v.local.x - minX, y: v.local.y - minY, z: v.local.z - minZ },
+    }));
+
+    return { groupId: g.groupId, position: { x: 0, y: 0, z: 0 }, voxels };
+  }
+
+  async function captureSquareThumbnailFromCurrentCamera(): Promise<Blob | null> {
+    const renderer = rendererRef.current;
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+
+    if (!renderer || !scene || !camera) return null;
+
+    controls?.update();
+    camera.updateMatrixWorld(true);
+    renderer.render(scene, camera);
+
+    const srcCanvas = renderer.domElement as HTMLCanvasElement;
+    const srcW = srcCanvas.width;
+    const srcH = srcCanvas.height;
+    const side = Math.min(srcW, srcH);
+    const sx = Math.floor((srcW - side) / 2);
+    const sy = Math.floor((srcH - side) / 2);
+
+    const THUMB = 256;
+    const out = document.createElement("canvas");
+    out.width = THUMB;
+    out.height = THUMB;
+
+    const ctx = out.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(srcCanvas, sx, sy, side, side, 0, 0, THUMB, THUMB);
+
+    const blob = await new Promise<Blob | null>((resolve) => out.toBlob((b) => resolve(b), "image/png"));
+    return blob;
+  }
+
+  // world level actions
+
   async function onNew() {
     const w = worldRef.current;
     if (!w) return;
@@ -321,6 +416,183 @@ export default function VoxelWorldEditor(props: {
     setPrimaryWorldId(id);
   
     pendingGroupBoxesSyncRef.current = true;
+  }
+
+  async function onOpenFromLibrary(id: string) {
+    const world = worldRef.current;
+    if (!world) return;
+  
+    const loaded = await worldRepository.loadWorld(id);
+    if (!loaded) return;
+  
+    currentIslandIdRef.current = loaded.meta.id;
+    setIslandName(loaded.meta.name);
+  
+    await world.importWorldData(loaded.data);
+  
+    setSelectedGroupId(null);
+    setHoveredGroupId(null);
+    hoveredGroupIdLiveRef.current = null;
+    pendingGroupBoxesSyncRef.current = true;
+  
+    const bounds = world.getAllGroupBounds();
+    if (bounds.size > 0) {
+      let minX = Infinity, minY = Infinity, minZ = Infinity;
+      let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  
+      for (const b of bounds.values()) {
+        minX = Math.min(minX, b.min.x);
+        minY = Math.min(minY, b.min.y);
+        minZ = Math.min(minZ, b.min.z);
+        maxX = Math.max(maxX, b.max.x);
+        maxY = Math.max(maxY, b.max.y);
+        maxZ = Math.max(maxZ, b.max.z);
+      }
+  
+      recenterCameraOnBounds({
+        minX,
+        minY,
+        minZ,
+        maxX,
+        maxY,
+        maxZ,
+        controls: controlsRef.current,
+        camera: cameraRef.current,
+      });
+    }
+  
+    setLibraryOpen(false);
+  }
+
+  async function onSaveToLibrary() {
+    await autosave({ withThumb: true });
+  }
+
+  async function onPublishWorld() {
+    const world = worldRef.current;
+    if (!world) return;
+    if (!me?.user_id) {
+      alert("You must be logged in to publish.");
+      return;
+    }
+
+    const snapshot = await world.getPublishedWorldSnapshot();
+    if (!snapshot.groups.length) {
+      alert("World is empty.");
+      return;
+    }
+
+    try {
+      setPublishing(true);
+
+      await publishWorld({
+        publisherUserId: me.user_id,
+        worldName: islandName.trim() || "Untitled World",
+        voxelCount: snapshot.voxelCount,
+        latestMarketplaceAssetIds: snapshot.latestMarketplaceAssetIds,
+        groups: snapshot.groups,
+      });
+
+      alert("World published.");
+    } catch (err) {
+      console.error("Publish failed", err);
+      alert("Failed to publish world.");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  // asset level actions
+
+  async function saveLiveGroupAsPrivateAsset(params: {
+    groupId: string;
+    preferredName?: string;
+    withThumb?: boolean;
+  }): Promise<string | null> {
+    const w = worldRef.current;
+    if (!w) return null;
+  
+    const snap = w.getGroupSnapshot(params.groupId);
+    if (!snap) return null;
+  
+    const normalized = normalizeGroupToOrigin(snap);
+    const thumb = params.withThumb ? await captureSquareThumbnailFromCurrentCamera() : null;
+  
+    const assetId = await assetRepository.createPrivateAsset({
+      name: (params.preferredName?.trim() || snap.groupId || "Asset").trim(),
+      group: normalized,
+      thumb,
+    });
+  
+    w.setGroupSource(params.groupId, {
+      assetId,
+      assetKind: "draft",
+    });
+  
+    return assetId;
+  }
+
+  async function onSaveSelectedAsAsset(name: string) {
+    const w = worldRef.current;
+    const gid = selectedGroupIdLiveRef.current ?? selectedGroupId;
+    if (!w || !gid) return;
+  
+    const assetId = await saveLiveGroupAsPrivateAsset({
+      groupId: gid,
+      preferredName: name,
+      withThumb: true,
+    });
+  
+    if (!assetId) return;
+  
+    requestAutosave({ immediate: true, reason: "save-selected-as-asset" });
+    setAssetsOpen(true);
+  }
+
+  async function beginPlaceAsset(assetId: string) {
+    const loaded = await assetRepository.loadAsset(assetId);
+    if (!loaded) return;
+  
+    placingAssetRef.current = {
+      metaId: loaded.meta.id,
+      metaName: loaded.meta.name,
+      metaKind: loaded.meta.visibility === "marketplace" ? "marketplace" : "draft",
+      group: loaded.group,
+    };
+  
+    setPlacingLabel(loaded.meta.name);
+    setAssetsOpen(false);
+  }
+
+  function cancelPlaceAsset() {
+    placingAssetRef.current = null;
+    setPlacingLabel(null);
+  }
+
+  function applyGlyphToSelectedGroup(glyph: GlyphRecord) {
+    const w = worldRef.current;
+    const gid = selectedGroupIdLiveRef.current ?? selectedGroupId;
+    if (!w || !gid) return;
+  
+    const ok = w.setGroupLogicTag?.(gid, glyph.logicTag);
+    if (!ok) return;
+  
+    play("placeVoxel");
+    requestAutosave({ immediate: true, reason: `set-logic-tag:${glyph.logicTag}` });
+    setGlyphsOpen(false);
+  }
+
+  // import vox file flow
+
+  async function onImportVoxFile(file: File) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const groups = parseVox(buffer);
+      setImportModal({ fileName: file.name, groups });
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Failed to import .vox");
+    }
   }
 
   async function applyImport(opts: { asBlueprint: boolean }) {
@@ -366,98 +638,7 @@ export default function VoxelWorldEditor(props: {
     requestAutosave({ immediate: true, reason: "import-vox" });
   }
 
-  async function onImportVoxFile(file: File) {
-    try {
-      const buffer = await file.arrayBuffer();
-      const groups = parseVox(buffer);
-      setImportModal({ fileName: file.name, groups });
-    } catch (err) {
-      console.error(err);
-      alert(err instanceof Error ? err.message : "Failed to import .vox");
-    }
-  }
-
-  async function captureSquareThumbnailFromCurrentCamera(): Promise<Blob | null> {
-    const renderer = rendererRef.current;
-    const scene = sceneRef.current;
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-
-    if (!renderer || !scene || !camera) return null;
-
-    controls?.update();
-    camera.updateMatrixWorld(true);
-    renderer.render(scene, camera);
-
-    const srcCanvas = renderer.domElement as HTMLCanvasElement;
-    const srcW = srcCanvas.width;
-    const srcH = srcCanvas.height;
-    const side = Math.min(srcW, srcH);
-    const sx = Math.floor((srcW - side) / 2);
-    const sy = Math.floor((srcH - side) / 2);
-
-    const THUMB = 256;
-    const out = document.createElement("canvas");
-    out.width = THUMB;
-    out.height = THUMB;
-
-    const ctx = out.getContext("2d");
-    if (!ctx) return null;
-
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(srcCanvas, sx, sy, side, side, 0, 0, THUMB, THUMB);
-
-    const blob = await new Promise<Blob | null>((resolve) => out.toBlob((b) => resolve(b), "image/png"));
-    return blob;
-  }
-
-  function normalizeGroupToOrigin(g: GroupState): GroupState {
-    if (!g.voxels.length) return { ...g, position: { x: 0, y: 0, z: 0 } };
-
-    let minX = Infinity,
-      minY = Infinity,
-      minZ = Infinity;
-    for (const v of g.voxels) {
-      minX = Math.min(minX, v.local.x);
-      minY = Math.min(minY, v.local.y);
-      minZ = Math.min(minZ, v.local.z);
-    }
-
-    const voxels = g.voxels.map((v) => ({
-      ...v,
-      local: { x: v.local.x - minX, y: v.local.y - minY, z: v.local.z - minZ },
-    }));
-
-    return { groupId: g.groupId, position: { x: 0, y: 0, z: 0 }, voxels };
-  }
-
-  async function saveLiveGroupAsPrivateAsset(params: {
-    groupId: string;
-    preferredName?: string;
-    withThumb?: boolean;
-  }): Promise<string | null> {
-    const w = worldRef.current;
-    if (!w) return null;
-  
-    const snap = w.getGroupSnapshot(params.groupId);
-    if (!snap) return null;
-  
-    const normalized = normalizeGroupToOrigin(snap);
-    const thumb = params.withThumb ? await captureSquareThumbnailFromCurrentCamera() : null;
-  
-    const assetId = await assetRepository.createPrivateAsset({
-      name: (params.preferredName?.trim() || snap.groupId || "Asset").trim(),
-      group: normalized,
-      thumb,
-    });
-  
-    w.setGroupSource(params.groupId, {
-      assetId,
-      assetKind: "draft",
-    });
-  
-    return assetId;
-  }
+  // autosave pipeline
 
   async function autosave(opts?: { withThumb?: boolean }) {
     const world = worldRef.current;
@@ -531,139 +712,7 @@ export default function VoxelWorldEditor(props: {
     }
   }
 
-  async function onSaveToLibrary() {
-    await autosave({ withThumb: true });
-  }
-
-  async function onPublishWorld() {
-    const world = worldRef.current;
-    if (!world) return;
-    if (!me?.user_id) {
-      alert("You must be logged in to publish.");
-      return;
-    }
-
-    const snapshot = await world.getPublishedWorldSnapshot();
-    if (!snapshot.groups.length) {
-      alert("World is empty.");
-      return;
-    }
-
-    try {
-      setPublishing(true);
-
-      await publishWorld({
-        publisherUserId: me.user_id,
-        worldName: islandName.trim() || "Untitled World",
-        voxelCount: snapshot.voxelCount,
-        latestMarketplaceAssetIds: snapshot.latestMarketplaceAssetIds,
-        groups: snapshot.groups,
-      });
-
-      alert("World published.");
-    } catch (err) {
-      console.error("Publish failed", err);
-      alert("Failed to publish world.");
-    } finally {
-      setPublishing(false);
-    }
-  }
-
-  async function onOpenFromLibrary(id: string) {
-    const world = worldRef.current;
-    if (!world) return;
-  
-    const loaded = await worldRepository.loadWorld(id);
-    if (!loaded) return;
-  
-    currentIslandIdRef.current = loaded.meta.id;
-    setIslandName(loaded.meta.name);
-  
-    await world.importWorldData(loaded.data);
-  
-    setSelectedGroupId(null);
-    setHoveredGroupId(null);
-    hoveredGroupIdLiveRef.current = null;
-    pendingGroupBoxesSyncRef.current = true;
-  
-    const bounds = world.getAllGroupBounds();
-    if (bounds.size > 0) {
-      let minX = Infinity, minY = Infinity, minZ = Infinity;
-      let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-  
-      for (const b of bounds.values()) {
-        minX = Math.min(minX, b.min.x);
-        minY = Math.min(minY, b.min.y);
-        minZ = Math.min(minZ, b.min.z);
-        maxX = Math.max(maxX, b.max.x);
-        maxY = Math.max(maxY, b.max.y);
-        maxZ = Math.max(maxZ, b.max.z);
-      }
-  
-      recenterCameraOnBounds({
-        minX,
-        minY,
-        minZ,
-        maxX,
-        maxY,
-        maxZ,
-        controls: controlsRef.current,
-        camera: cameraRef.current,
-      });
-    }
-  
-    setLibraryOpen(false);
-  }
-
-  async function onSaveSelectedAsAsset(name: string) {
-    const w = worldRef.current;
-    const gid = selectedGroupIdLiveRef.current ?? selectedGroupId;
-    if (!w || !gid) return;
-  
-    const assetId = await saveLiveGroupAsPrivateAsset({
-      groupId: gid,
-      preferredName: name,
-      withThumb: true,
-    });
-  
-    if (!assetId) return;
-  
-    requestAutosave({ immediate: true, reason: "save-selected-as-asset" });
-    setAssetsOpen(true);
-  }
-
-  async function beginPlaceAsset(assetId: string) {
-    const loaded = await assetRepository.loadAsset(assetId);
-    if (!loaded) return;
-  
-    placingAssetRef.current = {
-      metaId: loaded.meta.id,
-      metaName: loaded.meta.name,
-      metaKind: loaded.meta.visibility === "marketplace" ? "marketplace" : "draft",
-      group: loaded.group,
-    };
-  
-    setPlacingLabel(loaded.meta.name);
-    setAssetsOpen(false);
-  }
-
-  function cancelPlaceAsset() {
-    placingAssetRef.current = null;
-    setPlacingLabel(null);
-  }
-
-  function applyGlyphToSelectedGroup(glyph: GlyphRecord) {
-    const w = worldRef.current;
-    const gid = selectedGroupIdLiveRef.current ?? selectedGroupId;
-    if (!w || !gid) return;
-  
-    const ok = w.setGroupLogicTag?.(gid, glyph.logicTag);
-    if (!ok) return;
-  
-    play("placeVoxel");
-    requestAutosave({ immediate: true, reason: `set-logic-tag:${glyph.logicTag}` });
-    setGlyphsOpen(false);
-  }
+  //ui toggles
 
   function toggleAssets() {
     click();
@@ -773,10 +822,6 @@ export default function VoxelWorldEditor(props: {
     props.onRequestAutosaveRef?.(requestAutosave);
     return () => props.onRequestAutosaveRef?.(() => {});
   }, []);
-
-  useEffect(() => {
-    worldToolRef.current = worldTool;
-  }, [worldTool]);
 
   // main three js boot
   useEffect(() => {
@@ -1570,23 +1615,23 @@ export default function VoxelWorldEditor(props: {
               }}
             />
 
-<img
-  className="pix-icon"
-  src="/icons/glyphs.png"
-  alt="Glyphs"
-  onClick={toggleGlyphs}
-  style={{
-    height: "10vh",
-    width: "auto",
-    objectFit: "contain",
-    imageRendering: "pixelated",
-    cursor: "pointer",
-    pointerEvents: "auto",
-    flex: "0 0 auto",
-    opacity: glyphsOpen ? 1 : 0.7,
-    transition: "opacity 120ms ease-out",
-  }}
-/>
+            <img
+              className="pix-icon"
+              src="/icons/glyphs.png"
+              alt="Glyphs"
+              onClick={toggleGlyphs}
+              style={{
+                height: "10vh",
+                width: "auto",
+                objectFit: "contain",
+                imageRendering: "pixelated",
+                cursor: "pointer",
+                pointerEvents: "auto",
+                flex: "0 0 auto",
+                opacity: glyphsOpen ? 1 : 0.7,
+                transition: "opacity 120ms ease-out",
+              }}
+            />
 
             <div
               className="pix-icon"
