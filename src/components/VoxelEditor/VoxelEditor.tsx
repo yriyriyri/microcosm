@@ -1,19 +1,27 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import VoxelWorldEditor from "./VoxelWorldEditor";
-import VoxelPartEditor from "./VoxelPartEditor";
-import type { VoxelWorld, AssetKind } from "./VoxelWorld";
+
 import { useSound, useSoundLoading } from "@/components/VoxelEditor/audio/SoundProvider";
 import LoadingOverlay from "./ui/LoadingOverlay";
 
+import VoxelWorldEditor from "./VoxelWorldEditor";
+import VoxelPartEditor from "./VoxelPartEditor";
+import type { VoxelWorld, AssetKind } from "./VoxelWorld";
+
+// part editor toggle fade
+
 const FADE_MS = 120;
+
+// editor ambiance
 
 const AMBIENCE_WORLD_VOL = 0.7;
 const AMBIENCE_FOCUS_VOL = 0.4;
 const AMBIENCE_GRASS_VOL = 0.5;
 const AMBIENCE_WIND_VOL = 1;
 const AMBIENCE_FADE_MS = 220;
+
+// focused source context
 
 type FocusedSourceContext = {
   assetId: string | null;
@@ -32,29 +40,39 @@ export default function VoxelEditor(props: {
 }) {
   const { initialWorldId = null } = props;
 
+  // audio 
   const { unlock, play, startLoopAt, setLoopVolume, getTime, startLoop } = useSound();
+  const audio = useSoundLoading();
+
+  // focus session state
 
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusedGroupId, setFocusedGroupId] = useState<string | null>(null);
+
+  // cross editor refs
 
   const requestAutosaveRef = useRef<
     ((opts?: { immediate?: boolean; reason?: string }) => void) | null
   >(null);
   const worldRef = useRef<VoxelWorld | null>(null);
-
   const exitTimeoutRef = useRef<number | null>(null);
 
-  const [worldReady, setWorldReady] = useState(false);
-  const audio = useSoundLoading();
-  const [audioReady, audioProgress] = [audio.ready, audio.progress];
-  const fullyReady = worldReady && audioReady;
+  // loading
 
+  const [worldReady, setWorldReady] = useState(false);
+  const audioReady = audio.ready;
+const audioProgress = audio.progress;
+  const fullyReady = worldReady && audioReady;
   const progress =
     (worldReady ? 0.5 : 0) +
     (audioReady ? 0.5 : 0.5 * Math.max(0, Math.min(1, audioProgress)));
 
+  // focused source state
+
   const [focusedSource, setFocusedSource] =
     useState<FocusedSourceContext>(EMPTY_FOCUSED_SOURCE);
+
+  // intro audio boot
 
   const introPlayedRef = useRef(false);
   useEffect(() => {
@@ -71,6 +89,8 @@ export default function VoxelEditor(props: {
 
     void run();
   }, [audioReady, play, unlock]);
+
+  // ambiance audio boot
 
   const ambienceStartedRef = useRef(false);
   useEffect(() => {
@@ -94,10 +114,14 @@ export default function VoxelEditor(props: {
     void startAmbience();
   }, [audioReady, unlock, startLoopAt, getTime, startLoop]);
 
+  // focus audio toggle
+
   useEffect(() => {
     if (!audioReady) return;
     setLoopVolume("amb:focus", focusOpen ? AMBIENCE_FOCUS_VOL : 0.0, AMBIENCE_FADE_MS);
   }, [audioReady, focusOpen, setLoopVolume]);
+
+  // timeout cleanup
 
   useEffect(() => {
     return () => {
@@ -107,6 +131,8 @@ export default function VoxelEditor(props: {
       }
     };
   }, []);
+
+  // callbacks
 
   const onFocusGroup = useCallback((groupId: string) => {
     if (exitTimeoutRef.current != null) {
