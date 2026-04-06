@@ -824,7 +824,7 @@ export default function VoxelPartEditor(props: {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, groupId, world]);
+  }, [open, groupId, world, commitAndExit]);
 
   // main three js boot
 
