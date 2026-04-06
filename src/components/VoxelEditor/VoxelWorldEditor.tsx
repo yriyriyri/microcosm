@@ -15,6 +15,7 @@ import type { VoxelCoord } from "./Types";
 import LibraryPanel from "./ui/LibraryPanel";
 import AdminAssetsPanel from "./ui/AdminAssetsPanel";
 import AssetsPanel from "./ui/AssetsPanel";
+import GlyphsPanel, { type GlyphRecord } from "./ui/GlyphsPanel";
 import MarketplacePanel from "./ui/MarketplacePanel";
 import { parseVox } from "./vox/voxImport";
 import WorldToolPalette, { type WorldToolId } from "./ui/WorldToolPalette";
@@ -102,6 +103,7 @@ export default function VoxelWorldEditor(props: {
   const [importModal, setImportModal] = useState<PendingImport | null>(null);
 
   const [assetsOpen, setAssetsOpen] = useState(false);
+  const [glyphsOpen, setGlyphsOpen] = useState(false);
   const [placingLabel, setPlacingLabel] = useState<string | null>(null);
   const placingAssetRef = useRef<{
     metaId: string;
@@ -650,9 +652,27 @@ export default function VoxelWorldEditor(props: {
     setPlacingLabel(null);
   }
 
+  function applyGlyphToSelectedGroup(glyph: GlyphRecord) {
+    const w = worldRef.current;
+    const gid = selectedGroupIdLiveRef.current ?? selectedGroupId;
+    if (!w || !gid) return;
+  
+    const ok = w.setGroupLogicTag?.(gid, glyph.logicTag);
+    if (!ok) return;
+  
+    play("placeVoxel");
+    requestAutosave({ immediate: true, reason: `set-logic-tag:${glyph.logicTag}` });
+    setGlyphsOpen(false);
+  }
+
   function toggleAssets() {
     click();
     setAssetsOpen((v) => !v);
+  }
+
+  function toggleGlyphs() {
+    click();
+    setGlyphsOpen((v) => !v);
   }
 
   function toggleMarketplace() {
@@ -1473,7 +1493,7 @@ export default function VoxelWorldEditor(props: {
             pointerEvents: "auto",
           }}
         >
-          {(assetsOpen || marketplaceOpen) && (
+          {(assetsOpen || glyphsOpen || marketplaceOpen) && (
             <div
               style={{
                 display: "flex",
@@ -1500,6 +1520,16 @@ export default function VoxelWorldEditor(props: {
                       onRequestPlace={beginPlaceAsset}
                     />
                   )}
+                </div>
+              )}
+
+              {glyphsOpen && (
+                <div style={{ pointerEvents: "auto" }}>
+                  <GlyphsPanel
+                    open={true}
+                    onClose={() => setGlyphsOpen(false)}
+                    onRequestApplyGlyph={applyGlyphToSelectedGroup}
+                  />
                 </div>
               )}
 
@@ -1539,6 +1569,24 @@ export default function VoxelWorldEditor(props: {
                 transition: "opacity 120ms ease-out",
               }}
             />
+
+<img
+  className="pix-icon"
+  src="/icons/glyphs.png"
+  alt="Glyphs"
+  onClick={toggleGlyphs}
+  style={{
+    height: "10vh",
+    width: "auto",
+    objectFit: "contain",
+    imageRendering: "pixelated",
+    cursor: "pointer",
+    pointerEvents: "auto",
+    flex: "0 0 auto",
+    opacity: glyphsOpen ? 1 : 0.7,
+    transition: "opacity 120ms ease-out",
+  }}
+/>
 
             <div
               className="pix-icon"
