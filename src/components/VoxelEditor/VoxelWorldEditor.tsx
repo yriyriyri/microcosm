@@ -357,7 +357,12 @@ export default function VoxelWorldEditor(props: {
   
     line.position.copy(sprite.position);
     line.quaternion.copy(camera.quaternion);
-    line.scale.set(sprite.scale.x * 1.08, sprite.scale.y * 1.08, 1);
+    const baseGlyphSize =
+      typeof sprite.userData?.baseGlyphSize === "number"
+        ? sprite.userData.baseGlyphSize
+        : sprite.scale.x;
+    
+    line.scale.set(baseGlyphSize, baseGlyphSize , 1);
     line.visible = true;
   }
 
@@ -784,18 +789,29 @@ export default function VoxelWorldEditor(props: {
       const maxSpan = Math.max(boxWidth, boxHeight, boxDepth);
       
       const baseSize = Math.max(1.25, Math.min(2.5, maxSpan * 0.22));
-      const size = baseSize * 3;
-      sprite.scale.set(size, size, 1);
+      const normalGlyphSize = baseSize * 3;
+      
+      const isAssetSelected = selectedGroupIdLiveRef.current === groupId;
+      const isGlyphSelected = selectedGlyphGroupIdLiveRef.current === groupId;
+      
+      const isVisible = glyphsOpenRef.current || isAssetSelected || isGlyphSelected;
+      const isHighlightedGlyph = isGlyphSelected;
+      
+      const glyphSize = isHighlightedGlyph ? normalGlyphSize * 1.1 : normalGlyphSize;
+      sprite.scale.set(glyphSize, glyphSize, 1);
+      
+      sprite.visible = isVisible;
+      
+      const material = sprite.material as THREE.SpriteMaterial;
+      material.opacity = isHighlightedGlyph ? 0.75 : 0.7;
       
       sprite.position.set(
         bounds.max.x + 3,
         bounds.max.y + 3,
         bounds.min.z - 3
       );
-  
-      const isSelected = selectedGroupIdLiveRef.current === groupId;
-      const isGlyphSelected = selectedGlyphGroupIdLiveRef.current === groupId;
-      sprite.visible = glyphsOpenRef.current || isSelected || isGlyphSelected;
+            
+      sprite.userData.baseGlyphSize = normalGlyphSize;
     }
   
     for (const existingGroupId of Array.from(glyphSpriteMapRef.current.keys())) {
@@ -1313,6 +1329,7 @@ export default function VoxelWorldEditor(props: {
       if (glyphGroupId) {
         selectedGlyphGroupIdLiveRef.current = glyphGroupId;
         setSelectedGlyphGroupId(glyphGroupId);
+        pendingGlyphSpritesSyncRef.current = true;
         pendingGlyphOutlineSyncRef.current = true;
     
         if (selectedGroupIdLiveRef.current !== null) {
@@ -1330,6 +1347,7 @@ export default function VoxelWorldEditor(props: {
       if (selectedGlyphGroupIdLiveRef.current !== null) {
         selectedGlyphGroupIdLiveRef.current = null;
         setSelectedGlyphGroupId(null);
+        pendingGlyphSpritesSyncRef.current = true;
         pendingGlyphOutlineSyncRef.current = true;
       }
 
