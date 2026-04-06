@@ -1,18 +1,22 @@
 import * as THREE from "three";
+
 import type { VoxelCoord, GroupRotation } from "./Types";
 import { keyOf } from "./Types";
+
 import type {
   WorldAssetKind,
   WorldData,
   WorldInstanceRecord,
 } from "./domain/worldTypes";
+
 import { assetRepository } from "./repositories";
 
+// public domain aliases
 
 export type GroupId = string;
 export type AssetKind = WorldAssetKind;
 
-//coordinates relative to group origin
+// local voxel relative to group origin
 
 export type LocalVoxel = {
   local: VoxelCoord;
@@ -22,7 +26,7 @@ export type LocalVoxel = {
   groupId: GroupId;
 };
 
-//marketplace source
+// group marketplace source
 
 export type GroupSource = {
   instanceId: string;
@@ -32,7 +36,7 @@ export type GroupSource = {
   logicTag: string | null;
 };
 
-//group three data + mesh + pos
+// group runtime record
 
 type GroupRecord = {
   position: VoxelCoord;
@@ -42,15 +46,7 @@ type GroupRecord = {
   source: GroupSource;
 };
 
-//group logical voxel ,, no three etc
-
-export type GroupVoxel = {
-  local: VoxelCoord;
-  color: string;
-  isBlueprint: boolean;
-};
-
-//group logical voxel state, used for focus mode and asset saving
+// group logical voxels state -> used for focus mode and asset saving
 
 export type GroupState = {
   groupId: GroupId;
@@ -58,10 +54,18 @@ export type GroupState = {
   voxels: GroupVoxel[];
 };
 
-//serialised data for world save
+// group logical voxel
+
+export type GroupVoxel = {
+  local: VoxelCoord;
+  color: string;
+  isBlueprint: boolean;
+};
+
+// serialised data for depreciated world save 
 
 export type WorldPacked = {
-  localPositions: Int32Array; // LOCAL xyz
+  localPositions: Int32Array; 
   colors: Uint32Array;
   blueprints?: Uint8Array;
   groupIds?: Uint32Array;
@@ -69,15 +73,13 @@ export type WorldPacked = {
   groupPositions?: Int32Array;
 };
 
-//render config
+// render config
 
 export type VoxelWorldRenderConfig = {
   blueprintOpacity?: number;
   blueprintDepthWrite?: boolean;
   blueprintTint?: boolean;
 };
-
-const DEFAULT_GROUP: GroupId = "default";
 
 // published world bake
 
@@ -112,13 +114,21 @@ export type PublishedWorldBakedSnapshot = {
   groups: PublishedWorldBakedGroupSnapshot[];
 };
 
-//helpers
+// file scope constants
+
+const DEFAULT_GROUP: GroupId = "default";
+
+// helpers
+
+// identity
 
 function makeRuntimeId(): string {
   const c: any = globalThis.crypto;
   if (c?.randomUUID) return c.randomUUID();
   return `instance_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 }
+
+// color helpers for depreciated blueprint tint
 
 function hexToRgb24(hex: string): number {
   const h = hex.startsWith("#") ? hex.slice(1) : hex;
@@ -233,6 +243,8 @@ function blueprintTint(hex: string): string {
   return rgb01ToHex(clamp01(r2), clamp01(g2), clamp01(b2));
 }
 
+// rotation helpers
+
 function normalizeQuarterTurn(v?: number): 0 | 1 | 2 | 3 {
   const n = ((v ?? 0) % 4 + 4) % 4;
   return n as 0 | 1 | 2 | 3;
@@ -258,15 +270,19 @@ function rotationToEuler(r: GroupRotation): THREE.Euler {
 }
 
 export class VoxelWorld {
+  // fields 
+
   private scene: THREE.Scene;
 
   private groups = new Map<GroupId, GroupRecord>();
-  private worldIndex = new Map<string, LocalVoxel>(); // keyOf(world)
+  private worldIndex = new Map<string, LocalVoxel>(); 
 
   private geometry: THREE.BoxGeometry;
   private materialCache = new Map<string, THREE.MeshStandardMaterial>();
 
   private renderCfg: Required<VoxelWorldRenderConfig>;
+
+  // lifecycle
 
   constructor(scene: THREE.Scene, cfg?: VoxelWorldRenderConfig) {
     this.scene = scene;
@@ -277,37 +293,6 @@ export class VoxelWorld {
       blueprintTint: cfg?.blueprintTint ?? false,
     };
     this.ensureGroup(DEFAULT_GROUP, { x: 0, y: 0, z: 0 });
-  }
-
-  private worldFrom(groupPos: VoxelCoord, local: VoxelCoord): VoxelCoord {
-    return {
-      x: groupPos.x + local.x,
-      y: groupPos.y + local.y,
-      z: groupPos.z + local.z,
-    };
-  }
-
-  private normalizeGroupIdBase(base: string) {
-    const b = (base ?? "").trim();
-    const safe = b
-      .toLowerCase()
-      .replace(/\s+/g, "_")
-      .replace(/[^a-z0-9_\-]/g, "")
-      .slice(0, 48);
-
-    return safe || "group";
-  }
-
-  makeUniqueGroupId(base: string = "group"): GroupId {
-    let root = this.normalizeGroupIdBase(base);
-    if (root === DEFAULT_GROUP) root = "group";
-
-    let candidate: GroupId = root;
-    let i = 1;
-    while (this.groups.has(candidate)) {
-      candidate = `${root}_${i++}`;
-    }
-    return candidate;
   }
 
   dispose() {
@@ -333,6 +318,105 @@ export class VoxelWorld {
     this.ensureGroup(DEFAULT_GROUP, { x: 0, y: 0, z: 0 });
   }
 
+  // private internals
+
+  private ensureGroup(groupId: GroupId, position: VoxelCoord): GroupRecord {
+    let g = this.groups.get(groupId);
+    if (g) return g;
+
+    const instanceId = makeRuntimeId();
+    const rotation = normalizeRotation();
+
+    const root = new THREE.Group();
+    root.name = `voxel-group:${groupId}`;
+    root.position.set(position.x, position.y, position.z);
+
+    const euler = rotationToEuler(rotation);
+    root.rotation.set(euler.x, euler.y, euler.z);
+
+    root.userData.groupId = groupId;
+    root.userData.instanceId = instanceId;
+    root.userData.sourceAssetId = null;
+    root.userData.sourceAssetKind = null;
+    root.userData.overrideAssetId = null;
+    root.userData.logicTag = null;
+    root.userData.rotation = { ...rotation };
+
+    this.scene.add(root);
+
+    g = {
+      position: { ...position },
+      rotation,
+      root,
+      voxels: new Map(),
+      source: {
+        instanceId,
+        assetId: null,
+        assetKind: null,
+        overrideAssetId: null,
+        logicTag: null,
+      },
+    };
+
+    this.groups.set(groupId, g);
+    return g;
+  }
+
+  private getMaterial(color: string, isBlueprint: boolean) {
+    const key = `${color}|${isBlueprint ? "bp" : "solid"}|${isBlueprint ? this.renderCfg.blueprintOpacity : 1}`;
+    let mat = this.materialCache.get(key);
+    if (mat) return mat;
+
+    const displayColor =
+      isBlueprint && this.renderCfg.blueprintTint ? blueprintTint(color) : color;
+
+    mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(displayColor),
+      transparent: isBlueprint,
+      opacity: isBlueprint ? this.renderCfg.blueprintOpacity : 0.7,
+    });
+
+    if (isBlueprint) {
+      mat.depthWrite = this.renderCfg.blueprintDepthWrite;
+    }
+
+    this.materialCache.set(key, mat);
+    return mat;
+  }
+
+  private worldFrom(groupPos: VoxelCoord, local: VoxelCoord): VoxelCoord {
+    return {
+      x: groupPos.x + local.x,
+      y: groupPos.y + local.y,
+      z: groupPos.z + local.z,
+    };
+  }
+
+  private normalizeGroupIdBase(base: string) {
+    const b = (base ?? "").trim();
+    const safe = b
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_\-]/g, "")
+      .slice(0, 48);
+
+    return safe || "group";
+  }
+
+  // group identity
+
+  makeUniqueGroupId(base: string = "group"): GroupId {
+    let root = this.normalizeGroupIdBase(base);
+    if (root === DEFAULT_GROUP) root = "group";
+
+    let candidate: GroupId = root;
+    let i = 1;
+    while (this.groups.has(candidate)) {
+      candidate = `${root}_${i++}`;
+    }
+    return candidate;
+  }
+
   createGroup(position: VoxelCoord, baseId: string = "group"): GroupId {
     const gid = this.makeUniqueGroupId(baseId);
     this.addGroup(gid, position);
@@ -343,12 +427,179 @@ export class VoxelWorld {
     this.ensureGroup(groupId, position);
   }
 
+  removeGroup(groupId: GroupId): boolean {
+    const g = this.groups.get(groupId);
+    if (!g) return false;
+
+    const gp = g.position;
+
+    for (const v of g.voxels.values()) {
+      const world = this.worldFrom(gp, v.local);
+      this.worldIndex.delete(keyOf(world));
+      g.root.remove(v.mesh);
+    }
+
+    g.voxels.clear();
+    this.scene.remove(g.root);
+    this.groups.delete(groupId);
+
+    return true;
+  }
+
   listGroupIds(): GroupId[] {
     return Array.from(this.groups.keys());
   }
 
+    // group snapshot / replacement
+
+    getGroupSnapshot(groupId: GroupId): GroupState | null {
+      const g = this.groups.get(groupId);
+      if (!g) return null;
+  
+      const voxels: GroupVoxel[] = [];
+      for (const v of g.voxels.values()) {
+        voxels.push({
+          local: { ...v.local },
+          color: v.color,
+          isBlueprint: v.isBlueprint,
+        });
+      }
+  
+      return {
+        groupId,
+        position: { ...g.position },
+        voxels,
+      };
+    }
+  
+    setGroupVoxelsLocal(groupId: GroupId, voxels: GroupVoxel[], opts?: { keepPosition?: boolean }): boolean {
+      const keepPosition = opts?.keepPosition ?? true;
+  
+      const existing = this.groups.get(groupId);
+      if (existing && !keepPosition) {
+        const ok = this.setGroupPosition(groupId, { x: 0, y: 0, z: 0 });
+        if (!ok) return false;
+      }
+  
+      const g = this.ensureGroup(groupId, this.getGroupPosition(groupId));
+  
+      const gp = g.position;
+      for (const v of g.voxels.values()) {
+        const world = this.worldFrom(gp, v.local);
+        this.worldIndex.delete(keyOf(world));
+        g.root.remove(v.mesh);
+      }
+      g.voxels.clear();
+  
+      for (const v of voxels) {
+        this.addVoxelLocal(groupId, v.local, v.color, { isBlueprint: v.isBlueprint });
+      }
+  
+      return true;
+    }
+  
+    instantiateGroupState(
+      state: GroupState,
+      opts: {
+        at: VoxelCoord;
+        baseId?: string;
+        instanceId?: string;
+        sourceAssetId?: string | null;
+        sourceAssetKind?: AssetKind | null;
+        logicTag?: string | null;
+        rotation?: GroupRotation | null;
+      }
+    ): GroupId {
+      const base = opts.baseId ?? state.groupId ?? "asset";
+      const gid = this.makeUniqueGroupId(base);
+  
+      this.addGroup(gid, { ...opts.at });
+      this.setGroupRotation(gid, opts.rotation ?? { x: 0, y: 0, z: 0 });
+      this.setGroupSource(gid, {
+        instanceId: opts.instanceId ?? makeRuntimeId(),
+        assetId: opts.sourceAssetId ?? null,
+        assetKind: opts.sourceAssetKind ?? null,
+        logicTag: opts.logicTag ?? null,
+      });
+  
+      for (const v of state.voxels) {
+        this.addVoxelLocal(gid, v.local, v.color, { isBlueprint: v.isBlueprint });
+      }
+  
+      return gid;
+    }
+
+  // group level actions
+
   getGroupPosition(groupId: GroupId): VoxelCoord {
     return this.groups.get(groupId)?.position ?? { x: 0, y: 0, z: 0 };
+  }
+
+  setGroupPosition(groupId: GroupId, position: VoxelCoord): boolean {
+    const g = this.groups.get(groupId);
+    if (!g) return false;
+
+    const oldPos = g.position;
+    if (
+      oldPos.x === position.x &&
+      oldPos.y === position.y &&
+      oldPos.z === position.z
+    ) return true;
+
+    for (const v of g.voxels.values()) {
+      const world = {
+        x: oldPos.x + v.local.x,
+        y: oldPos.y + v.local.y,
+        z: oldPos.z + v.local.z,
+      };
+      this.worldIndex.delete(keyOf(world));
+    }
+
+    g.position = { ...position };
+    g.root.position.set(position.x, position.y, position.z);
+
+    for (const v of g.voxels.values()) {
+      const world = {
+        x: position.x + v.local.x,
+        y: position.y + v.local.y,
+        z: position.z + v.local.z,
+      };
+      this.worldIndex.set(keyOf(world), v);
+
+      v.mesh.userData.coord = { ...world };
+      v.mesh.userData.groupId = groupId;
+      v.mesh.userData.local = { ...v.local };
+      v.mesh.userData.instanceId = g.source.instanceId;
+      v.mesh.userData.sourceAssetId = g.source.assetId;
+      v.mesh.userData.sourceAssetKind = g.source.assetKind;
+      v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
+      v.mesh.userData.logicTag = g.source.logicTag;
+    }
+
+    return true;
+  }
+
+  getGroupRotation(groupId: GroupId): GroupRotation {
+    const g = this.groups.get(groupId);
+    return g ? { ...g.rotation } : { x: 0, y: 0, z: 0 };
+  }
+
+  setGroupRotation(
+    groupId: GroupId,
+    rotation: Partial<GroupRotation>
+  ): boolean {
+    const g = this.groups.get(groupId);
+    if (!g) return false;
+
+    g.rotation = normalizeRotation({
+      ...g.rotation,
+      ...rotation,
+    });
+
+    const euler = rotationToEuler(g.rotation);
+    g.root.rotation.set(euler.x, euler.y, euler.z);
+
+    return true;
   }
 
   getGroupSource(groupId: GroupId): GroupSource | null {
@@ -405,14 +656,6 @@ export class VoxelWorld {
     return true;
   }
 
-  getGroupLogicTag(groupId: GroupId): string | null {
-    return this.groups.get(groupId)?.source.logicTag ?? null;
-  }
-  
-  setGroupLogicTag(groupId: GroupId, logicTag: string | null): boolean {
-    return this.setGroupSource(groupId, { logicTag });
-  }
-
   clearGroupSource(groupId: GroupId): boolean {
     return this.setGroupSource(groupId, {
       assetId: null,
@@ -422,207 +665,24 @@ export class VoxelWorld {
     });
   }
 
-  setGroupPosition(groupId: GroupId, position: VoxelCoord): boolean {
+  getGroupLogicTag(groupId: GroupId): string | null {
+    return this.groups.get(groupId)?.source.logicTag ?? null;
+  }
+  
+  setGroupLogicTag(groupId: GroupId, logicTag: string | null): boolean {
+    return this.setGroupSource(groupId, { logicTag });
+  }
+
+  rotateGroup90(groupId: GroupId, axis: "x" | "y" | "z", dir: 1 | -1): boolean {
     const g = this.groups.get(groupId);
     if (!g) return false;
 
-    const oldPos = g.position;
-    if (
-      oldPos.x === position.x &&
-      oldPos.y === position.y &&
-      oldPos.z === position.z
-    ) return true;
-
-    for (const v of g.voxels.values()) {
-      const world = {
-        x: oldPos.x + v.local.x,
-        y: oldPos.y + v.local.y,
-        z: oldPos.z + v.local.z,
-      };
-      this.worldIndex.delete(keyOf(world));
-    }
-
-    g.position = { ...position };
-    g.root.position.set(position.x, position.y, position.z);
-
-    for (const v of g.voxels.values()) {
-      const world = {
-        x: position.x + v.local.x,
-        y: position.y + v.local.y,
-        z: position.z + v.local.z,
-      };
-      this.worldIndex.set(keyOf(world), v);
-
-      v.mesh.userData.coord = { ...world };
-      v.mesh.userData.groupId = groupId;
-      v.mesh.userData.local = { ...v.local };
-      v.mesh.userData.instanceId = g.source.instanceId;
-      v.mesh.userData.sourceAssetId = g.source.assetId;
-      v.mesh.userData.sourceAssetKind = g.source.assetKind;
-      v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
-      v.mesh.userData.logicTag = g.source.logicTag;
-    }
-
-    return true;
+    const next = { ...g.rotation };
+    next[axis] = normalizeQuarterTurn(next[axis] + dir);
+    return this.setGroupRotation(groupId, next);
   }
 
-  instantiateGroupState(
-    state: GroupState,
-    opts: {
-      at: VoxelCoord;
-      baseId?: string;
-      instanceId?: string;
-      sourceAssetId?: string | null;
-      sourceAssetKind?: AssetKind | null;
-      logicTag?: string | null;
-      rotation?: GroupRotation | null;
-    }
-  ): GroupId {
-    const base = opts.baseId ?? state.groupId ?? "asset";
-    const gid = this.makeUniqueGroupId(base);
-
-    this.addGroup(gid, { ...opts.at });
-    this.setGroupRotation(gid, opts.rotation ?? { x: 0, y: 0, z: 0 });
-    this.setGroupSource(gid, {
-      instanceId: opts.instanceId ?? makeRuntimeId(),
-      assetId: opts.sourceAssetId ?? null,
-      assetKind: opts.sourceAssetKind ?? null,
-      logicTag: opts.logicTag ?? null,
-    });
-
-    for (const v of state.voxels) {
-      this.addVoxelLocal(gid, v.local, v.color, { isBlueprint: v.isBlueprint });
-    }
-
-    return gid;
-  }
-
-  removeGroup(groupId: GroupId): boolean {
-    const g = this.groups.get(groupId);
-    if (!g) return false;
-
-    const gp = g.position;
-
-    for (const v of g.voxels.values()) {
-      const world = this.worldFrom(gp, v.local);
-      this.worldIndex.delete(keyOf(world));
-      g.root.remove(v.mesh);
-    }
-
-    g.voxels.clear();
-    this.scene.remove(g.root);
-    this.groups.delete(groupId);
-
-    return true;
-  }
-
-  getGroupId(coord: VoxelCoord): GroupId {
-    return this.worldIndex.get(keyOf(coord))?.groupId ?? DEFAULT_GROUP;
-  }
-
-  setGroupId(coord: VoxelCoord, nextGroupId: GroupId) {
-    const worldKey = keyOf(coord);
-    const v = this.worldIndex.get(worldKey);
-    if (!v) return;
-    if (v.groupId === nextGroupId) return;
-
-    const from = this.groups.get(v.groupId);
-    if (!from) return;
-
-    const to = this.ensureGroup(nextGroupId, { x: 0, y: 0, z: 0 });
-
-    const nextLocal: VoxelCoord = {
-      x: coord.x - to.position.x,
-      y: coord.y - to.position.y,
-      z: coord.z - to.position.z,
-    };
-
-    const nextLocalKey = keyOf(nextLocal);
-    if (to.voxels.has(nextLocalKey)) return;
-
-    if (this.worldIndex.get(worldKey)?.groupId !== v.groupId) return;
-
-    from.root.remove(v.mesh);
-    from.voxels.delete(keyOf(v.local));
-
-    v.groupId = nextGroupId;
-    v.local = { ...nextLocal };
-
-    v.mesh.position.set(nextLocal.x + 0.5, nextLocal.y + 0.5, nextLocal.z + 0.5);
-    v.mesh.userData.groupId = nextGroupId;
-    v.mesh.userData.local = { ...nextLocal };
-    v.mesh.userData.instanceId = to.source.instanceId;
-    v.mesh.userData.sourceAssetId = to.source.assetId;
-    v.mesh.userData.sourceAssetKind = to.source.assetKind;
-    v.mesh.userData.overrideAssetId = to.source.overrideAssetId;
-
-    to.root.add(v.mesh);
-    to.voxels.set(nextLocalKey, v);
-    this.worldIndex.set(worldKey, v);
-  }
-
-  getGroupBounds(groupId: GroupId): { min: VoxelCoord; max: VoxelCoord } | null {
-    const g = this.groups.get(groupId);
-    if (!g || g.voxels.size === 0) return null;
-
-    g.root.updateMatrixWorld(true);
-
-    let minX = Infinity, minY = Infinity, minZ = Infinity;
-    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-
-    const p = new THREE.Vector3();
-
-    for (const v of g.voxels.values()) {
-      p.set(v.local.x + 0.5, v.local.y + 0.5, v.local.z + 0.5);
-      p.applyMatrix4(g.root.matrixWorld);
-
-      const vxMin = p.x - 0.5;
-      const vyMin = p.y - 0.5;
-      const vzMin = p.z - 0.5;
-      const vxMax = p.x + 0.5;
-      const vyMax = p.y + 0.5;
-      const vzMax = p.z + 0.5;
-
-      minX = Math.min(minX, vxMin);
-      minY = Math.min(minY, vyMin);
-      minZ = Math.min(minZ, vzMin);
-      maxX = Math.max(maxX, vxMax);
-      maxY = Math.max(maxY, vyMax);
-      maxZ = Math.max(maxZ, vzMax);
-    }
-
-    return {
-      min: {
-        x: Math.floor(minX),
-        y: Math.floor(minY),
-        z: Math.floor(minZ),
-      },
-      max: {
-        x: Math.ceil(maxX) - 1,
-        y: Math.ceil(maxY) - 1,
-        z: Math.ceil(maxZ) - 1,
-      },
-    };
-  }
-
-  getAllGroupBounds(): Map<GroupId, { min: VoxelCoord; max: VoxelCoord }> {
-    const out = new Map<GroupId, { min: VoxelCoord; max: VoxelCoord }>();
-
-    for (const [groupId] of this.groups.entries()) {
-      const b = this.getGroupBounds(groupId);
-      if (b) out.set(groupId, b);
-    }
-
-    return out;
-  }
-
-  listMeshes(): THREE.Mesh[] {
-    const out: THREE.Mesh[] = [];
-    for (const g of this.groups.values()) {
-      for (const v of g.voxels.values()) out.push(v.mesh);
-    }
-    return out;
-  }
+  // voxel level actions
 
   has(coord: VoxelCoord) {
     return this.worldIndex.has(keyOf(coord));
@@ -744,6 +804,52 @@ export class VoxelWorld {
     v.mesh.material = this.getMaterial(v.color, v.isBlueprint);
   }
 
+  getGroupId(coord: VoxelCoord): GroupId {
+    return this.worldIndex.get(keyOf(coord))?.groupId ?? DEFAULT_GROUP;
+  }
+
+  setGroupId(coord: VoxelCoord, nextGroupId: GroupId) {
+    const worldKey = keyOf(coord);
+    const v = this.worldIndex.get(worldKey);
+    if (!v) return;
+    if (v.groupId === nextGroupId) return;
+
+    const from = this.groups.get(v.groupId);
+    if (!from) return;
+
+    const to = this.ensureGroup(nextGroupId, { x: 0, y: 0, z: 0 });
+
+    const nextLocal: VoxelCoord = {
+      x: coord.x - to.position.x,
+      y: coord.y - to.position.y,
+      z: coord.z - to.position.z,
+    };
+
+    const nextLocalKey = keyOf(nextLocal);
+    if (to.voxels.has(nextLocalKey)) return;
+
+    if (this.worldIndex.get(worldKey)?.groupId !== v.groupId) return;
+
+    from.root.remove(v.mesh);
+    from.voxels.delete(keyOf(v.local));
+
+    v.groupId = nextGroupId;
+    v.local = { ...nextLocal };
+
+    v.mesh.position.set(nextLocal.x + 0.5, nextLocal.y + 0.5, nextLocal.z + 0.5);
+    v.mesh.userData.groupId = nextGroupId;
+    v.mesh.userData.local = { ...nextLocal };
+    v.mesh.userData.instanceId = to.source.instanceId;
+    v.mesh.userData.sourceAssetId = to.source.assetId;
+    v.mesh.userData.sourceAssetKind = to.source.assetKind;
+    v.mesh.userData.overrideAssetId = to.source.overrideAssetId;
+    v.mesh.userData.logicTag = to.source.logicTag;
+
+    to.root.add(v.mesh);
+    to.voxels.set(nextLocalKey, v);
+    this.worldIndex.set(worldKey, v);
+  }
+
   rotateGroupLocals90(groupId: GroupId, axis: "x" | "y" | "z", dir: 1 | -1): boolean {
     const g = this.groups.get(groupId);
     if (!g) return false;
@@ -805,83 +911,125 @@ export class VoxelWorld {
     return true;
   }
 
-  getGroupRotation(groupId: GroupId): GroupRotation {
-    const g = this.groups.get(groupId);
-    return g ? { ...g.rotation } : { x: 0, y: 0, z: 0 };
+  listMeshes(): THREE.Mesh[] {
+    const out: THREE.Mesh[] = [];
+    for (const g of this.groups.values()) {
+      for (const v of g.voxels.values()) out.push(v.mesh);
+    }
+    return out;
   }
 
-  setGroupRotation(
-    groupId: GroupId,
-    rotation: Partial<GroupRotation>
-  ): boolean {
+  // group bounds
+
+  getGroupBounds(groupId: GroupId): { min: VoxelCoord; max: VoxelCoord } | null {
     const g = this.groups.get(groupId);
-    if (!g) return false;
+    if (!g || g.voxels.size === 0) return null;
 
-    g.rotation = normalizeRotation({
-      ...g.rotation,
-      ...rotation,
-    });
+    g.root.updateMatrixWorld(true);
 
-    const euler = rotationToEuler(g.rotation);
-    g.root.rotation.set(euler.x, euler.y, euler.z);
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
 
-    return true;
-  }
+    const p = new THREE.Vector3();
 
-  rotateGroup90(groupId: GroupId, axis: "x" | "y" | "z", dir: 1 | -1): boolean {
-    const g = this.groups.get(groupId);
-    if (!g) return false;
-
-    const next = { ...g.rotation };
-    next[axis] = normalizeQuarterTurn(next[axis] + dir);
-    return this.setGroupRotation(groupId, next);
-  }
-
-  getGroupSnapshot(groupId: GroupId): GroupState | null {
-    const g = this.groups.get(groupId);
-    if (!g) return null;
-
-    const voxels: GroupVoxel[] = [];
     for (const v of g.voxels.values()) {
-      voxels.push({
-        local: { ...v.local },
-        color: v.color,
-        isBlueprint: v.isBlueprint,
-      });
+      p.set(v.local.x + 0.5, v.local.y + 0.5, v.local.z + 0.5);
+      p.applyMatrix4(g.root.matrixWorld);
+
+      const vxMin = p.x - 0.5;
+      const vyMin = p.y - 0.5;
+      const vzMin = p.z - 0.5;
+      const vxMax = p.x + 0.5;
+      const vyMax = p.y + 0.5;
+      const vzMax = p.z + 0.5;
+
+      minX = Math.min(minX, vxMin);
+      minY = Math.min(minY, vyMin);
+      minZ = Math.min(minZ, vzMin);
+      maxX = Math.max(maxX, vxMax);
+      maxY = Math.max(maxY, vyMax);
+      maxZ = Math.max(maxZ, vzMax);
     }
 
     return {
-      groupId,
-      position: { ...g.position },
-      voxels,
+      min: {
+        x: Math.floor(minX),
+        y: Math.floor(minY),
+        z: Math.floor(minZ),
+      },
+      max: {
+        x: Math.ceil(maxX) - 1,
+        y: Math.ceil(maxY) - 1,
+        z: Math.ceil(maxZ) - 1,
+      },
     };
   }
 
-  setGroupVoxelsLocal(groupId: GroupId, voxels: GroupVoxel[], opts?: { keepPosition?: boolean }): boolean {
-    const keepPosition = opts?.keepPosition ?? true;
+  getAllGroupBounds(): Map<GroupId, { min: VoxelCoord; max: VoxelCoord }> {
+    const out = new Map<GroupId, { min: VoxelCoord; max: VoxelCoord }>();
 
-    const existing = this.groups.get(groupId);
-    if (existing && !keepPosition) {
-      const ok = this.setGroupPosition(groupId, { x: 0, y: 0, z: 0 });
-      if (!ok) return false;
+    for (const [groupId] of this.groups.entries()) {
+      const b = this.getGroupBounds(groupId);
+      if (b) out.set(groupId, b);
     }
 
-    const g = this.ensureGroup(groupId, this.getGroupPosition(groupId));
-
-    const gp = g.position;
-    for (const v of g.voxels.values()) {
-      const world = this.worldFrom(gp, v.local);
-      this.worldIndex.delete(keyOf(world));
-      g.root.remove(v.mesh);
-    }
-    g.voxels.clear();
-
-    for (const v of voxels) {
-      this.addVoxelLocal(groupId, v.local, v.color, { isBlueprint: v.isBlueprint });
-    }
-
-    return true;
+    return out;
   }
+
+  getPublishedGroupBounds(
+    groupId: GroupId
+  ): { min: VoxelCoord; max: VoxelCoord } | null {
+    const g = this.groups.get(groupId);
+    if (!g || g.voxels.size === 0) return null;
+  
+    g.root.updateMatrixWorld(true);
+  
+    let minX = Infinity, minY = Infinity, minZ = Infinity;
+    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  
+    const p = new THREE.Vector3();
+    let found = false;
+  
+    for (const v of g.voxels.values()) {
+      if (v.isBlueprint) continue;
+  
+      found = true;
+  
+      p.set(v.local.x + 0.5, v.local.y + 0.5, v.local.z + 0.5);
+      p.applyMatrix4(g.root.matrixWorld);
+  
+      const vxMin = p.x - 0.5;
+      const vyMin = p.y - 0.5;
+      const vzMin = p.z - 0.5;
+      const vxMax = p.x + 0.5;
+      const vyMax = p.y + 0.5;
+      const vzMax = p.z + 0.5;
+  
+      minX = Math.min(minX, vxMin);
+      minY = Math.min(minY, vyMin);
+      minZ = Math.min(minZ, vzMin);
+      maxX = Math.max(maxX, vxMax);
+      maxY = Math.max(maxY, vyMax);
+      maxZ = Math.max(maxZ, vzMax);
+    }
+  
+    if (!found) return null;
+  
+    return {
+      min: {
+        x: Math.floor(minX),
+        y: Math.floor(minY),
+        z: Math.floor(minZ),
+      },
+      max: {
+        x: Math.ceil(maxX) - 1,
+        y: Math.ceil(maxY) - 1,
+        z: Math.ceil(maxZ) - 1,
+      },
+    };
+  }
+
+  // world persistence
 
   exportPacked(): WorldPacked {
     let n = 0;
@@ -1090,95 +1238,61 @@ export class VoxelWorld {
     return touched;
   }
 
-  private ensureGroup(groupId: GroupId, position: VoxelCoord): GroupRecord {
-    let g = this.groups.get(groupId);
-    if (g) return g;
-
-    const instanceId = makeRuntimeId();
-    const rotation = normalizeRotation();
-
-    const root = new THREE.Group();
-    root.name = `voxel-group:${groupId}`;
-    root.position.set(position.x, position.y, position.z);
-
-    const euler = rotationToEuler(rotation);
-    root.rotation.set(euler.x, euler.y, euler.z);
-
-    root.userData.groupId = groupId;
-    root.userData.instanceId = instanceId;
-    root.userData.sourceAssetId = null;
-    root.userData.sourceAssetKind = null;
-    root.userData.overrideAssetId = null;
-    root.userData.logicTag = null;
-    root.userData.rotation = { ...rotation };
-
-    this.scene.add(root);
-
-    g = {
-      position: { ...position },
-      rotation,
-      root,
-      voxels: new Map(),
-      source: {
-        instanceId,
-        assetId: null,
-        assetKind: null,
-        overrideAssetId: null,
-        logicTag: null,
-      },
-    };
-
-    this.groups.set(groupId, g);
-    return g;
-  }
-
-  private getMaterial(color: string, isBlueprint: boolean) {
-    const key = `${color}|${isBlueprint ? "bp" : "solid"}|${isBlueprint ? this.renderCfg.blueprintOpacity : 1}`;
-    let mat = this.materialCache.get(key);
-    if (mat) return mat;
-
-    const displayColor =
-      isBlueprint && this.renderCfg.blueprintTint ? blueprintTint(color) : color;
-
-    mat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(displayColor),
-      transparent: isBlueprint,
-      opacity: isBlueprint ? this.renderCfg.blueprintOpacity : 0.7,
-    });
-
-    if (isBlueprint) {
-      mat.depthWrite = this.renderCfg.blueprintDepthWrite;
-    }
-
-    this.materialCache.set(key, mat);
-    return mat;
-  }
-
   // publishing
 
-  private async getLatestMarketplaceAssetIdForGroup(
-    groupId: GroupId
-  ): Promise<string | null> {
-    const g = this.groups.get(groupId);
-    if (!g) return null;
+  async getPublishedWorldSnapshot(): Promise<PublishedWorldBakedSnapshot> {
+    const groups: PublishedWorldBakedGroupSnapshot[] = [];
+    const latestMarketplaceAssetIdsSet = new Set<string>();
+    let voxelCount = 0;
   
-    const assetId = g.source.assetId;
-    if (!assetId) return null;
+    for (const [groupId, g] of this.groups.entries()) {
+      if (groupId === DEFAULT_GROUP) continue;
+      if (!g.voxels.size) continue;
   
-    try {
-      const meta = await assetRepository.getAssetMeta(assetId);
-      const lineage = (meta as any)?.lineageAssetIds;
+      const baked = await this.getPublishedBakedGroupSnapshot(groupId);
+      if (!baked) continue;
   
-      if (Array.isArray(lineage) && lineage.length > 0) {
-        const first = lineage[0];
-        return typeof first === "string" && first.trim() ? first : null;
+      if (baked.latestMarketplaceAssetId) {
+        latestMarketplaceAssetIdsSet.add(baked.latestMarketplaceAssetId);
       }
   
-      return null;
-    } catch (err) {
-      console.warn("Failed to resolve latest marketplace lineage for asset:", assetId, err);
-      return null;
+      voxelCount += baked.voxelCount;
+      groups.push(baked);
     }
+  
+    return {
+      voxelCount,
+      latestMarketplaceAssetIds: Array.from(latestMarketplaceAssetIdsSet),
+      groups,
+    };
+  }
+
+  // private publishing helpers
+
+  private async getPublishedBakedGroupSnapshot(
+    groupId: GroupId
+  ): Promise<PublishedWorldBakedGroupSnapshot | null> {
+    const g = this.groups.get(groupId);
+    if (!g || !g.voxels.size) return null;
+  
+    const realVoxelCount = Array.from(g.voxels.values()).reduce(
+      (sum, v) => sum + (v.isBlueprint ? 0 : 1),
+      0
+    );
+  
+    if (realVoxelCount <= 0) return null;
+  
+    return {
+      groupId,
+      latestMarketplaceAssetId: await this.getLatestMarketplaceAssetIdForGroup(groupId),
+      assetKind: g.source.assetKind ?? null,
+      logicTag: g.source.logicTag ?? null,
+      position: { ...g.position },
+      rotation: { ...g.rotation },
+      bounds: this.getPublishedGroupBounds(groupId),
+      voxelCount: realVoxelCount,
+      surfaces: this.getPublishedFaceBuckets(groupId),
+    };
   }
 
   private getPublishedFaceBuckets(groupId: GroupId): PublishedWorldSurface[] {
@@ -1327,110 +1441,28 @@ export class VoxelWorld {
     );
   }
 
-  private async getPublishedBakedGroupSnapshot(
+  private async getLatestMarketplaceAssetIdForGroup(
     groupId: GroupId
-  ): Promise<PublishedWorldBakedGroupSnapshot | null> {
+  ): Promise<string | null> {
     const g = this.groups.get(groupId);
-    if (!g || !g.voxels.size) return null;
+    if (!g) return null;
   
-    const realVoxelCount = Array.from(g.voxels.values()).reduce(
-      (sum, v) => sum + (v.isBlueprint ? 0 : 1),
-      0
-    );
+    const assetId = g.source.assetId;
+    if (!assetId) return null;
   
-    if (realVoxelCount <= 0) return null;
+    try {
+      const meta = await assetRepository.getAssetMeta(assetId);
+      const lineage = (meta as any)?.lineageAssetIds;
   
-    return {
-      groupId,
-      latestMarketplaceAssetId: await this.getLatestMarketplaceAssetIdForGroup(groupId),
-      assetKind: g.source.assetKind ?? null,
-      logicTag: g.source.logicTag ?? null,
-
-      position: { ...g.position },
-      rotation: { ...g.rotation },
-      bounds: this.getPublishedGroupBounds(groupId),
-      voxelCount: realVoxelCount,
-      surfaces: this.getPublishedFaceBuckets(groupId),
-    };
-  }
-
-  getPublishedGroupBounds(
-    groupId: GroupId
-  ): { min: VoxelCoord; max: VoxelCoord } | null {
-    const g = this.groups.get(groupId);
-    if (!g || g.voxels.size === 0) return null;
-  
-    g.root.updateMatrixWorld(true);
-  
-    let minX = Infinity, minY = Infinity, minZ = Infinity;
-    let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
-  
-    const p = new THREE.Vector3();
-    let found = false;
-  
-    for (const v of g.voxels.values()) {
-      if (v.isBlueprint) continue;
-  
-      found = true;
-  
-      p.set(v.local.x + 0.5, v.local.y + 0.5, v.local.z + 0.5);
-      p.applyMatrix4(g.root.matrixWorld);
-  
-      const vxMin = p.x - 0.5;
-      const vyMin = p.y - 0.5;
-      const vzMin = p.z - 0.5;
-      const vxMax = p.x + 0.5;
-      const vyMax = p.y + 0.5;
-      const vzMax = p.z + 0.5;
-  
-      minX = Math.min(minX, vxMin);
-      minY = Math.min(minY, vyMin);
-      minZ = Math.min(minZ, vzMin);
-      maxX = Math.max(maxX, vxMax);
-      maxY = Math.max(maxY, vyMax);
-      maxZ = Math.max(maxZ, vzMax);
-    }
-  
-    if (!found) return null;
-  
-    return {
-      min: {
-        x: Math.floor(minX),
-        y: Math.floor(minY),
-        z: Math.floor(minZ),
-      },
-      max: {
-        x: Math.ceil(maxX) - 1,
-        y: Math.ceil(maxY) - 1,
-        z: Math.ceil(maxZ) - 1,
-      },
-    };
-  }
-
-  async getPublishedWorldSnapshot(): Promise<PublishedWorldBakedSnapshot> {
-    const groups: PublishedWorldBakedGroupSnapshot[] = [];
-    const latestMarketplaceAssetIdsSet = new Set<string>();
-    let voxelCount = 0;
-  
-    for (const [groupId, g] of this.groups.entries()) {
-      if (groupId === DEFAULT_GROUP) continue;
-      if (!g.voxels.size) continue;
-  
-      const baked = await this.getPublishedBakedGroupSnapshot(groupId);
-      if (!baked) continue;
-  
-      if (baked.latestMarketplaceAssetId) {
-        latestMarketplaceAssetIdsSet.add(baked.latestMarketplaceAssetId);
+      if (Array.isArray(lineage) && lineage.length > 0) {
+        const first = lineage[0];
+        return typeof first === "string" && first.trim() ? first : null;
       }
   
-      voxelCount += baked.voxelCount;
-      groups.push(baked);
+      return null;
+    } catch (err) {
+      console.warn("Failed to resolve latest marketplace lineage for asset:", assetId, err);
+      return null;
     }
-  
-    return {
-      voxelCount,
-      latestMarketplaceAssetIds: Array.from(latestMarketplaceAssetIdsSet),
-      groups,
-    };
   }
 }
