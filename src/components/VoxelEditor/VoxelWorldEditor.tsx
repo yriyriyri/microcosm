@@ -701,12 +701,16 @@ export default function VoxelWorldEditor(props: {
     placingGlyphRef.current = glyph;
     setPlacingLabel(glyph.name || glyph.logicTag);
     setGlyphsOpen(false);
+    pendingGlyphSpritesSyncRef.current = true;
+    pendingGlyphOutlineSyncRef.current = true;
   }
 
   function cancelPlacementModes() {
     placingAssetRef.current = null;
     placingGlyphRef.current = null;
     setPlacingLabel(null);
+    pendingGlyphSpritesSyncRef.current = true;
+    pendingGlyphOutlineSyncRef.current = true;
   }
 
   // glyph visualization
@@ -793,14 +797,13 @@ export default function VoxelWorldEditor(props: {
       
       const isAssetSelected = selectedGroupIdLiveRef.current === groupId;
       const isGlyphSelected = selectedGlyphGroupIdLiveRef.current === groupId;
-      
-      const isVisible = glyphsOpenRef.current || isAssetSelected || isGlyphSelected;
       const isHighlightedGlyph = isGlyphSelected;
-      
+      const isPlacingGlyph = placingGlyphRef.current !== null;
+
+      sprite.visible = glyphsOpenRef.current || isPlacingGlyph || isAssetSelected || isGlyphSelected;
+            
       const glyphSize = isHighlightedGlyph ? normalGlyphSize * 1.1 : normalGlyphSize;
       sprite.scale.set(glyphSize, glyphSize, 1);
-      
-      sprite.visible = isVisible;
       
       const material = sprite.material as THREE.SpriteMaterial;
       material.opacity = isHighlightedGlyph ? 0.75 : 0.7;
