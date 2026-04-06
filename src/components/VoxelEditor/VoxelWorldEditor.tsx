@@ -2129,7 +2129,7 @@ export default function VoxelWorldEditor(props: {
               alt="Assets"
               onClick={toggleAssets}
               style={{
-                height: "9vh",
+                height: "10vh",
                 width: "auto",
                 objectFit: "contain",
                 imageRendering: "pixelated",
