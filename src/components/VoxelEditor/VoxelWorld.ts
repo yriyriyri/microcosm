@@ -46,14 +46,6 @@ type GroupRecord = {
   source: GroupSource;
 };
 
-// group logical voxels state -> used for focus mode and asset saving
-
-export type GroupState = {
-  groupId: GroupId;
-  position: VoxelCoord;
-  voxels: GroupVoxel[];
-};
-
 // group logical voxel
 
 export type GroupVoxel = {
@@ -62,7 +54,15 @@ export type GroupVoxel = {
   isBlueprint: boolean;
 };
 
-// serialised data for depreciated world save 
+// group logical voxels state -> used for focus mode and asset saving
+
+export type GroupState = {
+  groupId: GroupId;
+  position: VoxelCoord;
+  voxels: GroupVoxel[];
+};
+
+// serialised data for deprecated world save 
 
 export type WorldPacked = {
   localPositions: Int32Array; 
@@ -128,7 +128,7 @@ function makeRuntimeId(): string {
   return `instance_${Math.random().toString(16).slice(2)}_${Date.now()}`;
 }
 
-// color helpers for depreciated blueprint tint
+// color helpers for deprecated blueprint tint
 
 function hexToRgb24(hex: string): number {
   const h = hex.startsWith("#") ? hex.slice(1) : hex;
@@ -320,30 +320,53 @@ export class VoxelWorld {
 
   // private internals
 
+  private applyGroupRootUserData(groupId: GroupId, group: GroupRecord) {
+    group.root.userData.groupId = groupId;
+    group.root.userData.instanceId = group.source.instanceId;
+    group.root.userData.sourceAssetId = group.source.assetId;
+    group.root.userData.sourceAssetKind = group.source.assetKind;
+    group.root.userData.overrideAssetId = group.source.overrideAssetId;
+    group.root.userData.logicTag = group.source.logicTag;
+    group.root.userData.rotation = { ...group.rotation };
+  }
+
+  private applyVoxelMeshUserData(params: {
+    mesh: THREE.Mesh;
+    coord: VoxelCoord;
+    local: VoxelCoord;
+    groupId: GroupId;
+    isBlueprint: boolean;
+    source: GroupSource;
+  }) {
+    const { mesh, coord, local, groupId, isBlueprint, source } = params;
+  
+    mesh.userData.coord = { ...coord };
+    mesh.userData.isBlueprint = isBlueprint;
+    mesh.userData.groupId = groupId;
+    mesh.userData.local = { ...local };
+    mesh.userData.instanceId = source.instanceId;
+    mesh.userData.sourceAssetId = source.assetId;
+    mesh.userData.sourceAssetKind = source.assetKind;
+    mesh.userData.overrideAssetId = source.overrideAssetId;
+    mesh.userData.logicTag = source.logicTag;
+  }
+
   private ensureGroup(groupId: GroupId, position: VoxelCoord): GroupRecord {
     let g = this.groups.get(groupId);
     if (g) return g;
-
+  
     const instanceId = makeRuntimeId();
     const rotation = normalizeRotation();
-
+  
     const root = new THREE.Group();
     root.name = `voxel-group:${groupId}`;
     root.position.set(position.x, position.y, position.z);
-
+  
     const euler = rotationToEuler(rotation);
     root.rotation.set(euler.x, euler.y, euler.z);
-
-    root.userData.groupId = groupId;
-    root.userData.instanceId = instanceId;
-    root.userData.sourceAssetId = null;
-    root.userData.sourceAssetKind = null;
-    root.userData.overrideAssetId = null;
-    root.userData.logicTag = null;
-    root.userData.rotation = { ...rotation };
-
+  
     this.scene.add(root);
-
+  
     g = {
       position: { ...position },
       rotation,
@@ -357,7 +380,9 @@ export class VoxelWorld {
         logicTag: null,
       },
     };
-
+  
+    this.applyGroupRootUserData(groupId, g);
+  
     this.groups.set(groupId, g);
     return g;
   }
@@ -565,15 +590,15 @@ export class VoxelWorld {
         z: position.z + v.local.z,
       };
       this.worldIndex.set(keyOf(world), v);
-
-      v.mesh.userData.coord = { ...world };
-      v.mesh.userData.groupId = groupId;
-      v.mesh.userData.local = { ...v.local };
-      v.mesh.userData.instanceId = g.source.instanceId;
-      v.mesh.userData.sourceAssetId = g.source.assetId;
-      v.mesh.userData.sourceAssetKind = g.source.assetKind;
-      v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
-      v.mesh.userData.logicTag = g.source.logicTag;
+      
+      this.applyVoxelMeshUserData({
+        mesh: v.mesh,
+        coord: world,
+        local: v.local,
+        groupId,
+        isBlueprint: v.isBlueprint,
+        source: g.source,
+      });
     }
 
     return true;
@@ -639,18 +664,17 @@ export class VoxelWorld {
           : g.source.logicTag,
     };
   
-    g.root.userData.instanceId = g.source.instanceId;
-    g.root.userData.sourceAssetId = g.source.assetId;
-    g.root.userData.sourceAssetKind = g.source.assetKind;
-    g.root.userData.overrideAssetId = g.source.overrideAssetId;
-    g.root.userData.logicTag = g.source.logicTag;
-  
+    this.applyGroupRootUserData(groupId, g);
     for (const v of g.voxels.values()) {
-      v.mesh.userData.instanceId = g.source.instanceId;
-      v.mesh.userData.sourceAssetId = g.source.assetId;
-      v.mesh.userData.sourceAssetKind = g.source.assetKind;
-      v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
-      v.mesh.userData.logicTag = g.source.logicTag;
+      const world = this.worldFrom(g.position, v.local);
+      this.applyVoxelMeshUserData({
+        mesh: v.mesh,
+        coord: world,
+        local: v.local,
+        groupId,
+        isBlueprint: v.isBlueprint,
+        source: g.source,
+      });
     }
   
     return true;
@@ -742,15 +766,14 @@ export class VoxelWorld {
     mesh.receiveShadow = true;
     mesh.renderOrder = isBlueprint ? 1 : 0;
 
-    mesh.userData.coord = { ...world };
-    mesh.userData.isBlueprint = isBlueprint;
-    mesh.userData.groupId = groupId;
-    mesh.userData.local = { ...local };
-    mesh.userData.instanceId = g.source.instanceId;
-    mesh.userData.sourceAssetId = g.source.assetId;
-    mesh.userData.sourceAssetKind = g.source.assetKind;
-    mesh.userData.overrideAssetId = g.source.overrideAssetId;
-    mesh.userData.logicTag = g.source.logicTag;
+    this.applyVoxelMeshUserData({
+      mesh,
+      coord: world,
+      local,
+      groupId,
+      isBlueprint,
+      source: g.source,
+    });
 
     g.root.add(mesh);
 
@@ -835,15 +858,16 @@ export class VoxelWorld {
 
     v.groupId = nextGroupId;
     v.local = { ...nextLocal };
-
     v.mesh.position.set(nextLocal.x + 0.5, nextLocal.y + 0.5, nextLocal.z + 0.5);
-    v.mesh.userData.groupId = nextGroupId;
-    v.mesh.userData.local = { ...nextLocal };
-    v.mesh.userData.instanceId = to.source.instanceId;
-    v.mesh.userData.sourceAssetId = to.source.assetId;
-    v.mesh.userData.sourceAssetKind = to.source.assetKind;
-    v.mesh.userData.overrideAssetId = to.source.overrideAssetId;
-    v.mesh.userData.logicTag = to.source.logicTag;
+
+    this.applyVoxelMeshUserData({
+      mesh: v.mesh,
+      coord: coord,
+      local: nextLocal,
+      groupId: nextGroupId,
+      isBlueprint: v.isBlueprint,
+      source: to.source,
+    });
 
     to.root.add(v.mesh);
     to.voxels.set(nextLocalKey, v);
@@ -894,14 +918,14 @@ export class VoxelWorld {
 
       const worldNew = this.worldFrom(gp, nextLocal);
 
-      v.mesh.userData.local = { ...nextLocal };
-      v.mesh.userData.coord = { ...worldNew };
-      v.mesh.userData.groupId = groupId;
-      v.mesh.userData.instanceId = g.source.instanceId;
-      v.mesh.userData.sourceAssetId = g.source.assetId;
-      v.mesh.userData.sourceAssetKind = g.source.assetKind;
-      v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
-      v.mesh.userData.logicTag = g.source.logicTag;
+      this.applyVoxelMeshUserData({
+        mesh: v.mesh,
+        coord: worldNew,
+        local: nextLocal,
+        groupId,
+        isBlueprint: v.isBlueprint,
+        source: g.source,
+      });
 
       nextVoxels.set(nextLocalKey, v);
       this.worldIndex.set(keyOf(worldNew), v);
