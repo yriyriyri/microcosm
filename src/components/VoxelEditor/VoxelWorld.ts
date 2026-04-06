@@ -450,84 +450,84 @@ export class VoxelWorld {
     return Array.from(this.groups.keys());
   }
 
-    // group snapshot / replacement
+  // instantiation
 
-    getGroupSnapshot(groupId: GroupId): GroupState | null {
-      const g = this.groups.get(groupId);
-      if (!g) return null;
-  
-      const voxels: GroupVoxel[] = [];
-      for (const v of g.voxels.values()) {
-        voxels.push({
-          local: { ...v.local },
-          color: v.color,
-          isBlueprint: v.isBlueprint,
-        });
-      }
-  
-      return {
-        groupId,
-        position: { ...g.position },
-        voxels,
-      };
-    }
-  
-    setGroupVoxelsLocal(groupId: GroupId, voxels: GroupVoxel[], opts?: { keepPosition?: boolean }): boolean {
-      const keepPosition = opts?.keepPosition ?? true;
-  
-      const existing = this.groups.get(groupId);
-      if (existing && !keepPosition) {
-        const ok = this.setGroupPosition(groupId, { x: 0, y: 0, z: 0 });
-        if (!ok) return false;
-      }
-  
-      const g = this.ensureGroup(groupId, this.getGroupPosition(groupId));
-  
-      const gp = g.position;
-      for (const v of g.voxels.values()) {
-        const world = this.worldFrom(gp, v.local);
-        this.worldIndex.delete(keyOf(world));
-        g.root.remove(v.mesh);
-      }
-      g.voxels.clear();
-  
-      for (const v of voxels) {
-        this.addVoxelLocal(groupId, v.local, v.color, { isBlueprint: v.isBlueprint });
-      }
-  
-      return true;
-    }
-  
-    instantiateGroupState(
-      state: GroupState,
-      opts: {
-        at: VoxelCoord;
-        baseId?: string;
-        instanceId?: string;
-        sourceAssetId?: string | null;
-        sourceAssetKind?: AssetKind | null;
-        logicTag?: string | null;
-        rotation?: GroupRotation | null;
-      }
-    ): GroupId {
-      const base = opts.baseId ?? state.groupId ?? "asset";
-      const gid = this.makeUniqueGroupId(base);
-  
-      this.addGroup(gid, { ...opts.at });
-      this.setGroupRotation(gid, opts.rotation ?? { x: 0, y: 0, z: 0 });
-      this.setGroupSource(gid, {
-        instanceId: opts.instanceId ?? makeRuntimeId(),
-        assetId: opts.sourceAssetId ?? null,
-        assetKind: opts.sourceAssetKind ?? null,
-        logicTag: opts.logicTag ?? null,
+  getGroupSnapshot(groupId: GroupId): GroupState | null {
+    const g = this.groups.get(groupId);
+    if (!g) return null;
+
+    const voxels: GroupVoxel[] = [];
+    for (const v of g.voxels.values()) {
+      voxels.push({
+        local: { ...v.local },
+        color: v.color,
+        isBlueprint: v.isBlueprint,
       });
-  
-      for (const v of state.voxels) {
-        this.addVoxelLocal(gid, v.local, v.color, { isBlueprint: v.isBlueprint });
-      }
-  
-      return gid;
     }
+
+    return {
+      groupId,
+      position: { ...g.position },
+      voxels,
+    };
+  }
+
+  setGroupVoxelsLocal(groupId: GroupId, voxels: GroupVoxel[], opts?: { keepPosition?: boolean }): boolean {
+    const keepPosition = opts?.keepPosition ?? true;
+
+    const existing = this.groups.get(groupId);
+    if (existing && !keepPosition) {
+      const ok = this.setGroupPosition(groupId, { x: 0, y: 0, z: 0 });
+      if (!ok) return false;
+    }
+
+    const g = this.ensureGroup(groupId, this.getGroupPosition(groupId));
+
+    const gp = g.position;
+    for (const v of g.voxels.values()) {
+      const world = this.worldFrom(gp, v.local);
+      this.worldIndex.delete(keyOf(world));
+      g.root.remove(v.mesh);
+    }
+    g.voxels.clear();
+
+    for (const v of voxels) {
+      this.addVoxelLocal(groupId, v.local, v.color, { isBlueprint: v.isBlueprint });
+    }
+
+    return true;
+  }
+
+  instantiateGroupState(
+    state: GroupState,
+    opts: {
+      at: VoxelCoord;
+      baseId?: string;
+      instanceId?: string;
+      sourceAssetId?: string | null;
+      sourceAssetKind?: AssetKind | null;
+      logicTag?: string | null;
+      rotation?: GroupRotation | null;
+    }
+  ): GroupId {
+    const base = opts.baseId ?? state.groupId ?? "asset";
+    const gid = this.makeUniqueGroupId(base);
+
+    this.addGroup(gid, { ...opts.at });
+    this.setGroupRotation(gid, opts.rotation ?? { x: 0, y: 0, z: 0 });
+    this.setGroupSource(gid, {
+      instanceId: opts.instanceId ?? makeRuntimeId(),
+      assetId: opts.sourceAssetId ?? null,
+      assetKind: opts.sourceAssetKind ?? null,
+      logicTag: opts.logicTag ?? null,
+    });
+
+    for (const v of state.voxels) {
+      this.addVoxelLocal(gid, v.local, v.color, { isBlueprint: v.isBlueprint });
+    }
+
+    return gid;
+  }
 
   // group level actions
 
