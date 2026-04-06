@@ -9,6 +9,7 @@ export type WorldInstanceRecord = {
   assetId: string | null;
   assetKind: WorldAssetKind | null;
   overrideAssetId?: string | null;
+  logicTag?: string | null;
   position: VoxelCoord;
   rotation?: GroupRotation;
 };

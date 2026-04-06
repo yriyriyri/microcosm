@@ -29,6 +29,7 @@ export type GroupSource = {
   assetId: string | null;
   assetKind: AssetKind | null;
   overrideAssetId: string | null;
+  logicTag: string | null;
 };
 
 //group three data + mesh + pos
@@ -94,6 +95,7 @@ export type PublishedWorldBakedGroupSnapshot = {
   groupId: string;
   latestMarketplaceAssetId: string | null;
   assetKind: AssetKind | null;
+  logicTag: string | null;
   position: VoxelCoord;
   rotation: GroupRotation;
   bounds: {
@@ -358,42 +360,57 @@ export class VoxelWorld {
   setGroupSource(groupId: GroupId, source: Partial<GroupSource>): boolean {
     const g = this.groups.get(groupId);
     if (!g) return false;
-
+  
     g.source = {
       instanceId:
         source.instanceId !== undefined
           ? source.instanceId
           : g.source.instanceId,
-
+  
       assetId:
         source.assetId !== undefined
           ? source.assetId
           : g.source.assetId,
-
+  
       assetKind:
         source.assetKind !== undefined
           ? source.assetKind
           : g.source.assetKind,
-
+  
       overrideAssetId:
         source.overrideAssetId !== undefined
           ? source.overrideAssetId
           : g.source.overrideAssetId,
+  
+      logicTag:
+        source.logicTag !== undefined
+          ? source.logicTag
+          : g.source.logicTag,
     };
-
+  
     g.root.userData.instanceId = g.source.instanceId;
     g.root.userData.sourceAssetId = g.source.assetId;
     g.root.userData.sourceAssetKind = g.source.assetKind;
     g.root.userData.overrideAssetId = g.source.overrideAssetId;
-
+    g.root.userData.logicTag = g.source.logicTag;
+  
     for (const v of g.voxels.values()) {
       v.mesh.userData.instanceId = g.source.instanceId;
       v.mesh.userData.sourceAssetId = g.source.assetId;
       v.mesh.userData.sourceAssetKind = g.source.assetKind;
       v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
+      v.mesh.userData.logicTag = g.source.logicTag;
     }
-
+  
     return true;
+  }
+
+  getGroupLogicTag(groupId: GroupId): string | null {
+    return this.groups.get(groupId)?.source.logicTag ?? null;
+  }
+  
+  setGroupLogicTag(groupId: GroupId, logicTag: string | null): boolean {
+    return this.setGroupSource(groupId, { logicTag });
   }
 
   clearGroupSource(groupId: GroupId): boolean {
@@ -401,6 +418,7 @@ export class VoxelWorld {
       assetId: null,
       assetKind: null,
       overrideAssetId: null,
+      logicTag: null,
     });
   }
 
@@ -442,6 +460,7 @@ export class VoxelWorld {
       v.mesh.userData.sourceAssetId = g.source.assetId;
       v.mesh.userData.sourceAssetKind = g.source.assetKind;
       v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
+      v.mesh.userData.logicTag = g.source.logicTag;
     }
 
     return true;
@@ -455,6 +474,7 @@ export class VoxelWorld {
       instanceId?: string;
       sourceAssetId?: string | null;
       sourceAssetKind?: AssetKind | null;
+      logicTag?: string | null;
       rotation?: GroupRotation | null;
     }
   ): GroupId {
@@ -467,6 +487,7 @@ export class VoxelWorld {
       instanceId: opts.instanceId ?? makeRuntimeId(),
       assetId: opts.sourceAssetId ?? null,
       assetKind: opts.sourceAssetKind ?? null,
+      logicTag: opts.logicTag ?? null,
     });
 
     for (const v of state.voxels) {
@@ -625,6 +646,7 @@ export class VoxelWorld {
       sourceAssetId: g?.source.assetId ?? null,
       sourceAssetKind: g?.source.assetKind ?? null,
       overrideAssetId: g?.source.overrideAssetId ?? null,
+      logicTag: g?.source.logicTag ?? null,
     };
   }
 
@@ -668,6 +690,7 @@ export class VoxelWorld {
     mesh.userData.sourceAssetId = g.source.assetId;
     mesh.userData.sourceAssetKind = g.source.assetKind;
     mesh.userData.overrideAssetId = g.source.overrideAssetId;
+    mesh.userData.logicTag = g.source.logicTag;
 
     g.root.add(mesh);
 
@@ -772,6 +795,7 @@ export class VoxelWorld {
       v.mesh.userData.sourceAssetId = g.source.assetId;
       v.mesh.userData.sourceAssetKind = g.source.assetKind;
       v.mesh.userData.overrideAssetId = g.source.overrideAssetId;
+      v.mesh.userData.logicTag = g.source.logicTag;
 
       nextVoxels.set(nextLocalKey, v);
       this.worldIndex.set(keyOf(worldNew), v);
@@ -970,6 +994,7 @@ export class VoxelWorld {
         assetId: g.source.assetId,
         assetKind: g.source.assetKind,
         overrideAssetId: g.source.overrideAssetId ?? null,
+        logicTag: g.source.logicTag ?? null,
         position: { ...g.position },
         rotation: { ...g.rotation },
       });
@@ -998,6 +1023,7 @@ export class VoxelWorld {
         instanceId: inst.instanceId,
         sourceAssetId: inst.assetId,
         sourceAssetKind: inst.assetKind,
+        logicTag: inst.logicTag ?? null,
         rotation: inst.rotation ?? { x: 0, y: 0, z: 0 },
       });
 
@@ -1009,6 +1035,7 @@ export class VoxelWorld {
         assetId: inst.assetId,
         assetKind: inst.assetKind,
         overrideAssetId: inst.overrideAssetId ?? null,
+        logicTag: inst.logicTag ?? null,
       });
     }
   }
@@ -1082,6 +1109,7 @@ export class VoxelWorld {
     root.userData.sourceAssetId = null;
     root.userData.sourceAssetKind = null;
     root.userData.overrideAssetId = null;
+    root.userData.logicTag = null;
     root.userData.rotation = { ...rotation };
 
     this.scene.add(root);
@@ -1096,6 +1124,7 @@ export class VoxelWorld {
         assetId: null,
         assetKind: null,
         overrideAssetId: null,
+        logicTag: null,
       },
     };
 
@@ -1315,6 +1344,8 @@ export class VoxelWorld {
       groupId,
       latestMarketplaceAssetId: await this.getLatestMarketplaceAssetIdForGroup(groupId),
       assetKind: g.source.assetKind ?? null,
+      logicTag: g.source.logicTag ?? null,
+
       position: { ...g.position },
       rotation: { ...g.rotation },
       bounds: this.getPublishedGroupBounds(groupId),
