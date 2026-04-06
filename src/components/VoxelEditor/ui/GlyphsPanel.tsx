@@ -26,7 +26,7 @@ const GLYPHS: GlyphRecord[] = [
 export default function GlyphsPanel(props: {
   open: boolean;
   onClose: () => void;
-  onRequestApplyGlyph: (glyph: GlyphRecord) => void;
+  onRequestApplyGlyph: (glyph: GlyphRecord, client?: { x: number; y: number }) => void;
 }) {
   const { open, onRequestApplyGlyph } = props;
   const { click } = useSound();
@@ -39,9 +39,12 @@ export default function GlyphsPanel(props: {
         <AssetContainer
           thumbUrl={glyph.thumbUrl}
           size="small"
-          onClick={() => {
+          onClick={(e?: React.MouseEvent) => {
             click();
-            onRequestApplyGlyph(glyph);
+            onRequestApplyGlyph(
+              glyph,
+              e ? { x: e.clientX, y: e.clientY } : undefined
+            );
           }}
         />
       ),

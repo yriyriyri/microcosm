@@ -135,6 +135,9 @@ export default function VoxelWorldEditor(props: {
   const [placingLabel, setPlacingLabel] = useState<string | null>(null);
   const placingAssetRef = useRef<PendingPlacement | null>(null);
   const placingGlyphRef = useRef<GlyphRecord | null>(null);
+
+  const placementPreviewObjectUrlRef = useRef<string | null>(null);
+  const [placementPreview, setPlacementPreview] = useState<{ thumbUrl: string | null; x: number; y: number; kind: "asset" | "glyph"; } | null>(null);
   
   // selection / hover helpers
   
@@ -682,7 +685,10 @@ export default function VoxelWorldEditor(props: {
     setAssetsOpen(true);
   }
 
-  async function beginPlaceAsset(assetId: string) {
+  async function beginPlaceAsset(
+    assetId: string,
+    client?: { x: number; y: number }
+  ) {
     const loaded = await assetRepository.loadAsset(assetId);
     if (!loaded) return;
   
@@ -695,12 +701,38 @@ export default function VoxelWorldEditor(props: {
   
     setPlacingLabel(loaded.meta.name);
     setAssetsOpen(false);
+  
+    clearPlacementPreviewObjectUrl();
+  
+    const thumbUrl = loaded.meta.thumb
+      ? URL.createObjectURL(loaded.meta.thumb)
+      : null;
+  
+    placementPreviewObjectUrlRef.current = thumbUrl;
+  
+    setPlacementPreview({
+      thumbUrl,
+      x: client?.x ?? 0,
+      y: client?.y ?? 0,
+      kind: "asset",
+    });
   }
 
-  function beginApplyGlyph(glyph: GlyphRecord) {
+  function beginApplyGlyph(
+    glyph: GlyphRecord,
+    client?: { x: number; y: number }
+  ) {
     placingGlyphRef.current = glyph;
     setPlacingLabel(glyph.name || glyph.logicTag);
     setGlyphsOpen(false);
+  
+    setPlacementPreview({
+      thumbUrl: glyph.thumbUrl,
+      x: client?.x ?? 0,
+      y: client?.y ?? 0,
+      kind: "glyph",
+    });
+  
     pendingGlyphSpritesSyncRef.current = true;
     pendingGlyphOutlineSyncRef.current = true;
   }
@@ -709,8 +741,19 @@ export default function VoxelWorldEditor(props: {
     placingAssetRef.current = null;
     placingGlyphRef.current = null;
     setPlacingLabel(null);
+  
+    setPlacementPreview(null);
+    clearPlacementPreviewObjectUrl();
+  
     pendingGlyphSpritesSyncRef.current = true;
     pendingGlyphOutlineSyncRef.current = true;
+  }
+
+  function clearPlacementPreviewObjectUrl() {
+    const url = placementPreviewObjectUrlRef.current;
+    if (!url) return;
+    URL.revokeObjectURL(url);
+    placementPreviewObjectUrlRef.current = null;
   }
 
   // glyph visualization
@@ -806,7 +849,7 @@ export default function VoxelWorldEditor(props: {
       sprite.scale.set(glyphSize, glyphSize, 1);
       
       const material = sprite.material as THREE.SpriteMaterial;
-      material.opacity = isHighlightedGlyph ? 0.75 : 0.7;
+      material.opacity = isHighlightedGlyph ? 0.75 : 0.5;
       
       sprite.position.set(
         bounds.max.x + 3,
@@ -1325,7 +1368,19 @@ export default function VoxelWorldEditor(props: {
 
     function onPointerDown(e: PointerEvent) {
       if (focusOpenRef.current) return;
-    
+
+      if (placingAssetRef.current || placingGlyphRef.current) {
+        setPlacementPreview((prev) =>
+          prev
+            ? {
+                ...prev,
+                x: e.clientX,
+                y: e.clientY,
+              }
+            : prev
+        );
+      }    
+      
       updateRayFromMouse(e);
 
       const glyphGroupId = pickVisibleGlyphUnderMouse();
@@ -1513,6 +1568,18 @@ export default function VoxelWorldEditor(props: {
 
     function onPointerMove(e: PointerEvent) {
       if (focusOpenRef.current) return;
+
+      if (placingAssetRef.current || placingGlyphRef.current) {
+        setPlacementPreview((prev) =>
+          prev
+            ? {
+                ...prev,
+                x: e.clientX,
+                y: e.clientY,
+              }
+            : prev
+        );
+      }
 
       const d = dragRef.current;
       if (d?.active) {
@@ -1721,6 +1788,7 @@ export default function VoxelWorldEditor(props: {
       clearHelper(hoverBoxRef);
       clearGlyphOutline(selectedGlyphOutlineRef);
       clearGlyphOutline(hoverGlyphOutlineRef);
+      clearPlacementPreviewObjectUrl();
 
       for (const groupId of Array.from(glyphSpriteMapRef.current.keys())) {
         removeGlyphSprite(groupId);
@@ -1777,6 +1845,59 @@ export default function VoxelWorldEditor(props: {
           pointerEvents: focusOpen ? "none" : "auto",
         }}
       />
+
+      {ADMIN && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            right: 0,
+            display: "flex",
+            gap: 10,
+            pointerEvents: "auto",
+            zIndex: 10,
+          }}
+        >
+          <label
+            onClick={() => setAssetsOpen(true)}
+            style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
+          >
+            Assets
+          </label>
+
+          <label onClick={onNew} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
+            New
+          </label>
+
+          <label
+            onClick={onSaveToLibrary}
+            style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
+          >
+            Save
+          </label>
+
+          <label
+            onClick={() => setLibraryOpen(true)}
+            style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
+          >
+            Worlds
+          </label>
+
+          <label style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
+            Import
+            <input
+              type="file"
+              accept=".vox"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onImportVoxFile(f);
+                e.currentTarget.value = "";
+              }}
+            />
+          </label>
+        </div>
+      )}
   
       {importModal && (
         <div
@@ -1840,70 +1961,21 @@ export default function VoxelWorldEditor(props: {
           />
         </div>
       )}
-  
-      {ADMIN && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            display: "flex",
-            gap: 10,
-            pointerEvents: "auto",
-            zIndex: 10,
-          }}
-        >
-          <label
-            onClick={() => setAssetsOpen(true)}
-            style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
-          >
-            Assets
-          </label>
-
-          <label onClick={onNew} style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
-            New
-          </label>
-
-          <label
-            onClick={onSaveToLibrary}
-            style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
-          >
-            Save
-          </label>
-
-          <label
-            onClick={() => setLibraryOpen(true)}
-            style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}
-          >
-            Worlds
-          </label>
-
-          <label style={{ padding: "15px 15px", color: "black", fontSize: 20, cursor: "pointer" }}>
-            Import
-            <input
-              type="file"
-              accept=".vox"
-              style={{ display: "none" }}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onImportVoxFile(f);
-                e.currentTarget.value = "";
-              }}
-            />
-          </label>
-        </div>
-      )}
 
       {showUI && (
         <div
           style={{
             position: "absolute",
-            top: "20px",
+            top: 20,
             left: 0,
             padding: 12,
             pointerEvents: "auto",
             zIndex: 30,
             overflow: "visible",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            alignItems: "flex-start",
           }}
         >
           <WorldToolPalette
@@ -1918,24 +1990,64 @@ export default function VoxelWorldEditor(props: {
                 const w = worldRef.current;
                 const gid = selectedGroupIdLiveRef.current;
                 if (!w || !gid || dragRef.current?.active) return;
-              
+
                 const dir: 1 | -1 = t === "rotateright" ? 1 : -1;
                 const tool = worldToolRef.current;
-              
-                let axis: "x" | "y" | "z" = "y"; 
+
+                let axis: "x" | "y" | "z" = "y";
                 if (tool === "upmovement") axis = "x";
-              
+
                 const ok = w.rotateGroup90?.(gid, axis, dir);
                 if (!ok) return;
-              
+
                 pendingGroupBoxesSyncRef.current = true;
                 pendingGlyphSpritesSyncRef.current = true;
                 pendingGlyphOutlineSyncRef.current = true;
                 requestAutosave({ reason: `rotate-group-${axis}` });
-                return;
               }
             }}
           />
+
+          <div
+            className="pix-icon"
+            onClick={toggleMarketplace}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 6,
+              background: "rgba(0, 50, 110, 0.5)",
+              color: "white",
+              fontSize: 16,
+              cursor: "pointer",
+              opacity: marketplaceOpen ? 1 : 0.7,
+              transition: "opacity 120ms ease-out",
+              userSelect: "none",
+              textAlign: "center",
+              minWidth: 90,
+              marginTop: 50,
+            }}
+          >
+            market
+          </div>
+
+          <div
+            className="pix-icon"
+            onClick={publishing ? undefined : onPublishWorld}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 6,
+              background: "rgba(0, 50, 110, 0.5)",
+              color: "white",
+              fontSize: 16,
+              cursor: publishing ? "default" : "pointer",
+              opacity: publishing ? 1 : 0.7,
+              transition: "opacity 120ms ease-out",
+              userSelect: "none",
+              textAlign: "center",
+              minWidth: 90,
+            }}
+          >
+            {publishing ? "publishing..." : "publish"}
+          </div>
         </div>
       )}
 
@@ -1943,8 +2055,8 @@ export default function VoxelWorldEditor(props: {
         <div
           style={{
             position: "absolute",
-            top: 20,
-            right: 20,
+            top: 21,
+            right: 10,
             zIndex: 30,
             display: "flex",
             alignItems: "flex-start",
@@ -2007,7 +2119,7 @@ export default function VoxelWorldEditor(props: {
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 12,
+              gap: 4,
               alignItems: "center",
             }}
           >
@@ -2017,7 +2129,7 @@ export default function VoxelWorldEditor(props: {
               alt="Assets"
               onClick={toggleAssets}
               style={{
-                height: "10vh",
+                height: "9vh",
                 width: "auto",
                 objectFit: "contain",
                 imageRendering: "pixelated",
@@ -2035,7 +2147,7 @@ export default function VoxelWorldEditor(props: {
               alt="Glyphs"
               onClick={toggleGlyphs}
               style={{
-                height: "10vh",
+                height: "8vh",
                 width: "auto",
                 objectFit: "contain",
                 imageRendering: "pixelated",
@@ -2045,48 +2157,7 @@ export default function VoxelWorldEditor(props: {
                 opacity: glyphsOpen ? 1 : 0.7,
                 transition: "opacity 120ms ease-out",
               }}
-            />
-
-            <div
-              className="pix-icon"
-              onClick={toggleMarketplace}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 6,
-                background: "rgba(0, 50, 110, 0.5)",
-                color: "white",
-                fontSize: 16,
-                cursor: "pointer",
-                opacity: marketplaceOpen ? 1 : 0.7,
-                transition: "opacity 120ms ease-out",
-                userSelect: "none",
-                textAlign: "center",
-                minWidth: 90,
-              }}
-            >
-              market
-            </div>
-
-            <div
-              className="pix-icon"
-              onClick={publishing ? undefined : onPublishWorld}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 6,
-                background: "rgba(0, 50, 110, 0.5)",
-                color: "white",
-                fontSize: 16,
-                cursor: publishing ? "default" : "pointer",
-                opacity: publishing ? 0.6 : 0.85,
-                transition: "opacity 120ms ease-out",
-                userSelect: "none",
-                textAlign: "center",
-                minWidth: 90,
-              }}
-            >
-              {publishing ? "publishing..." : "publish"}
-            </div>
-            
+            />        
           </div>
         </div>
       )}
@@ -2123,6 +2194,34 @@ export default function VoxelWorldEditor(props: {
           >
             focus mode
           </div>
+        </div>
+      )}
+
+      {placementPreview && placementPreview.thumbUrl && (
+        <div
+          style={{
+            position: "fixed",
+            left: placementPreview.x,
+            top: placementPreview.y,
+            transform: "translate(-50%, -50%)",
+            zIndex: 200,
+            pointerEvents: "none",
+            opacity: 0.3,
+          }}
+        >
+          <img
+            src={placementPreview.thumbUrl}
+            alt=""
+            draggable={false}
+            style={{
+              width: placementPreview.kind === "glyph" ? 45 : 75,
+              height: placementPreview.kind === "glyph" ? 45 : 75,
+              objectFit: "contain",
+              imageRendering: "pixelated",
+              userSelect: "none",
+              display: "block",
+            }}
+          />
         </div>
       )}
 

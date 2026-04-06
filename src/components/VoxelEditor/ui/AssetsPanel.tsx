@@ -12,7 +12,7 @@ import AssetContainer from "@/components/Home/GridContainers/AssetContainer";
 export default function AssetsPanel(props: {
   open: boolean;
   onClose: () => void;
-  onRequestPlace: (assetId: string) => void;
+  onRequestPlace: (assetId: string, client?: { x: number; y: number }) => void;
 }) {
   const { open, onClose, onRequestPlace } = props;
   const { click } = useSound();
@@ -54,9 +54,12 @@ export default function AssetsPanel(props: {
           <AssetContainer
             thumbUrl={thumbUrls.get(a.id)}
             size={size}
-            onClick={() => {
+            onClick={(e?: React.MouseEvent) => {
               click();
-              onRequestPlace(a.id);
+              onRequestPlace(
+                a.id,
+                e ? { x: e.clientX, y: e.clientY } : undefined
+              );
             }}
           />
         ),
