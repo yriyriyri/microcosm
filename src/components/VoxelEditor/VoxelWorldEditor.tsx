@@ -134,18 +134,29 @@ export default function VoxelWorldEditor(props: {
   
   const [placingLabel, setPlacingLabel] = useState<string | null>(null);
   const placingAssetRef = useRef<PendingPlacement | null>(null);
+  const placingGlyphRef = useRef<GlyphRecord | null>(null);
   
   // selection / hover helpers
   
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [hoveredGroupId, setHoveredGroupId] = useState<string | null>(null);
-  
+
   const selectedGroupIdLiveRef = useRef<string | null>(null);
   const hoveredGroupIdLiveRef = useRef<string | null>(null);
+
+  const [selectedGlyphGroupId, setSelectedGlyphGroupId] = useState<string | null>(null);
+  const [hoveredGlyphGroupId, setHoveredGlyphGroupId] = useState<string | null>(null);
+
+  const selectedGlyphGroupIdLiveRef = useRef<string | null>(null);
+  const hoveredGlyphGroupIdLiveRef = useRef<string | null>(null);
   
   const selectedBoxRef = useRef<THREE.Box3Helper | null>(null);
   const hoverBoxRef = useRef<THREE.Box3Helper | null>(null);
   const pendingGroupBoxesSyncRef = useRef(false);
+
+  const selectedGlyphOutlineRef = useRef<THREE.LineLoop | null>(null);
+  const hoverGlyphOutlineRef = useRef<THREE.LineLoop | null>(null);
+  const pendingGlyphOutlineSyncRef = useRef(false);
 
   // glyph visualization
 
@@ -186,10 +197,12 @@ export default function VoxelWorldEditor(props: {
   // derived ui flags
   
   const showUI = !focusOpen;
-  const focusCtaVisible = showUI && !!selectedGroupId;
+  const focusCtaVisible = showUI && !!selectedGroupId && !selectedGlyphGroupId;
   const focusOpenRef = useRef(focusOpen);
 
   // ref sync effects
+
+  // hover / select effects
 
   useEffect(() => {
     selectedGroupIdLiveRef.current = selectedGroupId;
@@ -198,6 +211,16 @@ export default function VoxelWorldEditor(props: {
   useEffect(() => {
     hoveredGroupIdLiveRef.current = hoveredGroupId;
   }, [hoveredGroupId]);
+
+  useEffect(() => {
+    selectedGlyphGroupIdLiveRef.current = selectedGlyphGroupId;
+  }, [selectedGlyphGroupId]);
+  
+  useEffect(() => {
+    hoveredGlyphGroupIdLiveRef.current = hoveredGlyphGroupId;
+  }, [hoveredGlyphGroupId]);
+
+  // ui effects
 
   useEffect(() => {
     focusOpenRef.current = focusOpen;
@@ -218,7 +241,7 @@ export default function VoxelWorldEditor(props: {
     if (c) c.enabled = enabled;
   }
 
-  // helper box utilities
+  // select / hover utilities
 
   function clearHelper(ref: React.MutableRefObject<THREE.Box3Helper | null>) {
     const scene = sceneRef.current;
@@ -279,6 +302,82 @@ export default function VoxelWorldEditor(props: {
     }
   }
 
+  function ensureGlyphOutline(
+    ref: React.MutableRefObject<THREE.LineLoop | null>,
+    color: number
+  ) {
+    const scene = sceneRef.current;
+    if (!scene) return null;
+    if (ref.current) return ref.current;
+  
+    const geom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-0.5, -0.5, 0),
+      new THREE.Vector3(0.5, -0.5, 0),
+      new THREE.Vector3(0.5, 0.5, 0),
+      new THREE.Vector3(-0.5, 0.5, 0),
+    ]);
+  
+    const mat = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+    });
+  
+    const line = new THREE.LineLoop(geom, mat);
+    line.renderOrder = 1300;
+    scene.add(line);
+    ref.current = line;
+    return line;
+  }
+  
+  function clearGlyphOutline(ref: React.MutableRefObject<THREE.LineLoop | null>) {
+    const scene = sceneRef.current;
+    const line = ref.current;
+    if (!scene || !line) return;
+    scene.remove(line);
+    line.geometry.dispose();
+    (line.material as THREE.Material).dispose();
+    ref.current = null;
+  }
+
+  function syncGlyphOutlineFromSprite(
+    ref: React.MutableRefObject<THREE.LineLoop | null>,
+    sprite: THREE.Sprite | null,
+    color: number
+  ) {
+    const camera = cameraRef.current;
+    if (!sprite || !camera || !sprite.visible) {
+      clearGlyphOutline(ref);
+      return;
+    }
+  
+    const line = ensureGlyphOutline(ref, color);
+    if (!line) return;
+  
+    line.position.copy(sprite.position);
+    line.quaternion.copy(camera.quaternion);
+    line.scale.set(sprite.scale.x * 1.08, sprite.scale.y * 1.08, 1);
+    line.visible = true;
+  }
+
+  function syncGlyphOutlines() {
+    const selectedGlyphId = selectedGlyphGroupIdLiveRef.current;
+    const hoveredGlyphId = hoveredGlyphGroupIdLiveRef.current;
+  
+    const selectedSprite = selectedGlyphId
+      ? glyphSpriteMapRef.current.get(selectedGlyphId) ?? null
+      : null;
+  
+    const hoveredSprite =
+      hoveredGlyphId && hoveredGlyphId !== selectedGlyphId
+        ? glyphSpriteMapRef.current.get(hoveredGlyphId) ?? null
+        : null;
+  
+    syncGlyphOutlineFromSprite(selectedGlyphOutlineRef, selectedSprite, 0xffffff);
+    syncGlyphOutlineFromSprite(hoverGlyphOutlineRef, hoveredSprite, 0x2563eb);
+  }
+
   // pointer helpers
 
   function setMouseFromEvent(e: PointerEvent) {
@@ -308,6 +407,17 @@ export default function VoxelWorldEditor(props: {
     const obj = hits[0].object as THREE.Mesh;
     const gid = (obj.userData?.groupId as string | undefined) ?? null;
     return gid;
+  }
+
+  function pickVisibleGlyphUnderMouse(): string | null {
+    const sprites = Array.from(glyphSpriteMapRef.current.values()).filter((s) => s.visible);
+    if (!sprites.length) return null;
+  
+    const hits = raycaster.intersectObjects(sprites, false);
+    if (!hits.length) return null;
+  
+    const obj = hits[0].object as THREE.Sprite;
+    return (obj.userData?.groupId as string | undefined) ?? null;
   }
 
   function rayPlaneIntersection(plane: THREE.Plane): THREE.Vector3 | null {
@@ -431,6 +541,7 @@ export default function VoxelWorldEditor(props: {
   
     pendingGroupBoxesSyncRef.current = true;
     pendingGlyphSpritesSyncRef.current = true;
+    pendingGlyphOutlineSyncRef.current = true;
   }
 
   async function onOpenFromLibrary(id: string) {
@@ -450,6 +561,7 @@ export default function VoxelWorldEditor(props: {
     hoveredGroupIdLiveRef.current = null;
     pendingGroupBoxesSyncRef.current = true;
     pendingGlyphSpritesSyncRef.current = true;
+    pendingGlyphOutlineSyncRef.current = true;
 
     const bounds = world.getAllGroupBounds();
     if (bounds.size > 0) {
@@ -580,22 +692,16 @@ export default function VoxelWorldEditor(props: {
     setAssetsOpen(false);
   }
 
-  function cancelPlaceAsset() {
-    placingAssetRef.current = null;
-    setPlacingLabel(null);
+  function beginApplyGlyph(glyph: GlyphRecord) {
+    placingGlyphRef.current = glyph;
+    setPlacingLabel(glyph.name || glyph.logicTag);
+    setGlyphsOpen(false);
   }
 
-  function applyGlyphToSelectedGroup(glyph: GlyphRecord) {
-    const w = worldRef.current;
-    const gid = selectedGroupIdLiveRef.current ?? selectedGroupId;
-    if (!w || !gid) return;
-  
-    const ok = w.setGroupLogicTag?.(gid, glyph.logicTag);
-    if (!ok) return;
-  
-    play("placeVoxel");
-    requestAutosave({ immediate: true, reason: `set-logic-tag:${glyph.logicTag}` });
-    setGlyphsOpen(false);
+  function cancelPlacementModes() {
+    placingAssetRef.current = null;
+    placingGlyphRef.current = null;
+    setPlacingLabel(null);
   }
 
   // glyph visualization
@@ -669,23 +775,27 @@ export default function VoxelWorldEditor(props: {
           material.needsUpdate = true;
         }
       }
+
+      sprite.userData.groupId = groupId;
   
       const boxWidth = bounds.max.x - bounds.min.x + 1;
       const boxHeight = bounds.max.y - bounds.min.y + 1;
       const boxDepth = bounds.max.z - bounds.min.z + 1;
       const maxSpan = Math.max(boxWidth, boxHeight, boxDepth);
-  
-      const size = Math.max(1.25, Math.min(2.5, maxSpan * 0.22));
+      
+      const baseSize = Math.max(1.25, Math.min(2.5, maxSpan * 0.22));
+      const size = baseSize * 3;
       sprite.scale.set(size, size, 1);
-  
+      
       sprite.position.set(
-        bounds.max.x + 0.85,
-        bounds.max.y + 1.1,
-        bounds.max.z + 0.85
+        bounds.max.x + 3,
+        bounds.max.y + 3,
+        bounds.min.z - 3
       );
   
       const isSelected = selectedGroupIdLiveRef.current === groupId;
-      sprite.visible = glyphsOpenRef.current || isSelected;
+      const isGlyphSelected = selectedGlyphGroupIdLiveRef.current === groupId;
+      sprite.visible = glyphsOpenRef.current || isSelected || isGlyphSelected;
     }
   
     for (const existingGroupId of Array.from(glyphSpriteMapRef.current.keys())) {
@@ -748,6 +858,7 @@ export default function VoxelWorldEditor(props: {
   
     pendingGroupBoxesSyncRef.current = true;
     pendingGlyphSpritesSyncRef.current = true;
+    pendingGlyphOutlineSyncRef.current = true;
     setImportModal(null);
     requestAutosave({ immediate: true, reason: "import-vox" });
   }
@@ -848,14 +959,15 @@ export default function VoxelWorldEditor(props: {
   useEffect(() => {
     pendingGroupBoxesSyncRef.current = true;
     pendingGlyphSpritesSyncRef.current = true;
-  }, [selectedGroupId, hoveredGroupId, focusOpen, glyphsOpen]);
+    pendingGlyphOutlineSyncRef.current = true;
+  }, [selectedGroupId, hoveredGroupId, selectedGlyphGroupId, hoveredGlyphGroupId, focusOpen, glyphsOpen]);
 
-  // transient interaction guards 
+  // transient keyboard interaction guards 
 
   useEffect(() => {
     if (!placingLabel) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cancelPlaceAsset();
+      if (e.key === "Escape") cancelPlacementModes();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -867,23 +979,47 @@ export default function VoxelWorldEditor(props: {
       if (focusOpenRef.current) return;
       if (importModal) return;
       if (placingLabel) return;
-
+  
       const el = document.activeElement as HTMLElement | null;
       const tag = el?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || (el as any)?.isContentEditable) return;
-
+  
       const w = worldRef.current;
+      if (!w) return;
+  
+      const selectedGlyphId = selectedGlyphGroupIdLiveRef.current;
+      if (selectedGlyphId) {
+        const ok = w.setGroupLogicTag?.(selectedGlyphId, null);
+        if (!ok) return;
+  
+        play("deletePart");
+  
+        selectedGlyphGroupIdLiveRef.current = null;
+        setSelectedGlyphGroupId(null);
+  
+        if (hoveredGlyphGroupIdLiveRef.current === selectedGlyphId) {
+          hoveredGlyphGroupIdLiveRef.current = null;
+          setHoveredGlyphGroupId(null);
+        }
+  
+        pendingGlyphSpritesSyncRef.current = true;
+        pendingGlyphOutlineSyncRef.current = true;
+        requestAutosave({ immediate: true, reason: "delete-glyph" });
+        e.preventDefault();
+        return;
+      }
+  
       const gid = selectedGroupIdLiveRef.current;
-      if (!w || !gid) return;
-
+      if (!gid) return;
+  
       const src = w.getGroupSource?.(gid) ?? null;
       const overrideIdToDelete = src?.overrideAssetId ?? null;
-      
+  
       const ok = w.removeGroup?.(gid);
       if (!ok) return;
-
+  
       play("deletePart");
-      
+  
       try {
         if (overrideIdToDelete) {
           await assetRepository.deleteAsset(overrideIdToDelete);
@@ -891,22 +1027,23 @@ export default function VoxelWorldEditor(props: {
       } catch (err) {
         console.error("failed to delete override asset for removed group", err);
       }
-            
+  
       selectedGroupIdLiveRef.current = null;
       setSelectedGroupId(null);
-      
+  
       if (hoveredGroupIdLiveRef.current === gid) {
         hoveredGroupIdLiveRef.current = null;
         setHoveredGroupId(null);
       }
-      
+  
       pendingGroupBoxesSyncRef.current = true;
       pendingGlyphSpritesSyncRef.current = true;
-      
+      pendingGlyphOutlineSyncRef.current = true;
+  
       requestAutosave({ immediate: true, reason: "delete-group" });
       e.preventDefault();
     };
-
+  
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [importModal, placingLabel]);
@@ -1133,6 +1270,7 @@ export default function VoxelWorldEditor(props: {
           hoveredGroupIdLiveRef.current = null;
           pendingGroupBoxesSyncRef.current = true;
           pendingGlyphSpritesSyncRef.current = true;
+          pendingGlyphOutlineSyncRef.current = true;
 
           return;
         }
@@ -1164,11 +1302,68 @@ export default function VoxelWorldEditor(props: {
 
     pendingGroupBoxesSyncRef.current = true;
     pendingGlyphSpritesSyncRef.current = true;
+    pendingGlyphOutlineSyncRef.current = true;
 
     function onPointerDown(e: PointerEvent) {
       if (focusOpenRef.current) return;
     
       updateRayFromMouse(e);
+
+      const glyphGroupId = pickVisibleGlyphUnderMouse();
+      if (glyphGroupId) {
+        selectedGlyphGroupIdLiveRef.current = glyphGroupId;
+        setSelectedGlyphGroupId(glyphGroupId);
+        pendingGlyphOutlineSyncRef.current = true;
+    
+        if (selectedGroupIdLiveRef.current !== null) {
+          selectedGroupIdLiveRef.current = null;
+          setSelectedGroupId(null);
+          pendingGroupBoxesSyncRef.current = true;
+        }
+    
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+        return;
+      }
+    
+      if (selectedGlyphGroupIdLiveRef.current !== null) {
+        selectedGlyphGroupIdLiveRef.current = null;
+        setSelectedGlyphGroupId(null);
+        pendingGlyphOutlineSyncRef.current = true;
+      }
+
+      const placingGlyph = placingGlyphRef.current;
+      if (placingGlyph && e.button === 0) {
+        const w = worldRef.current;
+        if (!w) return;
+
+        const gid = pickGroupUnderMouse();
+        if (!gid) return;
+
+        const ok = w.setGroupLogicTag?.(gid, placingGlyph.logicTag);
+        if (!ok) return;
+
+        selectedGroupIdLiveRef.current = null;
+        setSelectedGroupId(null);
+
+        selectedGlyphGroupIdLiveRef.current = gid;
+        setSelectedGlyphGroupId(gid);
+
+        pendingGroupBoxesSyncRef.current = true;
+        pendingGlyphSpritesSyncRef.current = true;
+        pendingGlyphOutlineSyncRef.current = true;
+
+        play("placeVoxel");
+        requestAutosave({ immediate: true, reason: `set-logic-tag:${placingGlyph.logicTag}` });
+
+        cancelPlacementModes();
+
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation?.();
+        return;
+      }
     
       if (placingAssetRef.current && e.button === 0) {
         const w = worldRef.current;
@@ -1204,8 +1399,9 @@ export default function VoxelWorldEditor(props: {
         requestAutosave({ reason: "place-asset" });
         pendingGroupBoxesSyncRef.current = true;
         pendingGlyphSpritesSyncRef.current = true;
+        pendingGlyphOutlineSyncRef.current = true;
     
-        cancelPlaceAsset();
+        cancelPlacementModes();
     
         e.preventDefault();
         e.stopPropagation();
@@ -1220,6 +1416,7 @@ export default function VoxelWorldEditor(props: {
         setSelectedGroupId(null);
         pendingGroupBoxesSyncRef.current = true;
         pendingGlyphSpritesSyncRef.current = true;
+        pendingGlyphOutlineSyncRef.current = true;
         return;
       }
     
@@ -1232,6 +1429,7 @@ export default function VoxelWorldEditor(props: {
       setSelectedGroupId(gid);
       pendingGroupBoxesSyncRef.current = true;
       pendingGlyphSpritesSyncRef.current = true;
+      pendingGlyphOutlineSyncRef.current = true;
     
       if (e.button !== 0) return;
     
@@ -1317,6 +1515,7 @@ export default function VoxelWorldEditor(props: {
           w.setGroupPosition(d.groupId!, next);
           pendingGroupBoxesSyncRef.current = true;
           pendingGlyphSpritesSyncRef.current = true;
+          pendingGlyphOutlineSyncRef.current = true;
           requestAutosave({ reason: "move-group-up" });
       
           e.preventDefault();
@@ -1342,6 +1541,7 @@ export default function VoxelWorldEditor(props: {
         w.setGroupPosition(d.groupId!, next);
         pendingGroupBoxesSyncRef.current = true;
         pendingGlyphSpritesSyncRef.current = true;
+        pendingGlyphOutlineSyncRef.current = true;
       
         requestAutosave({ reason: "move-group" });
         e.preventDefault();
@@ -1349,14 +1549,36 @@ export default function VoxelWorldEditor(props: {
       }
 
       updateRayFromMouse(e);
-      const gid = pickGroupUnderMouse();
 
+      const hoveredGlyphId = pickVisibleGlyphUnderMouse();
+      if (hoveredGlyphId) {
+        if (hoveredGlyphGroupIdLiveRef.current !== hoveredGlyphId) {
+          hoveredGlyphGroupIdLiveRef.current = hoveredGlyphId;
+          setHoveredGlyphGroupId(hoveredGlyphId);
+          pendingGlyphOutlineSyncRef.current = true;
+        }
+    
+        if (hoveredGroupIdLiveRef.current !== null) {
+          hoveredGroupIdLiveRef.current = null;
+          setHoveredGroupId(null);
+          pendingGroupBoxesSyncRef.current = true;
+        }
+    
+        return;
+      }
+    
+      if (hoveredGlyphGroupIdLiveRef.current !== null) {
+        hoveredGlyphGroupIdLiveRef.current = null;
+        setHoveredGlyphGroupId(null);
+        pendingGlyphOutlineSyncRef.current = true;
+      }
+    
+      const gid = pickGroupUnderMouse();
       const prev = hoveredGroupIdLiveRef.current;
       if (prev !== gid) {
         hoveredGroupIdLiveRef.current = gid;
         setHoveredGroupId(gid);
         pendingGroupBoxesSyncRef.current = true;
-        pendingGlyphSpritesSyncRef.current = true;
       }
     }
 
@@ -1373,10 +1595,14 @@ export default function VoxelWorldEditor(props: {
     }
 
     function onPointerLeave() {
+      hoveredGlyphGroupIdLiveRef.current = null;
+      setHoveredGlyphGroupId(null);
+      pendingGlyphOutlineSyncRef.current = true;
+    
       hoveredGroupIdLiveRef.current = null;
       setHoveredGroupId(null);
       pendingGroupBoxesSyncRef.current = true;
-      pendingGlyphSpritesSyncRef.current = true;
+    
       endDrag();
     }
 
@@ -1425,6 +1651,11 @@ export default function VoxelWorldEditor(props: {
         pendingGlyphSpritesSyncRef.current = false;
         syncGlyphSprites();
       }
+
+      if (pendingGlyphOutlineSyncRef.current) {
+        pendingGlyphOutlineSyncRef.current = false;
+        syncGlyphOutlines();
+      }
     
       renderer.render(scene, camera);
     };
@@ -1467,6 +1698,8 @@ export default function VoxelWorldEditor(props: {
 
       clearHelper(selectedBoxRef);
       clearHelper(hoverBoxRef);
+      clearGlyphOutline(selectedGlyphOutlineRef);
+      clearGlyphOutline(hoverGlyphOutlineRef);
 
       for (const groupId of Array.from(glyphSpriteMapRef.current.keys())) {
         removeGlyphSprite(groupId);
@@ -1676,6 +1909,7 @@ export default function VoxelWorldEditor(props: {
               
                 pendingGroupBoxesSyncRef.current = true;
                 pendingGlyphSpritesSyncRef.current = true;
+                pendingGlyphOutlineSyncRef.current = true;
                 requestAutosave({ reason: `rotate-group-${axis}` });
                 return;
               }
@@ -1732,7 +1966,7 @@ export default function VoxelWorldEditor(props: {
                   <GlyphsPanel
                     open={true}
                     onClose={() => setGlyphsOpen(false)}
-                    onRequestApplyGlyph={applyGlyphToSelectedGroup}
+                    onRequestApplyGlyph={beginApplyGlyph}
                   />
                 </div>
               )}
