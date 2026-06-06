@@ -283,6 +283,6 @@ const server = http.createServer(async (req, res) => {
   res.end(body);
 });
 
-server.listen(VOXL_API_PORT, "127.0.0.1", () => {
-  console.log(`Microcosm API listening on http://127.0.0.1:${VOXL_API_PORT}`);
+server.listen(VOXL_API_PORT, "0.0.0.0", () => {
+  console.log(`Microcosm API listening on http://0.0.0.0:${VOXL_API_PORT}`);
 });
