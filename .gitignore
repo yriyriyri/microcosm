@@ -41,3 +41,4 @@ yarn-error.log*
 next-env.d.ts
 
 data/published-worlds.json
+data/api/

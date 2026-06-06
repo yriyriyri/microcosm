@@ -1,0 +1,27 @@
+/* [project]/apps/web/src/app/eagle_ad0a9aa9.module.css [app-client] (css) */
+@font-face {
+  font-family: eagle;
+  src: url("../media/Mx437_CL_EagleII_8x16-s.p.cfed9065.woff") format("woff");
+  font-display: swap;
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: eagle Fallback;
+  src: local(Arial);
+  ascent-override: 74.15%;
+  descent-override: 17.11%;
+  line-gap-override: 0.0%;
+  size-adjust: 109.58%;
+}
+
+.eagle_ad0a9aa9-module__4MpWDW__className {
+  font-family: eagle, eagle Fallback;
+}
+
+.eagle_ad0a9aa9-module__4MpWDW__variable {
+  --font-eagle: "eagle", "eagle Fallback";
+}
+
+/*# sourceMappingURL=apps_web_src_app_eagle_ad0a9aa9_module_css_bad6b30c._.single.css.map*/

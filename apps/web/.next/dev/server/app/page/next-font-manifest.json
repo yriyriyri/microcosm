@@ -1,0 +1,10 @@
+{
+  "pages": {},
+  "app": {
+    "[project]/apps/web/src/app/page": [
+      "static/media/Mx437_CL_EagleII_8x16-s.p.cfed9065.woff"
+    ]
+  },
+  "appUsingSizeAdjust": true,
+  "pagesUsingSizeAdjust": false
+}

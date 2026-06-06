@@ -1,0 +1,8 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/editor/[worldId]/page": "/editor/[worldId]",
+  "/favicon.ico/route": "/favicon.ico",
+  "/games/[publishedWorldId]/page": "/games/[publishedWorldId]",
+  "/page": "/"
+}
