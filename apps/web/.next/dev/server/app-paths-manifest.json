@@ -1,5 +1,0 @@
-{
-  "/editor/[worldId]/page": "app/editor/[worldId]/page.js",
-  "/games/[publishedWorldId]/page": "app/games/[publishedWorldId]/page.js",
-  "/page": "app/page.js"
-}

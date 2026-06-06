@@ -1,6 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 1, "column": 0}, "map": {"version":3,"sources":["turbopack:///[project]/apps/web/src/app/eagle_ad0a9aa9.module.css"],"sourcesContent":["@font-face {\n    \nfont-family: 'eagle';\n    src: url('@vercel/turbopack-next/internal/font/local/font?{%22path%22:%22../../public/fonts/Mx437_CL_EagleII_8x16.woff%22,%22preload%22:true,%22has_size_adjust%22:true}') format('woff');\n    font-display: swap;\n    \nfont-weight: 400;\nfont-style: normal;\n}\n\n@font-face {\n    font-family: 'eagle Fallback';\n    src: local(\"Arial\");\n    ascent-override: 74.15%;\ndescent-override: 17.11%;\nline-gap-override: 0.00%;\nsize-adjust: 109.58%;\n\n}\n\n.className {\n    font-family: 'eagle', 'eagle Fallback';\n    \n}\n.variable {\n    --font-eagle: 'eagle', 'eagle Fallback';\n}\n\n"],"names":[],"mappings":"AAAA;;;;;;;;AAUA;;;;;;;;;AAUA;;;;AAIA"}}]
-}
